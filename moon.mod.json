@@ -1,6 +1,12 @@
 {
   "name": "ZSeanYves/MoonTFHE",
   "version": "0.1.0",
+  "deps": {
+    "Luna-Flow/calculus-numerical": "0.3.0-alpha-3",
+    "Luna-Flow/luna-complex": "0.1.0-alpha-3",
+    "Luna-Flow/luna-poly": "0.1.1-beta-1",
+    "Luna-Flow/quaternion": "0.1.1"
+  },
   "readme": "README.mbt.md",
   "repository": "https://github.com/ZSeanYves/MoonTFHE.git",
   "license": "Apache-2.0",
