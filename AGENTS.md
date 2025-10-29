@@ -43,7 +43,7 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
 
 - When writing tests, you are encouraged to use `inspect` and run
   `moon test --update` to update the snapshots, only use assertions like
-  `assert_eq` when you are in some loops where each snapshot may vary. You can
+  `assert_eq` when you are in some loops where each snapshot may let mut y. You can
   use `moon coverage analyze > uncovered.log` to see which parts of your code
   are not covered by tests.
 
