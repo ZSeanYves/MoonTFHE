@@ -1,5 +1,4 @@
-// 工具：整型幂（快速幂）
-///|
+///|工具：整型幂（快速幂）
 fn int_pow(base : Int, exp : Int) -> Int {
   if exp <= 0 {
     return 1
@@ -17,8 +16,7 @@ fn int_pow(base : Int, exp : Int) -> Int {
   r
 }
 
-// KSK 参数与结构 
-///|
+///|KSK 参数与结构
 pub struct KskParams {
   base_log : Int
   level : Int
@@ -33,21 +31,24 @@ pub struct KeySwitchKey {
   data : Array[LweCiphertext]
 }
 
-// 计算 KSK 中 (i, j) 的线性下标
-///|
+
+
+// TOOLS
+///|计算 KSK 中 (i, j) 的线性下标
 fn ksk_idx(i : Int, j : Int, n_in : Int) -> Int {
   i * n_in + j
 }
-
-
 ///|
 fn ksk_params_from(p0 : TfheParams) -> KskParams {
-  let a = { base_log: p0.ks_base_log, level: p0.ks_level }
+  let a:KskParams = { base_log: p0.ks_base_log, level: p0.ks_level }
   a
 }
 
+
+
+
 ///|
-fn ksk_generate(
+fn _ksk_generate(
   p0 : TfheParams,
   key_in : LweKey,
   key_out : LweKey,
@@ -89,8 +90,7 @@ fn ksk_generate(
 }
 
 
-// 直接加密“torus 常数”消息：b = <a,s> + mu + e
-///|
+///|直接加密“torus 常数”消息：b = <a,s> + mu + e
 fn lwe_encrypt_const_torus(
   key : LweKey,
   mu : Int,
@@ -110,8 +110,7 @@ fn lwe_encrypt_const_torus(
   s
 }
 
-// LSB 分解：返回 level 个以 2^{base_log} 为基的“位片”
-///|
+///|LSB 分解：返回 level 个以 2^{base_log} 为基的“位片”
 fn decompose_torus32_lsb(x : Int, base_log : Int, level : Int) -> Array[Int] {
   let b = 1 << base_log
   let mask = b - 1
@@ -124,8 +123,7 @@ fn decompose_torus32_lsb(x : Int, base_log : Int, level : Int) -> Array[Int] {
   limbs
 }
 
-// 线性算子（缩放/加/减）
-///|
+///|线性算子（缩放/加/减）
 fn lwe_ct_scale(ct : LweCiphertext, k : Int) -> LweCiphertext {
   let n = ct.a.length()
   let a2 = Array::makei(n, fn(_i) { 0 })
@@ -136,7 +134,7 @@ fn lwe_ct_scale(ct : LweCiphertext, k : Int) -> LweCiphertext {
   s
 }
 ///|
-fn lwe_ct_add(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
+fn _lwe_ct_add(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
   let n = x.a.length()
   let a2 = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
@@ -156,9 +154,8 @@ fn lwe_ct_sub(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
   s
 }
 
-// 应用 KSK：ct(s_in) → ct'(s_out)
-///|
-fn ksk_apply(
+///| 应用 KSK：ct(s_in) → ct'(s_out)
+fn _ksk_apply(
   p0 : TfheParams,
   ksk : KeySwitchKey,
   ct_in : LweCiphertext,

@@ -1,4 +1,3 @@
-// Torus Q1.31 based on Int (32-bit). 通过 Int 自然溢出实现 mod 2^32。
 // 0.5 in Q1.31，用作布尔阈值
 ///|
 const T32_HALF : Int = 0x8000_0000
@@ -20,6 +19,8 @@ fn t32_mul_k(a : Int, k : Int) -> Int {
   a * k
 }
 
+
+
 // 布尔相位编码：true -> 0，false -> 0.5
 ///|
 fn bool_to_t32(b : Bool) -> Int {
@@ -29,15 +30,17 @@ fn bool_to_t32(b : Bool) -> Int {
     T32_HALF
   }
 }
-
-// 相位阈值：小于 0.5 视为 true
-// 直接用符号位判定（非负 => [0,0.5) => true；负数 => [0.5,1) => false）
+// 布尔相位解码：（非负 => [0,0.5) => true；负数 => [0.5,1) => false）
 ///|
 fn t32_to_bool(mu : Int) -> Bool {
   mu >= 0
 }
 
-// 对称编码：true -> +mu, false -> -mu  （mu 建议取 T32_QUARTER）
+
+
+
+// 对称编码：true -> +mu, false -> -mu  
+// PS: mu 建议取 T32_QUARTER
 ///|
 fn t32_encode_bit_pm(b : Bool, mu : Int) -> Int {
   if b {
@@ -46,12 +49,15 @@ fn t32_encode_bit_pm(b : Bool, mu : Int) -> Int {
     -mu
   }
 }
-
 // 对称解码：看符号位（>=0 为 true）
 ///|
 fn t32_decode_sign(x : Int) -> Bool {
   x >= 0
 }
+
+
+
+
 
 // 将任意浮点 x 映射到 [0,1) 再编码到 Q1.31（避免 2^31 溢出/饱和）
 ///|

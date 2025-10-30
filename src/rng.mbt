@@ -1,7 +1,5 @@
 // 轻量可复现的伪随机数（SplitMix64）
-// TODO:后续可替换为系统熵或更强 DRBG。
-
-///|
+///|TODO:后续可替换为系统熵或更强 DRBG。
 pub struct CsPrng {
   mut state : UInt64
 }

@@ -20,8 +20,7 @@ fn lwe_key_new(n : Int, rng : CsPrng) -> LweKey {
   a
 }
 
-// LWE 加密（布尔消息：true->0, false->0.5）
-/// 计算 <a, s> over Torus（s_i ∈ {0,1}，选择性相加即可）
+/// LWE 加密（布尔消息：true->0, false->0.5）
 fn lwe_phase_from_a_s(a : Array[Int], s : Array[Bool]) -> Int {
   let n = a.length()
   let mut acc = 0
@@ -54,8 +53,7 @@ fn lwe_encrypt(
   s
 }
 
-// LWE 解密：相位减去 <a,s>，再阈值判定
-/// 解密得到布尔值
+///  LWE 解密：相位减去 <a,s>，再阈值判定,解密得到布尔值
 fn lwe_decrypt(key : LweKey, ct : LweCiphertext) -> Bool {
   let n = key.s.length()
   let mut mu = ct.b

@@ -1,29 +1,37 @@
-// 统一参数（先覆盖 LWE & KSK）
-///|
 pub struct TfheParams {
-  n_lwe_in : Int        // 输入 LWE 维度
-  n_lwe_out : Int       // 输出 LWE 维度
-  sigma_lwe : Float     // LWE 加密噪声
-  // Key Switching 分解参数
-  ks_base_log : Int     // B = 2^{base_log}
-  ks_level : Int        // t 个层级
-  sigma_ks : Float
-} // KSK 中用于加密的噪声
+  n_lwe_in  : Int
+  n_lwe_out : Int
+  sigma_lwe : Float
+  ks_base_log : Int
+  ks_level    : Int
+  sigma_ks    : Float
 
-/// 一个安全、训练用的小参数（跑测快）
-fn tfhe_params_small() -> TfheParams {
+  // TRLWE 环参数
+  n_trlwe : Int          // 环多项式维度 n
+  sigma_trlwe : Float    // TRLWE 噪声
+  // BSK（门密钥）参数
+  bk_base_log : Int
+  bk_level    : Int
+}
+
+/// 训练用参数
+pub fn tfhe_params_small_trlwe() -> TfheParams {
   let a = {
     n_lwe_in: 256,
     n_lwe_out: 256,
-    sigma_lwe: 3.0, // Torus 上几个 LSB
-    ks_base_log: 4, // B=16
-    ks_level: 8,    // 覆盖 32 位
+    sigma_lwe: 3.0,
+    ks_base_log: 4,
+    ks_level: 8,
     sigma_ks: 3.0,
+    n_trlwe: 512,
+    sigma_trlwe: 0.12, //已验证
+    bk_base_log: 4,
+    bk_level: 8,
   }
   a
 }
 
 /// 计算 B = 2^{base_log}
-fn ks_base(params : TfheParams) -> Int {
+fn _ks_base(params : TfheParams) -> Int {
   1 << params.ks_base_log
 }

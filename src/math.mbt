@@ -1,5 +1,5 @@
 /// 生成长度为 n 的零多项式
-fn poly_zero(n : Int) -> Array[Int] {
+fn _poly_zero(n : Int) -> Array[Int] {
   Array::makei(n, fn(_i) { 0 })
 }
 
@@ -15,7 +15,7 @@ fn poly_clone(a : Array[Int]) -> Array[Int] {
 }
 
 /// 长度
-fn poly_len(a : Array[Int]) -> Int {
+fn _poly_len(a : Array[Int]) -> Int {
   a.length()
 }
 
@@ -60,7 +60,7 @@ fn poly_sub(a : Array[Int], b : Array[Int]) -> Array[Int] {
 }
 
 /// 逐项取负
-fn poly_neg(a : Array[Int]) -> Array[Int] {
+fn _poly_neg(a : Array[Int]) -> Array[Int] {
   let n = a.length()
   let out = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
@@ -70,7 +70,7 @@ fn poly_neg(a : Array[Int]) -> Array[Int] {
 }
 
 /// 逐项加常数
-fn poly_scalar_add(a : Array[Int], c : Int) -> Array[Int] {
+fn _poly_scalar_add(a : Array[Int], c : Int) -> Array[Int] {
   let n = a.length()
   let out = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
@@ -80,7 +80,7 @@ fn poly_scalar_add(a : Array[Int], c : Int) -> Array[Int] {
 }
 
 /// 逐项乘常数
-fn poly_scalar_mul(a : Array[Int], c : Int) -> Array[Int] {
+fn _poly_scalar_mul(a : Array[Int], c : Int) -> Array[Int] {
   let n = a.length()
   let out = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
@@ -144,8 +144,7 @@ fn poly_rotate_negacyclic(a : Array[Int], k : Int) -> Array[Int] {
   out
 }
 
-// 离散高斯占位实现：CLT 近似法
-// TODO:后续可替换为CDT 离散高斯采样器
+// TODO:后续可将CLT 替换为CDT 离散高斯采样器
 /// 从 N(0, sigma^2) 的离散高斯采样一个整数噪声
 fn sample_discrete_gaussian_0sigma(rng : CsPrng, sigma : Float) -> Int {
   if sigma <= 0.0 {
@@ -166,17 +165,17 @@ fn sample_discrete_gaussian_0sigma(rng : CsPrng, sigma : Float) -> Int {
 //TODO：v0.2 做性能优化时再填充真实实现。
 /// 计划对象占位（将来可换成包含根表、bit-reverse 索引等的结构体）
 /// 预生成 NTT 计划（占位：直接返回 Unit）
-fn ntt_plan_new(_n : Int) -> Unit {
+fn _ntt_plan_new(_n : Int) -> Unit {
   ()
 }
 
 /// 原地 NTT 变换（占位：不对输入做任何修改）
-fn ntt_inplace(_plan : Unit, _a : Array[Int]) -> Unit {
+fn _ntt_inplace(_plan : Unit, _a : Array[Int]) -> Unit {
   // TODO: implement NTT in v0.2
 }
 
 /// 原地逆 NTT 变换（占位：不对输入做任何修改）
-fn intt_inplace(_plan : Unit, _a : Array[Int]) -> Unit {
+fn _intt_inplace(_plan : Unit, _a : Array[Int]) -> Unit {
   // TODO: implement inverse NTT in v0.2
 }
 

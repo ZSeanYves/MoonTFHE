@@ -1,4 +1,5 @@
-/// TLWE 参数（最小化先用 n；后续可扩充 k、q 等）
+/// TLWE 参数
+/// TODO:目前先用 n；后续可扩充 k、q 等
 pub struct TlweParams {
   n : Int
 }
@@ -18,17 +19,16 @@ pub struct TlweCiphertext {
 
 /// 生成 TLWE 秘钥（s_i ∈ {0,1}）
 fn tlwe_key_new(n : Int, rng : CsPrng) -> TlweKey {
-  let params = { n, }
+  let params:TlweParams = { n, }
   let s = Array::makei(n, fn(_i) { false })
   for i in 0..<n {
     s[i] = (next_u64(rng) & 1) == 1
   }
-  let a = { params, s }
+  let a:TlweKey = { params, s }
   a
 }
 
 // TLWE: b = a * s + e + m  （都在环 T[X]/(X^n + 1) 内）
-
 /// Bool 向多项式常数项编码（±0.25），其余为 0
 fn tlwe_encode_bit_const(n : Int, b : Bool) -> Array[Int] {
   let mu = t32_encode_bit_pm(b, T32_QUARTER)
@@ -78,12 +78,11 @@ fn tlwe_encrypt(
   let s = poly_mul_negacyclic(a, s_poly)
   let be = poly_add(s, e)
   let b = poly_add(be, m)
-  let t = { params: key.params, a, b }
+  let t:TlweCiphertext = { params: key.params, a, b }
   t
 }
 
 // TLWE 解密：mu(X) = b - a*s；常数项符号位即布尔值
-
 /// 解出整多项式
 fn tlwe_decrypt_to_poly(key : TlweKey, ct : TlweCiphertext) -> Array[Int] {
   let n = key.params.n
