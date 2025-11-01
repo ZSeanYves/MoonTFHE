@@ -8,5 +8,5 @@
   "repository": "https://github.com/ZSeanYves/MoonTFHE.git",
   "license": "Apache-2.0",
   "keywords": [],
-  "description": ""
+  "description": "MoonBit implementation of TFHE core: encryption, decryption, bootstrapping, and homomorphic gates."
 }
