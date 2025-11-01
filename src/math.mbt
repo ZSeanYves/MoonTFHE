@@ -182,6 +182,47 @@ fn _intt_inplace(_plan : Unit, _a : Array[Int]) -> Unit {
 
 
 
+// 位分解（LSB-first）与重构工具
+/// LSB 分解：把 x 分解为 level 个“基数为 2^base_log”的 limb
+fn t32_decompose_lsb(x : Int, base_log : Int, level : Int) -> Array[Int] {
+  let b = 1 << base_log
+  let mask = b - 1
+  let limbs = Array::makei(level, fn(_i) { 0 })
+  /// limbs[i] ∈ [0, 2^base_log)
+  let ux = x.reinterpret_as_uint()
+  for i in 0..<level {
+    let shift = i * base_log
+    let ui = (ux >> shift) & mask.reinterpret_as_uint()
+    limbs[i] = ui.reinterpret_as_int()
+  }
+  limbs
+}
+
+/// LSB 重构：从 limbs 重构“低 base_log*level 比特”
+fn t32_recompose_lsb(limbs : Array[Int], base_log : Int) -> Int {
+  let mut acc_u : UInt = 0
+  for i in 0..<limbs.length() {
+    let ui = limbs[i].reinterpret_as_uint()
+    let shift = i * base_log
+    acc_u = acc_u | (ui << shift)
+  }
+  acc_u.reinterpret_as_int()
+}
+
+/// 用于比较：取 x 的低 w 比特（其余位置清零）
+fn t32_low_bits(x : Int, w : Int) -> Int {
+  if w <= 0 {
+    return 0
+  }
+  if w >= 32 {
+    return x
+  } // 全部
+  let mask_u : UInt = (1 << w) - 1
+  (x.reinterpret_as_uint() & mask_u).reinterpret_as_int()
+}
+
+
+
 // 小工具
 ///|
 fn abs_f(x : Float) -> Float {
@@ -312,4 +353,51 @@ test "poly: rotate negacyclic" {
   // 乘 X^2： 1→X^2, 2X→2X^3, 3X^7→3X^9≡-3X
   let r = poly_rotate_negacyclic(a, 2)
   assert_eq(poly_eq(r, [0, -3, 1, 2, 0, 0, 0, 0]), true)
+}
+
+///|
+test "decomp: lsb roundtrip on boundaries" {
+  let cases = [
+    0x0000_0000, 0x0000_0001, 0x0000_FFFF, 0x7FFF_FFFF, 0x8000_0000, 0xFFFF_0000,
+    0xFFFF_FFFF,
+  ]
+  let base_log = 4
+  let level = 8 // 4*8 = 32 覆盖全 32bit
+  for i in 0..<cases.length() {
+    let x = cases[i]
+    let limbs = t32_decompose_lsb(x, base_log, level)
+    let y = t32_recompose_lsb(limbs, base_log)
+    assert_eq(y, x) // 覆盖全 32 位时应完全相等
+  }
+}
+
+///|
+test "decomp: lsb low-bits roundtrip (partial width)" {
+  let base_log = 3
+  let level = 5 // 3*5 = 15 bits
+  let width = base_log * level
+  let r = csprng_new(0xDEC0DE)
+  for _t in 0..<200 {
+    let x = next_u32(r)
+    let limbs = t32_decompose_lsb(x, base_log, level)
+    let y = t32_recompose_lsb(limbs, base_log)
+    // 只保证低 width 位一致
+    assert_eq(t32_low_bits(y, width), t32_low_bits(x, width))
+  }
+}
+
+///|
+test "decomp: base=2^base_log limb range" {
+  let base_log = 5
+  let level = 6
+  let r = csprng_new(0xBEEF_)
+  let b = 1 << base_log
+  for _t in 0..<50 {
+    let x = next_u32(r)
+    let limbs = t32_decompose_lsb(x, base_log, level)
+    for i in 0..<limbs.length() {
+      assert_eq(limbs[i] >= 0, true)
+      assert_eq(limbs[i] < b, true)
+    }
+  }
 }

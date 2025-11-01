@@ -46,7 +46,7 @@ fn lwe_encrypt(
   }
   let e = sample_discrete_gaussian_0sigma(rng, sigma)
 
-  // * 对称编码，留出安全边界
+  // 对称编码，留出安全边界
   let mu = t32_encode_bit_pm(m, T32_QUARTER)
   let b = lwe_phase_from_a_s(a, key.s) + mu + e
   let s = { a, b }

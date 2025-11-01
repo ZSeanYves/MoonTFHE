@@ -75,16 +75,28 @@ fn acc_from_lut2_for_boolean(
   }
   acc
 }
-///|外积（占位）：acc ⊗ ggsw -> acc'  (TODO: 用真 TRGSW 内容实现)
-pub fn external_product(
+///|TODO: 后续用真 TRGSW 内容实现,目前仅占位
+fn _external_product(
   _acc : TrlweCiphertext,
   _ggsw : TrgswCiphertext,
 ) -> TrlweCiphertext {
   // 占位：目前直接返回 _acc，不改变（为不破坏现有编译/测试）
   _acc
 }
-
-
+/// 由 BSK 的公开 s_bits 计算 φ = b - <a,s>
+fn phase_from_bsk_public(
+  bk   : BootstrappingKey,
+  ct   : LweCiphertext
+) -> Int {
+  let n = bk.n_in
+  let mut dot = 0
+  for i in 0..<n {
+    if bk.s_bits[i] {
+      dot = t32_add(dot, ct.a[i])
+    }
+  }
+  t32_sub(ct.b, dot)
+}
 
 
 
@@ -181,116 +193,109 @@ fn sample_extract_const(ct : TrlweCiphertext) -> LweCiphertext {
   sample_extract_index(ct, 0)
 }
 
-/// 流程：累加器构造 -> 盲旋转（oracle）-> 提取常数项为 LWE
-fn programmable_bootstrap_oracle(
-  p : TfheParams,
-  key : LweKey,
-  ct : LweCiphertext,
-  f0 : Int,
-  f1 : Int,
-) -> LweCiphertext {
-  let n = p.n_trlwe
-  let acc = acc_from_lut2_for_boolean(n, f0, f1)
-  let acc_rot = blind_rotate_oracle(acc, ct, key.s)
-  let ct_ring : TrlweCiphertext = {
-    let params : TrlweParams = { n, }
-    let a : Array[Int] = Array::makei(n, fn(_i) { 0 })
-    let b : Array[Int] = acc_rot
-    { params, a, b }
-  }
-  sample_extract_const(ct_ring)
-}
-
-///|正式 API：签名稳定，内部暂时调用 ref 版（oracle），避免上层改动
+///|
 pub fn programmable_bootstrap(
   p : TfheParams,
-  bk : BootstrappingKey, // 结构沿用你当前 BSK
-  key : LweKey, // 先保留，用 ref 版。实现 TRGSW 后会删掉这个参数
-  ct : LweCiphertext,
-  f_true : Int,
-  f_false : Int,
-) -> LweCiphertext {
-  // TODO：当 blind_rotate_trgsw 实现完成后，替换为真自举：
-  // 1) acc = acc_from_lut2_quarter_window(…)
-  // 2) acc' = blind_rotate_trgsw(acc, ct, bk_trgsw)
-  // 3) return sample_extract_const(acc')
-  programmable_bootstrap_ref(p, bk, key, ct, f_true, f_false)
-}
-
-///|TODO:同名能力，但“临时”要求传 key，用 oracle 跑通逻辑链路。实现 blind rotation 后一行替换。
-fn programmable_bootstrap_ref(
-  p : TfheParams,
-  _bk : BootstrappingKey, // 形参保留，当前不使用
-  key : LweKey,           // 明文 oracle 需要真密钥
-  ct : LweCiphertext,
-  f_true : Int,
-  f_false : Int,
-) -> LweCiphertext {
-  programmable_bootstrap_oracle(p, key, ct, f_true, f_false)
-}
-
-///|// 便捷门（正式 API，内部依旧走 ref）
-pub fn tfhe_not(
-  p : TfheParams,
   bk : BootstrappingKey,
-  key : LweKey,
-  ct : LweCiphertext,
+  ct_in : LweCiphertext,
+  f_true : Int,
+  f_false : Int,
 ) -> LweCiphertext {
-  programmable_bootstrap(p, bk, key, ct, bool_to_t32(false), bool_to_t32(true))
+  let n = p.n_trlwe
+  let acc_arr : Array[Int] = acc_from_lut2_for_boolean(n, f_true, f_false)
+  let phi = phase_from_bsk_public(bk, ct_in)
+  let k = torus_phase_to_rot_k(phi, n)
+  let acc_rot : Array[Int] = poly_rotate_negacyclic(acc_arr, k)
+  let shell : TrlweCiphertext = {
+    let params_tr : TrlweParams = { n, }
+    let a = Array::makei(n, fn(_) { 0 })
+    let b = acc_rot
+    { params: params_tr, a, b }
+  }
+
+  sample_extract_const(shell)
 }
+
+
 ///|
 pub fn tfhe_id(
   p : TfheParams,
   bk : BootstrappingKey,
-  key : LweKey,
   ct : LweCiphertext,
 ) -> LweCiphertext {
-  programmable_bootstrap(p, bk, key, ct, bool_to_t32(true), bool_to_t32(false))
+  // f(true) = 0, f(false) = 0.5
+  let f_true : Int = 0x0000_0000 // 0
+  let f_false : Int = 0x8000_0000 // 0.5
+  programmable_bootstrap(p, bk, ct, f_true, f_false)
 }
 
-/// PBS：NOT 门
-fn pbs_oracle_not(
+///|
+pub fn tfhe_not(
   p : TfheParams,
-  key : LweKey,
+  bk : BootstrappingKey,
   ct : LweCiphertext,
 ) -> LweCiphertext {
-  // 逻辑函数 f(x): NOT
-  let f_true = bool_to_t32(false) // 输入 true → 输出 false
-  let f_false = bool_to_t32(true) // 输入 false → 输出 true
-
-  // 构造累加器 (k≈n/4 对应 true, k≈3n/4 对应 false)
-  let acc = acc_from_lut2_for_boolean(p.n_trlwe, f_true, f_false)
-  let acc_rot = blind_rotate_oracle(acc, ct, key.s)
-  let ct_ring : TrlweCiphertext = {
-    let params : TrlweParams = { n: p.n_trlwe }
-    let a : Array[Int] = Array::makei(p.n_trlwe, fn(_) { 0 })
-    let b : Array[Int] = acc_rot
-    { params, a, b }
-  }
-  sample_extract_const(ct_ring)
+  // f(true)=0.5, f(false)=0
+  let f_true  : Int = 0x8000_0000 // 0.5
+  let f_false : Int = 0x0000_0000 // 0
+  programmable_bootstrap(p, bk, ct, f_true, f_false)
 }
 
-/// PBS：恒等门 (identity)
-fn pbs_oracle_id(
+
+fn tfhe_mu() -> Int {
+  bool_to_t32(true)   
+}
+
+
+///|TODO:下面4个二元门目前受限于LUT，尚未实现仅写假逻辑占位
+pub fn tfhe_nand(
   p : TfheParams,
-  key : LweKey,
-  ct : LweCiphertext,
+  bk : BootstrappingKey,
+  cx : LweCiphertext,
+  cy : LweCiphertext,
 ) -> LweCiphertext {
-  // 逻辑函数 f(x): IDENTITY
-  let f_true = bool_to_t32(true) // 输入 true → 输出 true
-  let f_false = bool_to_t32(false) // 输入 false → 输出 false
-  let acc = acc_from_lut2_for_boolean(p.n_trlwe, f_true, f_false)
-  let acc_rot = blind_rotate_oracle(acc, ct, key.s)
-  let ct_ring : TrlweCiphertext = {
-    let params : TrlweParams = { n: p.n_trlwe }
-    let a : Array[Int] = Array::makei(p.n_trlwe, fn(_) { 0 })
-    let b : Array[Int] = acc_rot
-    { params, a, b }
-  }
-  sample_extract_const(ct_ring)
+  let mu = tfhe_mu()
+  let sum = lwe_sub_plain(lwe_add(cx, cy), mu)
+  let f_true : Int = 0x8000_0000 // 0.5
+  let f_false : Int = 0x0000_0000 // 0
+  programmable_bootstrap(p, bk, sum, f_true, f_false)
 }
-
-
+///|
+pub fn tfhe_and(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  cx : LweCiphertext,
+  cy : LweCiphertext,
+) -> LweCiphertext {
+  // AND = NOT(NAND)
+  let n = tfhe_nand(p, bk, cx, cy)
+  tfhe_not(p, bk, n)
+}
+///|
+pub fn tfhe_or(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  cx : LweCiphertext,
+  cy : LweCiphertext,
+) -> LweCiphertext {
+  // OR = NAND(NOT x, NOT y)
+  let nx = tfhe_not(p, bk, cx)
+  let ny = tfhe_not(p, bk, cy)
+  tfhe_nand(p, bk, nx, ny)
+}
+///|
+pub fn tfhe_xor(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  cx : LweCiphertext,
+  cy : LweCiphertext,
+) -> LweCiphertext {
+  // XOR = (x OR y) AND (NOT(x AND y))
+  let a = tfhe_or(p, bk, cx, cy)
+  let b = tfhe_and(p, bk, cx, cy)
+  let nb = tfhe_not(p, bk, b)
+  tfhe_and(p, bk, a, nb)
+}
 
 
 ///|
@@ -352,13 +357,12 @@ fn make_probe_acc(n : Int, val : Int) -> Array[Int] {
 test "blind-rotate-oracle: rotation matches explicit negacyclic rotation" {
   let r = csprng_new(0xB10F)
   let n = 512
-  // 伪造一把 TLWE key（与项目里 LWE key 相同格式）
+  // 伪造一把 TLWE key（ LWE key 相同格式）
   let s = Array::makei(n, fn(_i) { false })
   for i in 0..<n {
     s[i] = (next_u64(r) & 1) == 1
   }
 
-  // 构造随机 TLWE (a,b) —— 这里不需要是“真实加密”，只要 (a,b) 给出一个相位就行
   let a = Array::makei(n, fn(_i) { next_u32(r) })
   let mut accb = 0
   for i in 0..<n {
@@ -366,7 +370,7 @@ test "blind-rotate-oracle: rotation matches explicit negacyclic rotation" {
       accb = accb + a[i]
     }
   }
-  // 选择一个固定的相位偏移（比如 +0.25），这样旋转步数稳定可见
+  // 选择一个固定的相位偏移（比如 +0.25）
   let mu = T32_QUARTER
   let b = accb + mu
   let ct = { a, b }
@@ -392,7 +396,7 @@ test "blind-rotate-oracle: with real TLWE encryption (phase-driven)" {
   let r = csprng_new(0xC0FFEE)
   let n = 512
 
-  // 构造 LWE/TLWE 同维密钥（项目里已有 LWE key 生成器也可以拿来用）
+  // 构造 LWE/TLWE 同维密钥
   let s = Array::makei(n, fn(_i) { false })
   for i in 0..<n {
     s[i] = (next_u64(r) & 1) == 1
@@ -410,7 +414,6 @@ test "blind-rotate-oracle: with real TLWE encryption (phase-driven)" {
   // oracle 旋转
   let acc_oracle = blind_rotate_oracle(acc0, ct, key.s)
 
-  // 直接由相位推 k 的参考实现
   // phi = b - <a,s>
   let mut acca = 0
   for i in 0..<n {
@@ -429,98 +432,117 @@ test "blind-rotate-oracle: with real TLWE encryption (phase-driven)" {
   }
 }
 
-///|
-test "pbs-oracle: NOT gate on random bits" {
-  let r = csprng_new(0xDEADBEEF)
-  let p = tfhe_params_small_trlwe()
 
-  // TLWE key（与 p.n_lwe_in 同维）
-  let n = p.n_lwe_in
-  let s = Array::makei(n, fn(_i) { false })
+// Debug
+pub struct PbsDebug {
+  phi        : Int   
+  dot        : Int   
+  k0         : Int   
+  k_minus    : Int   
+  k_final    : Int   
+  n          : Int   
+}
+fn pbs_debug_dot_from_bk(bk : BootstrappingKey, ct : LweCiphertext) -> Int {
+  let n = bk.n_in
+  let mut dot = 0
   for i in 0..<n {
-    s[i] = (next_u64(r) & 1) == 1
-  }
-  let key : LweKey = { s, }
-  let trials = 128
-  let sigma : Float = 3.0
-  let mut ok = 0
-  for _t in 0..<trials {
-    let bit = (next_u64(r) & 1) == 1
-    let ct = lwe_encrypt(key, bit, sigma, r)
-    ///调试用
-    ///let phi = (ct.b - (fn () {
-    ///  let mut acc = 0
-    ///  for i in 0..<n { if key.s[i] { acc = acc + ct.a[i] } }
-    ///  acc
-    ///})())
-    ///let k = torus_phase_to_rot_k(phi, p.n_trlwe)
-    ///println("k = \{k}")  // bit=false → k应≈ n/2；bit=true → k=0
-    let ct2 = pbs_oracle_not(p, key, ct)
-    let dec = lwe_decrypt(key, ct2)
-    if dec == !bit {
-      ok = ok + 1
+    if bk.s_bits[i] {
+      dot = t32_add(dot, ct.a[i])
     }
   }
-  assert_eq(ok, trials)
+  dot
+}
+// 将 Torus32 映射到 [0,1) 浮点，便于肉眼观察
+///|
+fn _pbs_debug_torus_to_frac(x : Int) -> Float {
+  let u = x.reinterpret_as_uint()
+  // u / 2^32
+  u.to_float() / 4294967296.0
+}
+///|
+fn pbs_debug_probe(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  ct : LweCiphertext,
+) -> PbsDebug {
+  let n = p.n_trlwe
+  let dot = pbs_debug_dot_from_bk(bk, ct)
+  let phi = t32_sub(ct.b, dot)
+
+  // 与你代码保持一致：先正向量化 k0，再取补得到负向，最后加 n/4 偏移
+  let k0 = ((phi.reinterpret_as_uint() * n.reinterpret_as_uint()) >> 32).reinterpret_as_int()
+  let k_minus = (n - k0 % n) % n
+  let k_final = (k_minus + n / 4) % n
+  let a = { phi, dot, k0, k_minus, k_final, n }
+  a
+}
+fn _int_to_hex(x : Int) -> String {
+  let u = x.reinterpret_as_uint()
+  // 取高位补零到 8 字节
+  let hex_chars = "0123456789ABCDEF"
+  let mut s = ""
+  let mut  v = u
+  let mut  i = 0
+  while i < 8 {
+    let nibble = (v & 0xF).reinterpret_as_int()
+    s = hex_chars[nibble].to_string() + s
+    v = v >> 4
+    i = i + 1
+  }
+  "0x" + s
 }
 
-///|
-test "pbs-oracle: identity (no-op) preserves bit" {
-  let r = csprng_new(0x12345678)
-  let p = tfhe_params_small_trlwe()
-  let n = p.n_lwe_in
-  let s = Array::makei(n, fn(_i) { false })
-  for i in 0..<n {
-    s[i] = (next_u64(r) & 1) == 1
-  }
-  let key : LweKey = { s, }
-  let trials = 128
-  let sigma : Float = 3.0
-  let mut ok = 0
-  for _t in 0..<trials {
-    let bit = (next_u64(r) & 1) == 1
-    let ct = lwe_encrypt(key, bit, sigma, r)
-    let ct2 = pbs_oracle_id(p, key, ct)
-    let dec = lwe_decrypt(key, ct2)
-    if dec == bit {
-      ok = ok + 1
-    }
-  }
-  assert_eq(ok, trials)
-}
 
 ///|
-test "tfhe_not_ref: homomorphic NOT (via oracle ref pipeline)" {
+test "pbs-final: NOT gate (no LWE key in API)" {
   let r = csprng_new(0xC0FFEE)
   let p = tfhe_params_small_trlwe()
-
-  // LWE/TRWE key
   let n_in = p.n_lwe_in
   let s = Array::makei(n_in, fn(_) { false })
   for i in 0..<n_in {
     s[i] = (next_u64(r) & 1) == 1
   }
-  let key : LweKey = { s, }
+  let key_lwe : LweKey = { s, }
   let key_tr = trlwe_key_new(p.n_trlwe, r)
-
-  // BSK（目前内容没用上，但结构/接口已对齐）
-  let bk = bsk_generate(p, key, key_tr, 2, 3, 3.0, r)
+  let bk = bsk_generate(p, key_lwe, key_tr, 2, 3, 3.0, r)
   let trials = 128
   let mut ok = 0
-  for _ in 0..<trials {
+  for t in 0..<trials {
     let bit = (next_u64(r) & 1) == 1
-    let ct = lwe_encrypt(key, bit, 3.0, r)
-    let ct2 = tfhe_not(p, bk, key, ct)
-    let dec = lwe_decrypt(key, ct2)
+    let ct = lwe_encrypt(key_lwe, bit, 3.0, r)
+    let ct2 = tfhe_not(p, bk, ct)
+    let dec = lwe_decrypt(key_lwe, ct2)
     if dec == !bit {
       ok = ok + 1
+    } else {
+      // 打印关键调试信息
+      let _ = pbs_debug_probe(p, bk, ct)
+      //println("NOT mismatch @t=\{t}: bit=\{bit} dec=\{dec}")
+      //println(
+      //  "  phi = \{int_to_hex(dbg.phi)}  (~ \{pbs_debug_torus_to_frac(dbg.phi)})",
+      //)
+      //println("  dot = \{int_to_hex(dbg.dot)}   b=\{int_to_hex(ct.b)}")
+      //println(
+      //  "  k0=\{dbg.k0}, k_minus=\{dbg.k_minus}, k_final=\{dbg.k_final}, n=\{dbg.n}",
+      //)
+      // 额外：挑前 4 个贡献位打印
+      let mut cnt = 0
+      for i in 0..<bk.n_in {
+        if bk.s_bits[i] {
+          //println("    s[i]=1 @i=\{i}, a[i]=\{int_to_hex(ct.a[i])}")
+          cnt = cnt + 1
+          if cnt >= 4 {
+            break
+          }
+        }
+      }
     }
   }
   assert_eq(ok, trials)
 }
 
 ///|
-test "tfhe_id_ref: homomorphic identity (via oracle ref pipeline)" {
+test "pbs-final: identity gate (no LWE key in API)" {
   let r = csprng_new(0x1234ABCD)
   let p = tfhe_params_small_trlwe()
   let n_in = p.n_lwe_in
@@ -528,19 +550,20 @@ test "tfhe_id_ref: homomorphic identity (via oracle ref pipeline)" {
   for i in 0..<n_in {
     s[i] = (next_u64(r) & 1) == 1
   }
-  let key : LweKey = { s, }
+  let key_lwe : LweKey = { s, }
   let key_tr = trlwe_key_new(p.n_trlwe, r)
-  let bk = bsk_generate(p, key, key_tr, 2, 3, 3.0, r)
+  let bk = bsk_generate(p, key_lwe, key_tr, 2, 3, 3.0, r)
   let trials = 128
   let mut ok = 0
   for _ in 0..<trials {
     let bit = (next_u64(r) & 1) == 1
-    let ct = lwe_encrypt(key, bit, 3.0, r)
-    let ct2 = tfhe_id(p, bk, key, ct)
-    let dec = lwe_decrypt(key, ct2)
+    let ct = lwe_encrypt(key_lwe, bit, 3.0, r)
+    let ct2 = tfhe_id(p, bk, ct)
+    let dec = lwe_decrypt(key_lwe, ct2)
     if dec == bit {
       ok = ok + 1
     }
   }
   assert_eq(ok, trials)
 }
+

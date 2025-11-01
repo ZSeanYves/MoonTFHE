@@ -7,22 +7,21 @@ pub struct BskParams {
 ///|
 pub struct BootstrappingKey {
   params : BskParams
-  n_in : Int                    // LWE 输入维度
-  n_trlwe : Int                 // 环多项式长度
-  data : Array[TrlweCiphertext] // 扁平长度 = level * n_in
+  n_in : Int
+  n_trlwe : Int
+  data : Array[TrlweCiphertext] // 扁平：level * n_in
+  s_bits : Array[Bool]          // ★ Dev-only：公开的 s[i]
 }
 
-// 线性下标
-///|
+///|线性下标计算：bsk.data[l * n_in + i]
 fn bsk_idx(l : Int, i : Int, n_in : Int) -> Int {
   l * n_in + i
 }
 
 
-// 生成：占位实现（内容为 s[i] 的布尔常数多项式）
-// TODO:后续替换为 TRGSW 外积所需的条目即可，无需改上层接口
+// TODO:后续替换为 TRGSW 外积，目前仅占位
 /// 构造“常数多项式” m(X) ：m[0] = mu，其余 0
-fn const_poly(n : Int, mu : Int) -> Array[Int] {
+fn _const_poly(n : Int, mu : Int) -> Array[Int] {
   let m = Array::makei(n, fn(_i) { 0 })
   if n > 0 {
     m[0] = mu
@@ -30,10 +29,8 @@ fn const_poly(n : Int, mu : Int) -> Array[Int] {
   m
 }
 
-/// 生成 Bootstrapping Key（占位）：
-/// 为每个 (level, i) 生成一条 TRLWE 密文，加密的是 s[i] 的布尔常数（±0.25）
-/// base_log/level 仅存入元信息，后续接 TRGSW/外积时直接复用该结构
-fn bsk_generate(
+///|
+pub fn bsk_generate(
   p : TfheParams,
   key_lwe : LweKey,
   key_trlwe : TrlweKey,
@@ -46,9 +43,8 @@ fn bsk_generate(
   let n_in = p.n_lwe_in
   let n = p.n_trlwe
   let cells = level * n_in
-  let data : Array[TrlweCiphertext] = Array::makei(cells, fn(_) {
+  let data : Array[TrlweCiphertext] = Array::makei(cells, fn(_i) {
     let params : TrlweParams = { n, }
-    // 预置空壳，保证可写
     let a = Array::makei(n, fn(_) { 0 })
     let b = Array::makei(n, fn(_) { 0 })
     { params, a, b }
@@ -56,19 +52,27 @@ fn bsk_generate(
   for l in 0..<level {
     for i in 0..<n_in {
       let bit = key_lwe.s[i]
-      let mu = if bit {
-        T32_QUARTER
-      } else {
-        t32_add(T32_HALF, T32_QUARTER) // = 0.75
+      let mu = if bit { T32_QUARTER } else { t32_add(T32_HALF, T32_QUARTER) }
+      let m = {
+        let mm = Array::makei(n, fn(_) { 0 })
+        mm[0] = mu
+        mm
       }
-      let m = const_poly(n, mu)
       let ct = trlwe_encrypt(key_trlwe, m, sigma, rng)
       data[bsk_idx(l, i, n_in)] = ct
     }
   }
-  { params: bp, n_in, n_trlwe: n, data }
-}
 
+  // 开发态：公开保存 s[i]，用于无密钥 PBS
+  let s_bits = {
+    let arr = Array::makei(n_in, fn(_) { false })
+    for i in 0..<n_in {
+      arr[i] = key_lwe.s[i]
+    }
+    arr
+  }
+  { params: bp, n_in, n_trlwe: n, data, s_bits }
+}
 
 
 ///|

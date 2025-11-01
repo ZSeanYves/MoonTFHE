@@ -16,6 +16,28 @@ pub struct TlweCiphertext {
   a : Array[Int]
   b : Array[Int]
 }
+///TLWE 线性算子
+fn lwe_add(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
+  let n = x.a.length()
+  let a = Array::makei(n, fn(i){ t32_add(x.a[i], y.a[i]) })
+  let b = t32_add(x.b, y.b)
+  { a, b }
+}
+///|
+fn _lwe_sub(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
+  let n = x.a.length()
+  let a = Array::makei(n, fn(i) { t32_sub(x.a[i], y.a[i]) })
+  let b = t32_sub(x.b, y.b)
+  { a, b }
+}
+///|
+fn _lwe_add_plain(x : LweCiphertext, c : Int) -> LweCiphertext {
+  { a: x.a, b: t32_add(x.b, c) }
+}
+///|
+fn lwe_sub_plain(x : LweCiphertext, c : Int) -> LweCiphertext {
+  { a: x.a, b: t32_sub(x.b, c) }
+}
 
 /// 生成 TLWE 秘钥（s_i ∈ {0,1}）
 fn tlwe_key_new(n : Int, rng : CsPrng) -> TlweKey {
