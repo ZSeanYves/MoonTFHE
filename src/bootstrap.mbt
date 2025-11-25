@@ -75,14 +75,7 @@ fn acc_from_lut2_for_boolean(
   }
   acc
 }
-///|TODO: 后续用真 TRGSW 内容实现,目前仅占位
-fn _external_product(
-  _acc : TrlweCiphertext,
-  _ggsw : TrgswCiphertext,
-) -> TrlweCiphertext {
-  // 占位：目前直接返回 _acc，不改变（为不破坏现有编译/测试）
-  _acc
-}
+
 /// 由 BSK 的公开 s_bits 计算 φ = b - <a,s>
 fn phase_from_bsk_public(
   bk   : BootstrappingKey,
@@ -139,19 +132,32 @@ fn blind_rotate_oracle(
   // 负循环旋转：与 poly_rotate_negacyclic 方向一致（X^n = -1）
   poly_rotate_negacyclic(acc, k)
 }
-///|TRGSW 版盲旋转（骨架）：acc ← acc ⊗ Π_i GGSW(a_i)，以及根据 b 做常数旋转
-fn _blind_rotate_trgsw(
+///|
+fn blind_rotate_trgsw(
   acc_init : TrlweCiphertext,
-  _ct_in : LweCiphertext,
-  _bsk_trgsw : Array[TrgswCiphertext], // 预期形状：level*n_in 或 2*level*n_in
+  ct_in : LweCiphertext,
+  bsk_trgsw : Array[TrgswCiphertext],
 ) -> TrlweCiphertext {
-  // TODO: 这里实现：
-  // 1) a_i 的基-B 分解
-  // 2) 依次对 acc 应用 external_product(acc, BSK[i][ell])，相当于旋转
-  // 3) 用 b 的分解做常数旋转
-  // 现在先返回 acc_init，保持占位不影响编译和现有测试
-  acc_init
+  let n = acc_init.params.n
+  let n_in = ct_in.a.length()
+  let level = bsk_trgsw.length() / n_in
+  let mut acc = acc_init
+  for i in 0..<n_in {
+    let ai = ct_in.a[i]
+    let digits = gadget_decompose(ai, 3, level) // TODO: 可参数化
+    for j in 0..<level {
+      let idx = i * level + j
+      let g = bsk_trgsw[idx].data[j]
+      let scaled = trlwe_scalar_mul(g, digits[j])
+      acc = _trlwe_ct_add(acc, scaled)
+    }
+  }
+  let k = torus_phase_to_rot_k(ct_in.b, n)
+  let _ = poly_rotate_negacyclic(acc.a, k)
+  let _ = poly_rotate_negacyclic(acc.b, k)
+  acc
 }
+
 
 /// 从 TRLWE 提取为 LWE：提取第 k 个系数
 fn sample_extract_index(ct : TrlweCiphertext, k : Int) -> LweCiphertext {
@@ -203,17 +209,15 @@ pub fn programmable_bootstrap(
 ) -> LweCiphertext {
   let n = p.n_trlwe
   let acc_arr : Array[Int] = acc_from_lut2_for_boolean(n, f_true, f_false)
-  let phi = phase_from_bsk_public(bk, ct_in)
-  let k = torus_phase_to_rot_k(phi, n)
-  let acc_rot : Array[Int] = poly_rotate_negacyclic(acc_arr, k)
-  let shell : TrlweCiphertext = {
-    let params_tr : TrlweParams = { n, }
-    let a = Array::makei(n, fn(_) { 0 })
-    let b = acc_rot
-    { params: params_tr, a, b }
-  }
+  let params_tr : TrlweParams = { n, }
+  let a = Array::makei(n, fn(_) { 0 })
+  let b = acc_arr
+  let acc_init : TrlweCiphertext = { params: params_tr, a, b }
+  let bsk_trgsw = bsk_to_trgsw_array(bk)
+  let acc_final = blind_rotate_trgsw(acc_init, ct_in, bsk_trgsw)
 
-  sample_extract_const(shell)
+
+  sample_extract_const(acc_final)
 }
 
 

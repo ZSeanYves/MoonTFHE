@@ -13,6 +13,22 @@ pub struct BootstrappingKey {
   s_bits : Array[Bool]          // ★ Dev-only：公开的 s[i]
 }
 
+
+/// 将 BootstrappingKey 的参数信息转换为 TrgswParams
+pub fn bsk_to_trgsw_params(bsk : BootstrappingKey) -> TrgswParams {
+  { base_log: bsk.params.base_log, level: bsk.params.level, n: bsk.n_trlwe }
+}
+
+///|
+pub fn bsk_to_trgsw_array(bsk : BootstrappingKey) -> Array[TrgswCiphertext] {
+  let level = bsk.params.level
+  let n_in = bsk.n_in
+  let trgsw_params = bsk_to_trgsw_params(bsk)
+  Array::makei(n_in, fn(i) {
+    let block = Array::makei(level, fn(j) { bsk.data[bsk_idx(j, i, n_in)] })
+    { params: trgsw_params, data: block }
+  })
+}
 ///|线性下标计算：bsk.data[l * n_in + i]
 fn bsk_idx(l : Int, i : Int, n_in : Int) -> Int {
   l * n_in + i
