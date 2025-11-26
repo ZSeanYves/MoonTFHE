@@ -12,31 +12,6 @@ pub struct TrgswCiphertext {
   data : Array[TrlweCiphertext]
 }
 
-fn external_product(
-  g : TrgswCiphertext, 
-  v : TrlweCiphertext,
-  digits : Array[Int],
-) -> TrlweCiphertext {
-  let params = v.params
-  let _ = params.n
-  let level = g.params.level
-
-  // out = v (恒等项)
-  let mut out = v
-
-  // 累加 Σ digits[l] * Enc(s_i * g_l)
-  for l in 0..<level {
-    let d = digits[l]
-    if d == 0 { continue }
-    // g.data[l] 加密的是 (s_i * g_l)
-    let gl_ct = g.data[l]
-    let scaled = trlwe_scalar_mul(gl_ct, d)
-    out = trlwe_ct_add(out, scaled)
-  }
-  out
-}
-
-
 
 ///|
 fn gadget_decompose(value : Int, base_log : Int, level : Int) -> Array[Int] {
@@ -55,7 +30,7 @@ fn _trlwe_zero(params : TrlweParams) -> TrlweCiphertext {
 }
 
 /// TRLWE × 整数（逐系数乘），保留 torus 效应
-fn trlwe_scalar_mul(ct : TrlweCiphertext, k : Int) -> TrlweCiphertext {
+fn _trlwe_scalar_mul(ct : TrlweCiphertext, k : Int) -> TrlweCiphertext {
   let n = ct.params.n
   let a2 = Array::makei(n, fn(i) { t32_mul(ct.a[i], k) })
   let b2 = Array::makei(n, fn(i) { t32_mul(ct.b[i], k) })

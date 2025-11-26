@@ -13,12 +13,12 @@ pub struct TrlweKey {
 pub struct TrlweCiphertext {
   params : TrlweParams
   a : Array[Int]
-  mut b : Array[Int]
+  b : Array[Int]
 }
 
 
 ///| TRLWE 线性算子
-fn trlwe_ct_add(
+fn _trlwe_ct_add(
   x : TrlweCiphertext,
   y : TrlweCiphertext,
 ) -> TrlweCiphertext {

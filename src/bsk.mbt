@@ -21,8 +21,10 @@ fn _bsk_to_trgsw_array(bk : BootstrappingKey) -> Array[TrgswCiphertext] {
   let n = bk.n_trlwe
   let n_in = bk.n_in
   let params_trgsw : TrgswParams = { base_log, level, n }
-  let out = Array::makei(n_in, fn(i) {
-    let data = Array::makei(level, fn(l) { bk.data[bsk_idx(l, i, n_in)] })
+  let out : Array[TrgswCiphertext] = Array::makei(n_in, fn(i) {
+    let data : Array[TrlweCiphertext] = Array::makei(level, fn(l) {
+      bk.data[bsk_idx(l, i, n_in)]
+    })
     { params: params_trgsw, data }
   })
   out
