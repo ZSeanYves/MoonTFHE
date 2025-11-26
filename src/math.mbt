@@ -129,16 +129,24 @@ fn poly_mul_negacyclic(a : Array[Int], b : Array[Int]) -> Array[Int] {
 /// 旋转：a * X^k mod (X^n + 1)
 fn poly_rotate_negacyclic(a : Array[Int], k : Int) -> Array[Int] {
   let n = a.length()
-  if n == 0 { return a }
-  let kk = ((k % n) + n) % n
-  if kk == 0 { return poly_clone(a) }
+  if n == 0 {
+    return a
+  }
+  let kk = (k % n + n) % n
+  if kk == 0 {
+    return poly_clone(a)
+  }
   let out = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
     let coeff = a[i]
-    if coeff == 0 { continue }
+    if coeff == 0 {
+      continue
+    }
     let dest = i + kk
-    if dest < n { out[dest] = out[dest] + coeff } else {
-      out[dest - n] = out[dest - n] - coeff  // 折返取反
+    if dest < n {
+      out[dest] = out[dest] + coeff
+    } else {
+      out[dest - n] = out[dest - n] - coeff // 折返取反
     }
   }
   out

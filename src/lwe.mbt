@@ -66,6 +66,47 @@ fn lwe_decrypt(key : LweKey, ct : LweCiphertext) -> Bool {
   t32_decode_sign(mu)
 }
 
+/// 从 TRLWE 提取为 LWE：提取第 k 个系数
+fn sample_extract_index(ct : TrlweCiphertext, k : Int) -> LweCiphertext {
+  let n = ct.a.length()
+  if k < 0 || k >= n {
+    panic()
+  }
+
+  // a' 向量
+  let a = Array::makei(n, fn(_i) { 0 })
+  for i in 0..<n {
+    let t = k - i
+    if t >= 0 {
+      a[i] = ct.a[t]
+    } else {
+      // 折返取反：X^n = -1
+      a[i] = -ct.a[t + n]
+    }
+  }
+  // b' = b[k]
+  let b = ct.b[k]
+  let s = { a, b }
+  s
+}
+
+/// 将 TRLWE 的 {0,1} 多项式密钥转换为同维度 LWE 密钥（逐系数）
+fn lwe_key_from_trlwe_key(k_tr : TrlweKey) -> LweKey {
+  let n = k_tr.params.n
+  let s = Array::makei(n, fn(_i) { false })
+  for i in 0..<n {
+    s[i] = k_tr.s[i]
+  }
+  let a = { s, }
+  a
+}
+
+/// 专门提取常数项（k = 0），做一个便捷封装
+fn sample_extract_const(ct : TrlweCiphertext) -> LweCiphertext {
+  sample_extract_index(ct, 0)
+}
+
+
 ///|
 test "lwe: encrypt/decrypt roundtrip (n=512, 400 trials)" {
   let rng = csprng_new(123456789)

@@ -128,6 +128,26 @@ fn tlwe_decrypt_bit0(key : TlweKey, ct : TlweCiphertext) -> Bool {
   t32_decode_sign(mu[0])
 }
 
+/// 把 TLWE 相位（torus 32 位）映射到环 Z[X]/(X^n+1) 的“旋转步数”k：
+fn torus_phase_to_rot_k(t : Int, n : Int) -> Int {
+  let l = log2_pow2(n)
+  let shift = 32 - l
+  // 以无符号视角右移，得到 [0, n) 的整步
+  let ku = (t.reinterpret_as_uint() >> shift) & (n.reinterpret_as_uint() - 1)
+  ku.reinterpret_as_int()
+}
+
+/// 计算 TLWE 相位 phi = b - <a, s>  
+fn _tlwe_phase(a : Array[Int], b : Int, s : Array[Bool]) -> Int {
+  let n = a.length()
+  let mut acc = 0
+  for i in 0..<n {
+    if s[i] {
+      acc = acc + a[i]
+    }
+  }
+  b - acc
+}
 ///|
 test "tlwe: encrypt/decrypt roundtrip (n=512, 200 trials)" {
   let rng = csprng_new(20241028)

@@ -36,6 +36,14 @@ fn t32_to_bool(mu : Int) -> Bool {
   mu >= 0
 }
 
+/// 模拟 Q1.31 * Q1.31 → Q1.31 的乘法，使用 64-bit 中间变量但不依赖 U64 类型
+fn t32_mul(a : Int, b : Int) -> Int {
+  let a64 = a.to_float()
+  let b64 = b.to_float()
+  let prod = a64 * b64 / 4294967296.0 // 等效于右移 32 位
+  prod.to_int()
+}
+
 
 
 
@@ -129,4 +137,11 @@ test "torus: scalar mul (small k) wraps as expected" {
   let q = 0x4000_0000   // 0.25
   assert_eq(t32_mul_k(q, 2), 0x8000_0000)   // 0.5
   assert_eq(t32_mul_k(q, 4), 0x0000_0000)   // 1.0 -> 0 mod 1
+}
+
+test "torus: t32_mul basic wrap" {
+  let x = T32_HALF   // 0.5
+  let y = T32_HALF   // 0.5
+  let z = t32_mul(x, y)  // Expect ≈ 0.25 → 0x4000_0000
+  assert_eq(z, T32_QUARTER)
 }

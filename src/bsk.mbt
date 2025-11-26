@@ -14,26 +14,36 @@ pub struct BootstrappingKey {
 }
 
 
-/// 将 BootstrappingKey 的参数信息转换为 TrgswParams
-pub fn bsk_to_trgsw_params(bsk : BootstrappingKey) -> TrgswParams {
-  { base_log: bsk.params.base_log, level: bsk.params.level, n: bsk.n_trlwe }
+///|
+fn _bsk_to_trgsw_array(bk : BootstrappingKey) -> Array[TrgswCiphertext] {
+  let base_log = bk.params.base_log
+  let level = bk.params.level
+  let n = bk.n_trlwe
+  let n_in = bk.n_in
+  let params_trgsw : TrgswParams = { base_log, level, n }
+  let out = Array::makei(n_in, fn(i) {
+    let data = Array::makei(level, fn(l) { bk.data[bsk_idx(l, i, n_in)] })
+    { params: params_trgsw, data }
+  })
+  out
 }
 
-///|
-pub fn bsk_to_trgsw_array(bsk : BootstrappingKey) -> Array[TrgswCiphertext] {
-  let level = bsk.params.level
-  let n_in = bsk.n_in
-  let trgsw_params = bsk_to_trgsw_params(bsk)
-  Array::makei(n_in, fn(i) {
-    let block = Array::makei(level, fn(j) { bsk.data[bsk_idx(j, i, n_in)] })
-    { params: trgsw_params, data: block }
-  })
-}
 ///|线性下标计算：bsk.data[l * n_in + i]
 fn bsk_idx(l : Int, i : Int, n_in : Int) -> Int {
   l * n_in + i
 }
 
+///|
+fn phase_from_bsk_public(bk : BootstrappingKey, ct : LweCiphertext) -> Int {
+  let n = bk.n_in
+  let mut dot = 0
+  for i in 0..<n {
+    if bk.s_bits[i] {
+      dot = t32_add(dot, ct.a[i])
+    }
+  }
+  t32_sub(ct.b, dot)
+}
 
 // TODO:后续替换为 TRGSW 外积，目前仅占位
 /// 构造“常数多项式” m(X) ：m[0] = mu，其余 0
@@ -65,15 +75,17 @@ pub fn bsk_generate(
     let b = Array::makei(n, fn(_) { 0 })
     { params, a, b }
   })
+  // 每个 (l, i) 存一份 TRLWE，明文常数项约为 ±g_l
   for l in 0..<level {
+    // 这一层的“权重” g_l：随着 l 增大逐层减小
+    // 再整体右移 3 位：每层幅度缩小 1/8，减弱对 PBS 的扰动
+  let amp_l = T32_QUARTER >> (l + 3) 
     for i in 0..<n_in {
       let bit = key_lwe.s[i]
-      let mu = if bit { T32_QUARTER } else { t32_add(T32_HALF, T32_QUARTER) }
-      let m = {
-        let mm = Array::makei(n, fn(_) { 0 })
-        mm[0] = mu
-        mm
-      }
+      // bit = true  → 正数   （解密 sign 为 true）
+      // bit = false → 负数   （解密 sign 为 false）
+      let mu = if bit { amp_l } else { -amp_l }
+      let m = _const_poly(n, mu)
       let ct = trlwe_encrypt(key_trlwe, m, sigma, rng)
       data[bsk_idx(l, i, n_in)] = ct
     }
