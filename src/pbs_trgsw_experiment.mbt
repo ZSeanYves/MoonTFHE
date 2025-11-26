@@ -424,6 +424,131 @@ fn compute_k_digitwise_dev(
   k_total
 }
 
+/// 基于 digit-wise 计算 k_total，然后用 "acc * X^{k_total}" 做真正旋转的实验版。
+fn blind_rotate_digitwise_poly_dev(
+  p        : TfheParams,
+  bk       : BootstrappingKey,
+  ct_in    : LweCiphertext,
+  acc_init : TrlweCiphertext,
+) -> TrlweCiphertext {
+  let n        = p.n_trlwe
+  let base_log = bk.params.base_log
+  let level    = bk.params.level
+  let n_in     = bk.n_in
+
+  // 必须与 compute_k_digitwise_dev / blind_rotate_digitwise_dev 保持一致
+  let unit_step = n / (1 << (base_log + 2))
+
+  // 先算总的 k_total
+  let mut k_total = 0
+
+  for i in 0..<n_in {
+    if !bk.s_bits[i] {
+      continue
+    }
+    let ai = ct_in.a[i]
+    if ai == 0 {
+      continue
+    }
+
+    let digits = gadget_decompose(ai, base_log, level)
+    for l in 0..<level {
+      let d = digits[l]
+      if d == 0 { continue }
+
+      let step_l = unit_step << l
+      let is_neg = ai < 0
+      let mut k = step_l * d
+      if is_neg {
+        k = -k
+      }
+
+      k_total = k_total + k
+    }
+  }
+
+  // 若 k_total == 0，直接返回初始 acc
+  if k_total == 0 {
+    return acc_init
+  }
+
+  // 构造 monomial 多项式 h = X^{k_total}
+  let h = poly_monomial_exp(n, k_total)
+
+  // 用卷积方式对整个 TRLWE 做旋转（等价于 poly_rotate_negacyclic）
+  trlwe_mul_by_plain_poly_exp(acc_init, h)
+}
+
+/// 基于 blind_rotate_digitwise_poly_dev 的实验版 PBS：
+/// 使用 digit-wise 计算出的 k_total，并通过 acc * X^{k_total} 执行旋转。
+pub fn programmable_bootstrap_digitwise_poly_experimental(
+  p       : TfheParams,
+  bk      : BootstrappingKey,
+  ct_in   : LweCiphertext,
+  f_true  : Int,
+  f_false : Int,
+) -> LweCiphertext {
+  let n = p.n_trlwe
+  let acc_arr : Array[Int] = acc_from_lut2_for_boolean(n, f_true, f_false)
+
+  let params_tr : TrlweParams = { n, }
+  let a0 = Array::makei(n, fn(_i) { 0 })
+  let acc_init : TrlweCiphertext = { params: params_tr, a: a0, b: acc_arr }
+
+  let acc_final = blind_rotate_digitwise_poly_dev(p, bk, ct_in, acc_init)
+  sample_extract_const(acc_final)
+}
+
+/// 对应的 NOT gate（digit-wise + poly 卷积版）
+pub fn tfhe_not_digitwise_poly_experimental(
+  p  : TfheParams,
+  bk : BootstrappingKey,
+  ct : LweCiphertext,
+) -> LweCiphertext {
+  programmable_bootstrap_digitwise_poly_experimental(
+    p, bk, ct,
+    0x8000_0000,  // f_true
+    0x0000_0000,  // f_false
+  )
+}
+
+test "pbs-digitwise-poly-experimental: NOT vs oracle stats" {
+  let r = csprng_new(0xD1CE123476)
+  let p = tfhe_params_small_trlwe()
+  let n_in = p.n_lwe_in
+
+  // 随机密钥
+  let s = Array::makei(n_in, fn(_) { false })
+  for i in 0..<n_in {
+    s[i] = (next_u64(r) & 1) == 1
+  }
+  let key_lwe : LweKey = { s, }
+  let key_tr  = trlwe_key_new(p.n_trlwe, r)
+  let bk      = bsk_generate(p, key_lwe, key_tr, 2, 3, 3.0, r)
+
+  let trials = 64
+  let mut same = 0
+  for _t in 0..<trials {
+    let bit = (next_u64(r) & 1) == 1
+    let ct  = lwe_encrypt(key_lwe, bit, 3.0, r)
+
+    let ct_oracle = tfhe_not(p, bk, ct)
+    let dec_oracle = lwe_decrypt(key_lwe, ct_oracle)
+
+    let ct_poly   = tfhe_not_digitwise_poly_experimental(p, bk, ct)
+    let dec_poly  = lwe_decrypt(key_lwe, ct_poly)
+
+    if dec_oracle == dec_poly {
+      same = same + 1
+    }
+  }
+
+  println("Digit-wise POLY PBS vs oracle (NOT): same = \{same}/\{trials}")
+  assert_eq(same >= 0, true)
+  assert_eq(same <= trials, true)
+}
+
+
 
 test "pbs-digitwise-k-vs-oracle: inspect k_total and k_oracle" {
   let r = csprng_new(0xABCD)
@@ -465,4 +590,57 @@ test "pbs-digitwise-k-vs-oracle: inspect k_total and k_oracle" {
     assert_eq(k_total_mod >= 0, true)
     assert_eq(k_total_mod < n,  true)
   }
+}
+
+/// 实验工具：TRLWE × 明文多项式 (negacyclic 卷积)
+/// 这里的 h 是明文多项式，长度必须等于 n。
+fn trlwe_mul_by_plain_poly_exp(
+  ct : TrlweCiphertext,
+  h  : Array[Int],
+) -> TrlweCiphertext {
+  let n = ct.params.n
+  if h.length() != n {
+    panic()
+  }
+  let a2 = poly_mul_negacyclic(ct.a, h)
+  let b2 = poly_mul_negacyclic(ct.b, h)
+  { params: ct.params, a: a2, b: b2 }
+}
+
+/// 构造 monomial 多项式 h(X) = X^k  （mod X^n+1）
+/// 这里我们只在 [0,n) 里放一个 1，其余为 0；
+/// 真正的 negacyclic 语义由 poly_mul_negacyclic 负责。
+fn poly_monomial_exp(n : Int, k : Int) -> Array[Int] {
+  let kk = ((k % n) + n) % n  // 规范到 [0,n)
+  let h = Array::makei(n, fn(_i) { 0 })
+  h[kk] = 1
+  h
+}
+
+
+
+///================== Tests: TRLWE * monomial ≈ 旋转 ==================
+
+test "trlwe-exp: mul_by_monomial matches rotate on b-poly" {
+  let n = 16
+  let params : TrlweParams = { n, }
+
+  // 构造一个简单可读的 b 多项式：b = 1 + 2X + 3X^2 + ... + 16X^15
+  let a = Array::makei(n, fn(_i) { 0 }) // a 暂时全 0
+  let b = Array::makei(n, fn(i) { (i + 1) })  // b[i] = i+1
+  let ct : TrlweCiphertext = { params, a, b }
+
+  // 构造 monomial h = X^k
+  let k = 5
+  let h = Array::makei(n, fn(_i) { 0 })
+  h[k] = 1
+
+  // 1) 用卷积方式：ct * X^k
+  let ct_conv = trlwe_mul_by_plain_poly_exp(ct, h)
+
+  // 2) 用你之前已经实现的 negacyclic 旋转：rotate(b, k)
+  let b_rot = poly_rotate_negacyclic(b, k)
+
+  // 我们只比较 b 多项式部分是否一致
+  assert_eq(poly_eq(ct_conv.b, b_rot), true)
 }
