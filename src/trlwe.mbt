@@ -18,7 +18,7 @@ pub struct TrlweCiphertext {
 
 
 ///| TRLWE 线性算子
-fn _trlwe_ct_add(
+fn trlwe_ct_add(
   x : TrlweCiphertext,
   y : TrlweCiphertext,
 ) -> TrlweCiphertext {
@@ -67,13 +67,14 @@ fn trlwe_key_to_poly(key : TrlweKey) -> Array[Int] {
   sp
 }
 
-///|Bool 编码成常数多项式（±0.25）
+///|
 fn trlwe_encode_bit_const(n : Int, bit : Bool) -> Array[Int] {
-  let mu = t32_encode_bit_pm(bit, T32_QUARTER)
-  let m = Array::makei(n, fn(_i) { 0 })
+  let mu = if bit { T32_QUARTER } else { -T32_QUARTER }
+  let m = Array::makei(n, fn(_) { 0 })
   m[0] = mu
   m
 }
+
 
 ///|TRLWE 加密：m 必须是长度为 n 的多项式
 fn trlwe_encrypt(
@@ -105,8 +106,22 @@ fn trlwe_encrypt(
   let be = poly_add(s, e)
   let b = poly_add(be, m)
   let t : TrlweCiphertext = { params: key.params, a, b }
+  //println("encrypt input poly[0] = \{m[0]}")
   t
 }
+
+
+fn trlwe_encrypt_zero(
+  params : TrgswParams,
+  key_tr : TrlweKey,
+  sigma : Float,
+  rng : CsPrng,
+) -> TrlweCiphertext {
+  let n = params.n
+  let poly = Array::makei(n, fn(_) { 0 })
+  trlwe_encrypt(key_tr, poly, sigma, rng)
+}
+
 
 ///|TRLWE 解密，得到整系数多项式：mu = b - a*s
 fn trlwe_decrypt_to_poly(key : TrlweKey, ct : TrlweCiphertext) -> Array[Int] {

@@ -36,11 +36,11 @@ fn t32_to_bool(mu : Int) -> Bool {
   mu >= 0
 }
 
-/// 模拟 Q1.31 * Q1.31 → Q1.31 的乘法，使用 64-bit 中间变量但不依赖 U64 类型
+///|
 fn t32_mul(a : Int, b : Int) -> Int {
-  let a64 = a.to_float()
-  let b64 = b.to_float()
-  let prod = a64 * b64 / 4294967296.0 // 等效于右移 32 位
+  let a64 = a.reinterpret_as_uint().to_int64()
+  let b64 = b.reinterpret_as_uint().to_int64()
+  let prod = (a64 * b64) >> 32
   prod.to_int()
 }
 

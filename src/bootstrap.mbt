@@ -23,8 +23,6 @@ fn log2_pow2(n : Int) -> Int {
   lg
 }
 
-
-
 ///|测试用
 fn _int_to_hex(x : Int) -> String {
   let digits = "0123456789ABCDEF"
@@ -45,7 +43,6 @@ fn[T] _slice(arr: Array[T], start: Int, end: Int) -> Array[T] {
   }
   res
 }
-
 
 // ============ Bootstrap =============
 
@@ -102,32 +99,86 @@ fn acc_from_lut2_for_boolean(
   acc
 }
 
+// ============ Blind rotation 积木 =============
 
-/// TRGSW blind rotation 的“oracle 封装版”
-/// 当前版本不直接使用 TRGSW 数据，而是用 BSK.s_bits 恢复相位 φ，
-/// 再走和 acc_from_lut2_for_boolean + poly_rotate_negacyclic 同一条链，
-/// 保证行为上等价于 oracle 版本的 blind rotation。
+/// TRLWE 旋转：同时对 a(X), b(X) 做 negacyclic 旋转
+fn trlwe_rotate(
+  ct : TrlweCiphertext,
+  k  : Int,
+) -> TrlweCiphertext {
+  let params = ct.params
+  let a2 = poly_rotate_negacyclic(ct.a, k)
+  let b2 = poly_rotate_negacyclic(ct.b, k)
+  { params, a: a2, b: b2 }
+}
+
+/// CMUX(s, c0, c1) = c0 + s·(c1 - c0)，其中 s 由 TRGSW(g) 加密
+fn cmux_trlwe(
+  g  : TrgswCiphertext,
+  c0 : TrlweCiphertext,
+  c1 : TrlweCiphertext,
+) -> TrlweCiphertext {
+  // delta = c1 - c0
+  let delta = _trlwe_ct_sub(c1, c0)
+  // e ≈ Enc( s * delta )
+  let e = external_product(g, delta)
+  // res = c0 + e
+  trlwe_ct_add(c0, e)
+}
+
+/// 从单个 TLWE 系数 a 映射到“旋转 -a 的步长”（mod n）
+fn torus_coeff_to_negrot(a : Int, n : Int) -> Int {
+  let k = torus_phase_to_rot_k(a, n)
+  if k == 0 {
+    0
+  } else {
+    n - k
+  }
+}
+
+/// TRGSW blind rotation（真实版）：
+/// - 使用 bk.trgsw_data 中的 TRGSW(s[i]) + external_product 做 CMUX，
+/// - 初始按 b 做一轮旋转，
+/// - 对每个 a[i] 累计 -a[i] 方向的旋转。
 fn blind_rotate_trgsw(
-  acc_init : TrlweCiphertext,
-  ct_in : LweCiphertext,
-  bk : BootstrappingKey,
+  acc_init : TrlweCiphertext,  // 其中 b = 初始 LUT 多项式
+  ct_in    : LweCiphertext,
+  bk       : BootstrappingKey,
 ) -> TrlweCiphertext {
   let n = acc_init.params.n
 
-  // 这里只使用 acc_init.b 作为 LUT 多项式
-  let acc_arr = acc_init.b
+  // 1) 从 acc_init.b 取出 LUT 多项式
+  let acc_plain = acc_init.b
 
-  // 用 BSK 的 s_bits 计算 TLWE 相位 φ = b - <a,s>
-  let phi = phase_from_bsk_public(bk, ct_in)
-  let k = torus_phase_to_rot_k(phi, n)
+  // 2) 按 TLWE 常数项 b 做一次初始旋转
+  let k_b = torus_phase_to_rot_k(ct_in.b, n)
+  let acc_plain_rot = poly_rotate_negacyclic(acc_plain, k_b)
 
-  // 负循环旋转 LUT
-  let acc_rot = poly_rotate_negacyclic(acc_arr, k)
+  // 3) 用 TRLWE 秘钥把旋转后的 LUT 加密成初始 accumulator
+  //    这里为了不改 API，内部构造一个本地 RNG 即可（安全性不在当前测试范围内）
+  let rng = csprng_new(0xB00DBA5E)
+  let mut acc = trlwe_encrypt(bk.key_trlwe, acc_plain_rot, bk.sigma_trlwe, rng)
 
-  // 打包成“干净 TRLWE”：a 全 0，b 为旋转后的 LUT
-  let a0 = Array::makei(n, fn(_) { 0 })
-  { params: acc_init.params, a: a0, b: acc_rot }
+  // 4) 对每个 TLWE 系数 a[i] 用 CMUX 选择是否追加 -a[i] 旋转
+  let n_in = bk.n_in
+  for i in 0..<n_in {
+    let a_i = ct_in.a[i]
+    if a_i == 0 {
+      continue
+    }
+    let k_i = torus_coeff_to_negrot(a_i, n)
+    if k_i == 0 {
+      continue
+    }
+
+    let acc_rot = trlwe_rotate(acc, k_i)
+    let g_i = bk.trgsw_data[i]
+    acc = cmux_trlwe(g_i, acc, acc_rot)
+  }
+
+  acc
 }
+
 // ============ Programmable Bootstrap =============
 
 ///|
@@ -144,14 +195,12 @@ pub fn programmable_bootstrap(
   let a0 = Array::makei(n, fn(_) { 0 })
   let acc_init : TrlweCiphertext = { params: params_tr, a: a0, b: acc_arr }
 
-  // 3) 盲旋转（当前实现为 oracle 封装）
+  // 3) 盲旋转（现在是真正的 TRGSW blind rotation）
   let acc_final = blind_rotate_trgsw(acc_init, ct_in, bk)
 
   // 4) 提取常数项为 LWE
   sample_extract_const(acc_final)
 }
-
-
 
 ///|
 pub fn tfhe_id(
@@ -171,12 +220,9 @@ pub fn tfhe_not(
   programmable_bootstrap(p, bk, ct, 0x8000_0000, 0x0000_0000) 
 }
 
-
-
 fn tfhe_mu() -> Int {
   bool_to_t32(true)   
 }
-
 
 ///|TODO:下面4个二元门目前受限于LUT，尚未实现仅写假逻辑占位
 pub fn tfhe_nand(
@@ -228,9 +274,7 @@ pub fn tfhe_xor(
   tfhe_and(p, bk, a, nb)
 }
 
-
-
-
+// ============ Tests =============
 
 ///|
 test "sample_extract: TRLWE const -> LWE decrypt equals plaintext bit (k=0)" {
@@ -269,7 +313,6 @@ test "sample_extract: TRLWE const at k>0 rotates as expected (roundtrip via manu
   let dec_k = lwe_decrypt(key_lw, ct_lw_k)
   assert_eq(dec_k, bit)
 }
-
 
 ///|
 test "pbs-final: NOT gate (no LWE key in API)" {
@@ -332,4 +375,3 @@ test "pbs-final: identity gate (no LWE key in API)" {
   }
   assert_eq(ok, trials)
 }
-
