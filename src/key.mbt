@@ -179,3 +179,90 @@ fn _ksk_apply(
   }
   acc
 }
+
+
+///| Public API: 生成 KeySwitchKey
+pub fn ksk_generate(
+  p0      : TfheParams,
+  key_in  : LweKey,
+  key_out : LweKey,
+  rng     : CsPrng,
+) -> KeySwitchKey {
+  _ksk_generate(p0, key_in, key_out, rng)
+}
+
+///| Public API: 应用 KeySwitchKey
+pub fn ksk_apply(
+  p0    : TfheParams,
+  ksk   : KeySwitchKey,
+  ct_in : LweCiphertext,
+) -> LweCiphertext {
+  _ksk_apply(p0, ksk, ct_in)
+}
+
+
+test "ksk: lwe(n_in) -> lwe(n_out) preserves boolean message" {
+  // 1. 用已有的小参数集
+  let p0 = tfhe_params_small_trlwe()
+
+  let rng = csprng_new(0xDEAD_BEEF)
+
+  let key_in  = lwe_key_new(p0.n_lwe_in,  rng)
+  let key_out = lwe_key_new(p0.n_lwe_out, rng)
+
+  let ksk = ksk_generate(p0, key_in, key_out, rng)
+
+  let trials = 200
+  let sigma  = p0.sigma_lwe
+  let mut ok = 0
+
+  for _i in 0..<trials {
+    let bit = (next_u64(rng) & 1) == 1
+
+    let ct_in  = lwe_encrypt(key_in,  bit, sigma, rng)
+    let ct_out = ksk_apply(p0, ksk, ct_in)
+
+    let dec    = lwe_decrypt(key_out, ct_out)
+    if dec == bit {
+      ok = ok + 1
+    }
+  }
+
+  assert_eq(ok, trials)
+}
+///| KSK roundtrip: LWE(32) -> LWE(64) 保持布尔消息不变
+test "ksk: lwe(32) -> lwe(64) preserves boolean message" {
+  // 手动构造一份专门用于 KSK 的 TfheParams
+  // 注意：ks_base_log * ks_level 必须 >= 32（Torus 是 32bit）
+  let p0 : TfheParams = {
+    n_lwe_in: 32,
+    n_lwe_out: 64,
+    sigma_lwe: 3.0,
+    ks_base_log: 4, // B = 16
+    ks_level: 8, // 16^8 = 2^32，刚好覆盖 32bit
+    sigma_ks: 3.0,
+
+    // 下面这些字段在这个测试里不会用到，随便给合法值就行
+    n_trlwe: 32,
+    sigma_trlwe: 3.2,
+    bk_base_log: 1,
+    bk_level: 2,
+  }
+  let rng = csprng_new(0xCAFEBABE)
+  let key_in = lwe_key_new(p0.n_lwe_in, rng)
+  let key_out = lwe_key_new(p0.n_lwe_out, rng)
+  let ksk = ksk_generate(p0, key_in, key_out, rng)
+  let trials = 200
+  let sigma = p0.sigma_lwe
+  let mut ok = 0
+  for _i in 0..<trials {
+    let bit = (next_u64(rng) & 1) == 1
+    let ct_in = lwe_encrypt(key_in, bit, sigma, rng)
+    let ct_out = ksk_apply(p0, ksk, ct_in)
+    let dec = lwe_decrypt(key_out, ct_out)
+    if dec == bit {
+      ok = ok + 1
+    }
+  }
+  assert_eq(ok, trials)
+}

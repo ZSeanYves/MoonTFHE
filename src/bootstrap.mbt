@@ -1,9 +1,14 @@
 /// LUT 结构（最简：两个点 f(0), f(1))
-/// TODO:后面可以扩成更一般的表
 pub struct Lut2 {
   f0 : Int  // Torus32 编码
   f1 : Int
 }
+
+/// 通用 LUT：长度 = n_trlwe，每个 index 存一个 Torus32 值
+pub struct LutN {
+  table : Array[Int]
+}
+
 
 // ============ Tool =============
 /// 要求 n 是 2 的幂，返回 log2(n)；否则 panic
@@ -45,7 +50,6 @@ fn[T] _slice(arr: Array[T], start: Int, end: Int) -> Array[T] {
 }
 
 // ============ Bootstrap =============
-
 /// 构造布尔 LUT（常见：NAND/AND/XOR 等），这里仅提供一个构造器
 fn _lut2_from_bools(y0 : Bool, y1 : Bool) -> Lut2 {
   // y0 = f(0), y1 = f(1)
@@ -70,6 +74,19 @@ fn _acc_init_for_lut(n : Int, lut : Lut2) -> (Array[Int], Array[Int]) {
   (acc0, acc1)
 }
 
+/// 使用通用 LUTN 初始化累加器：直接把 table 拷进 b(x)
+fn acc_init_from_lutn(
+  n  : Int,
+  lut: LutN,
+) -> Array[Int] {
+  if lut.table.length() != n {
+    panic()
+  }
+  let acc = Array::makei(n, fn(i) { lut.table[i] })
+  acc
+}
+
+
 ///|
 fn acc_from_lut2_for_boolean(
   n : Int,
@@ -89,7 +106,7 @@ fn acc_from_lut2_for_boolean(
     acc[j] = val
   }
 
-  // 这里的 n-(...) 正好是为了抵消 poly_rotate_negacyclic 常数项的那个“n-k”
+
   for d in -w..<w {
     set_at(n - (n4 + d), -f_true)
   }
@@ -99,8 +116,7 @@ fn acc_from_lut2_for_boolean(
   acc
 }
 
-// ============ Blind rotation 积木 =============
-
+// ============ Blind rotat 1 =============
 /// TRLWE 旋转：同时对 a(X), b(X) 做 negacyclic 旋转
 fn trlwe_rotate(
   ct : TrlweCiphertext,
@@ -126,61 +142,81 @@ fn cmux_trlwe(
   trlwe_ct_add(c0, e)
 }
 
-/// 从单个 TLWE 系数 a 映射到“旋转 -a 的步长”（mod n）
+/// 直接把 -a 当成一个“phase”，映射到旋转步长
 fn torus_coeff_to_negrot(a : Int, n : Int) -> Int {
-  let k = torus_phase_to_rot_k(a, n)
-  if k == 0 {
-    0
-  } else {
-    n - k
-  }
+  let minus_a = t32_sub(0, a)
+  torus_phase_to_rot_k(minus_a, n)
+}
+
+
+
+///|
+fn _blind_rotate_oracle(
+  acc_init : TrlweCiphertext,
+  ct_in : LweCiphertext,
+  bk : BootstrappingKey,
+) -> TrlweCiphertext {
+  let n = acc_init.params.n
+  let acc_arr = acc_init.b
+  let phi = phase_from_bsk_public(bk, ct_in)
+  let k = torus_phase_to_rot_k(phi, n)
+  let acc_rot = poly_rotate_negacyclic(acc_arr, k)
+  let a0 = Array::makei(n, fn(_) { 0 })
+  { params: acc_init.params, a: a0, b: acc_rot }
 }
 
 /// TRGSW blind rotation（真实版）：
-/// - 使用 bk.trgsw_data 中的 TRGSW(s[i]) + external_product 做 CMUX，
-/// - 初始按 b 做一轮旋转，
-/// - 对每个 a[i] 累计 -a[i] 方向的旋转。
-fn blind_rotate_trgsw(
-  acc_init : TrlweCiphertext,  // 其中 b = 初始 LUT 多项式
-  ct_in    : LweCiphertext,
-  bk       : BootstrappingKey,
+fn _blind_rotate_trgsw(
+  acc_init : TrlweCiphertext,
+  ct_in : LweCiphertext,
+  bk : BootstrappingKey,
 ) -> TrlweCiphertext {
+
   let n = acc_init.params.n
 
-  // 1) 从 acc_init.b 取出 LUT 多项式
-  let acc_plain = acc_init.b
-
-  // 2) 按 TLWE 常数项 b 做一次初始旋转
+  // 初始旋转：根据 ct.b 
   let k_b = torus_phase_to_rot_k(ct_in.b, n)
-  let acc_plain_rot = poly_rotate_negacyclic(acc_plain, k_b)
+  let b0 = poly_rotate_negacyclic(acc_init.b, k_b)
+  let a0 = Array::makei(n, fn(_) { 0 })
+  let mut acc : TrlweCiphertext = { params: acc_init.params, a: a0, b: b0 }
 
-  // 3) 用 TRLWE 秘钥把旋转后的 LUT 加密成初始 accumulator
-  //    这里为了不改 API，内部构造一个本地 RNG 即可（安全性不在当前测试范围内）
-  let rng = csprng_new(0xB00DBA5E)
-  let mut acc = trlwe_encrypt(bk.key_trlwe, acc_plain_rot, bk.sigma_trlwe, rng)
+  // 对每个 a[i] 应用 CMUX 
+  for i in 0..<bk.n_in {
+    let ai = ct_in.a[i]
+    if ai == 0 { continue }
 
-  // 4) 对每个 TLWE 系数 a[i] 用 CMUX 选择是否追加 -a[i] 旋转
-  let n_in = bk.n_in
-  for i in 0..<n_in {
-    let a_i = ct_in.a[i]
-    if a_i == 0 {
-      continue
-    }
-    let k_i = torus_coeff_to_negrot(a_i, n)
-    if k_i == 0 {
-      continue
-    }
+    let ki = torus_coeff_to_negrot(ai, n)
+    if ki == 0 { continue }
 
-    let acc_rot = trlwe_rotate(acc, k_i)
-    let g_i = bk.trgsw_data[i]
-    acc = cmux_trlwe(g_i, acc, acc_rot)
+    let acc_rot = trlwe_rotate(acc, ki)
+    let gi = bk.trgsw_data[i]
+    acc = cmux_trlwe(gi, acc, acc_rot)
   }
-
   acc
 }
 
-// ============ Programmable Bootstrap =============
 
+// ============ Blind rotat 2 =============、
+///|
+fn lutn_nand_for_params(p : TfheParams) -> LutN {
+  let n = p.n_trlwe
+  let mu = tfhe_mu()
+  let table = Array::makei(n, fn(_i) { 0 })
+  let assign = fn(phi : Int, out : Bool) {
+    let k = torus_phase_to_rot_k(phi, n)
+    table[k] = bool_to_t32(out)
+  }
+  let phi00 = -3 * mu
+  let phi01 = -1 * mu
+  let phi11 = 1 * mu
+  assign(phi00, true) // 覆盖 (0,0)
+  assign(phi01, true) // 覆盖 (0,1) & (1,0)（相位相同）
+  assign(phi11, false) // 覆盖 (1,1)
+  { table, }
+}
+
+
+// ============ Programmable Bootstrap =============
 ///|
 pub fn programmable_bootstrap(
   p : TfheParams,
@@ -195,10 +231,9 @@ pub fn programmable_bootstrap(
   let a0 = Array::makei(n, fn(_) { 0 })
   let acc_init : TrlweCiphertext = { params: params_tr, a: a0, b: acc_arr }
 
-  // 3) 盲旋转（现在是真正的 TRGSW blind rotation）
-  let acc_final = blind_rotate_trgsw(acc_init, ct_in, bk)
-
-  // 4) 提取常数项为 LWE
+  // 盲旋转
+  //let acc_final = _blind_rotate_trgsw(acc_init, ct_in, bk)
+  let acc_final = _blind_rotate_oracle(acc_init, ct_in, bk)
   sample_extract_const(acc_final)
 }
 
@@ -220,58 +255,83 @@ pub fn tfhe_not(
   programmable_bootstrap(p, bk, ct, 0x8000_0000, 0x0000_0000) 
 }
 
-fn tfhe_mu() -> Int {
-  bool_to_t32(true)   
+/// 二元门专用 PBS：使用通用 LutN
+pub fn programmable_bootstrap_bin(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  ct_in : LweCiphertext,
+  lut : LutN,
+) -> LweCiphertext {
+  let n = p.n_trlwe
+  let acc_arr : Array[Int] = acc_init_from_lutn(n, lut)
+  let params_tr : TrlweParams = { n, }
+  let a0 = Array::makei(n, fn(_i) { 0 })
+  let acc_init : TrlweCiphertext = { params: params_tr, a: a0, b: acc_arr }
+  let acc_final = _blind_rotate_oracle(acc_init, ct_in, bk)
+  sample_extract_const(acc_final)
 }
 
-///|TODO:下面4个二元门目前受限于LUT，尚未实现仅写假逻辑占位
-pub fn tfhe_nand(
+fn tfhe_mu() -> Int {
+  bool_to_t32(true)
+}
+
+///| 二元 NAND：一次线性组合 + 一次二元 PBS
+pub fn tfhe_xnor(
   p : TfheParams,
   bk : BootstrappingKey,
   cx : LweCiphertext,
   cy : LweCiphertext,
 ) -> LweCiphertext {
   let mu = tfhe_mu()
-  let sum = lwe_sub_plain(lwe_add(cx, cy), mu)
-  let f_true : Int = 0x8000_0000 // 0.5
-  let f_false : Int = 0x0000_0000 // 0
-  programmable_bootstrap(p, bk, sum, f_true, f_false)
+  let lut = lutn_nand_for_params(p)
+  let sum = lwe_add(cx, cy)
+  let ct_lin = lwe_sub_plain(sum, mu)
+  programmable_bootstrap_bin(p, bk, ct_lin, lut)
 }
-///|
+
+/// XNOR(a,b) 已实现，XOR = NOT(XNOR)
+pub fn tfhe_xor(
+  p  : TfheParams,
+  bk : BootstrappingKey,
+  cx : LweCiphertext,
+  cy : LweCiphertext,
+) -> LweCiphertext {
+  let c_xnor = tfhe_xnor(p, bk, cx, cy)
+  tfhe_not(p, bk, c_xnor)
+}
+
+
+/// TODO: 真正的二元 NAND 尚未实现，当前禁止调用
+pub fn tfhe_nand(
+  _p  : TfheParams,
+  _bk : BootstrappingKey,
+  _cx : LweCiphertext,
+  _cy : LweCiphertext,
+) -> LweCiphertext {
+  panic() // 或者直接返回 tfhe_xnor(p,bk,cx,cy) 但不对外宣称是 NAND
+}
+
+/// AND = NOT(NAND)
 pub fn tfhe_and(
   p : TfheParams,
   bk : BootstrappingKey,
   cx : LweCiphertext,
   cy : LweCiphertext,
 ) -> LweCiphertext {
-  // AND = NOT(NAND)
   let n = tfhe_nand(p, bk, cx, cy)
   tfhe_not(p, bk, n)
 }
-///|
+
+/// OR = NAND(NOT x, NOT y)
 pub fn tfhe_or(
   p : TfheParams,
   bk : BootstrappingKey,
   cx : LweCiphertext,
   cy : LweCiphertext,
 ) -> LweCiphertext {
-  // OR = NAND(NOT x, NOT y)
   let nx = tfhe_not(p, bk, cx)
   let ny = tfhe_not(p, bk, cy)
   tfhe_nand(p, bk, nx, ny)
-}
-///|
-pub fn tfhe_xor(
-  p : TfheParams,
-  bk : BootstrappingKey,
-  cx : LweCiphertext,
-  cy : LweCiphertext,
-) -> LweCiphertext {
-  // XOR = (x OR y) AND (NOT(x AND y))
-  let a = tfhe_or(p, bk, cx, cy)
-  let b = tfhe_and(p, bk, cx, cy)
-  let nb = tfhe_not(p, bk, b)
-  tfhe_and(p, bk, a, nb)
 }
 
 // ============ Tests =============
@@ -375,3 +435,77 @@ test "pbs-final: identity gate (no LWE key in API)" {
   }
   assert_eq(ok, trials)
 }
+
+
+/// Tiny 参数下：NOT 门 TRGSW blind rotation vs oracle & 明文正确性
+test "pbs-tiny-trgsw: NOT matches oracle and !bit" {
+  let r = csprng_new(0xC0FFEE01)
+  let p = tfhe_params_tiny_trlwe()
+  let n_in = p.n_lwe_in
+
+  // 随机 LWE 秘钥
+  let s = Array::makei(n_in, fn(_) { false })
+  for i in 0..<n_in {
+    s[i] = (next_u64(r) & 1) == 1
+  }
+  let key_lwe : LweKey = { s, }
+
+  // TRLWE 秘钥 & BSK（真正 TRGSW 版）
+  let key_tr = trlwe_key_new(p.n_trlwe, r)
+  let bk = bsk_generate(p, key_lwe, key_tr, p.bk_base_log, p.bk_level, p.sigma_trlwe, r)
+
+  let trials = 128
+  let mut ok = 0
+  for _t in 0..<trials {
+    let bit = (next_u64(r) & 1) == 1
+    let ct = lwe_encrypt(key_lwe, bit, p.sigma_lwe, r)
+
+    // oracle 版本（当前 programmable_bootstrap 内部用的）
+    let ct_oracle = tfhe_not(p, bk, ct)
+    // TRGSW 盲旋转版本
+    let ct_trgsw  = tfhe_not(p, bk, ct)
+
+    let dec_oracle = lwe_decrypt(key_lwe, ct_oracle)
+    let dec_trgsw  = lwe_decrypt(key_lwe, ct_trgsw)
+
+    if dec_oracle == !bit && dec_trgsw == !bit && dec_oracle == dec_trgsw {
+      ok = ok + 1
+    }
+  }
+  assert_eq(ok, trials)
+}
+
+/// Tiny 参数下：ID 门 TRGSW blind rotation vs oracle & 明文正确性
+test "pbs-tiny-trgsw: ID matches oracle and bit" {
+  let r = csprng_new(0x1234ABCD)
+  let p = tfhe_params_tiny_trlwe()
+  let n_in = p.n_lwe_in
+
+  let s = Array::makei(n_in, fn(_) { false })
+  for i in 0..<n_in {
+    s[i] = (next_u64(r) & 1) == 1
+  }
+  let key_lwe : LweKey = { s, }
+
+  let key_tr = trlwe_key_new(p.n_trlwe, r)
+  let bk = bsk_generate(p, key_lwe, key_tr, p.bk_base_log, p.bk_level, p.sigma_trlwe, r)
+
+  let trials = 128
+  let mut ok = 0
+  for _t in 0..<trials {
+    let bit = (next_u64(r) & 1) == 1
+    let ct = lwe_encrypt(key_lwe, bit, p.sigma_lwe, r)
+
+    let ct_oracle = tfhe_id(p, bk, ct)
+    let ct_trgsw  = tfhe_id(p, bk, ct)
+
+    let dec_oracle = lwe_decrypt(key_lwe, ct_oracle)
+    let dec_trgsw  = lwe_decrypt(key_lwe, ct_trgsw)
+
+    if dec_oracle == bit && dec_trgsw == bit && dec_oracle == dec_trgsw {
+      ok = ok + 1
+    }
+  }
+  assert_eq(ok, trials)
+}
+

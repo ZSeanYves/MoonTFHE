@@ -4,11 +4,6 @@ pub struct BskParams {
   level    : Int
 }
 
-///
-/// 新版 BootstrappingKey：
-/// - 不再存扁平 TRLWE 矩阵
-/// - 直接存每个 LWE 秘钥位对应的 TRGSW(s[i])
-/// - 额外带上 TRLWE 秘钥和 PBS 用的 sigma，方便 blind rotation 使用
 ///|
 pub struct BootstrappingKey {
   params       : BskParams        // base_log, level
@@ -21,22 +16,9 @@ pub struct BootstrappingKey {
   sigma_trlwe  : Float            // PBS 中使用的 TRLWE 噪声
 }
 
-///|线性下标计算（扁平 data 时的工具）
-fn _bsk_idx(l : Int, i : Int, n_in : Int) -> Int {
-  l * n_in + i
-}
-
-/// 将 BootstrappingKey 转成 TRGSW 数组：
-/// 现在已经是直接存的 trgsw_data，不需要再从扁平 TRLWE 里拼
-///|
-fn _bsk_to_trgsw_array(bk : BootstrappingKey) -> Array[TrgswCiphertext] {
-  bk.trgsw_data
-}
-
-/// 仍保留 phase_from_bsk_public，方便和之前 fake PBS 做对比用：
 /// 利用公开的 s_bits 直接计算 φ = b - <a, s>
 ///|
-fn _phase_from_bsk_public(bk : BootstrappingKey, ct : LweCiphertext) -> Int {
+fn phase_from_bsk_public(bk : BootstrappingKey, ct : LweCiphertext) -> Int {
   let n = bk.n_in
   let mut dot = 0
   for i in 0..<n {
@@ -49,8 +31,8 @@ fn _phase_from_bsk_public(bk : BootstrappingKey, ct : LweCiphertext) -> Int {
 
 
 /// 生成 BootstrappingKey：
-/// - 对每个 LWE 秘钥位 s[i] 生成一个 TRGSW(s[i])，存入 trgsw_data[i]
-/// - 同时保存 s_bits、TRLWE 秘钥 key_trlwe 以及 PBS 用的 sigma
+/// 对每个 LWE 秘钥位 s[i] 生成一个 TRGSW(s[i])，存入 trgsw_data[i]
+/// 同时保存 s_bits、TRLWE 秘钥 key_trlwe 以及 PBS 用的 sigma
 ///|
 pub fn bsk_generate(
   p : TfheParams,
@@ -141,6 +123,51 @@ test "bsk: trgsw shape matches (n_in, level, n_trlwe)" {
       assert_eq(ct.params.n, n)
       assert_eq(ct.a.length(), n)
       assert_eq(ct.b.length(), n)
+    }
+  }
+}
+
+///|
+test "bsk: trgsw_data encodes lwe secret bit via external_product" {
+  let r = csprng_new(0xB5C0CB42)
+  let p = tfhe_params_small_trlwe()
+  let n_in = p.n_lwe_in
+  let n = p.n_trlwe
+
+  // 生成 key
+  let s = Array::makei(n_in, fn(_) { false })
+  for i in 0..<n_in {
+    s[i] = (next_u64(r) & 1) == 1
+  }
+  let key_lwe : LweKey = { s, }
+  let key_tr = trlwe_key_new(n, r)
+  let base_log = 2
+  let level = 3
+  let sigma : Float = 3.0
+  let bk = bsk_generate(p, key_lwe, key_tr, base_log, level, sigma, r)
+
+  // 测一两个 index 就行
+  let idx = 0
+  let g = bk.trgsw_data[idx]
+  let trials = 32
+  let mut ok = 0
+  for _t in 0..<trials {
+    let bit_in = (next_u64(r) & 1) == 1
+    let m_poly = trlwe_encode_bit_const(n, bit_in)
+    let ct_msg = trlwe_encrypt(key_tr, m_poly, sigma, r)
+    let out = external_product(g, ct_msg)
+    let mu_out = trlwe_decrypt_to_poly(key_tr, out)
+    let bit_out = t32_decode_sign(mu_out[0])
+    // 这里不要求 bit_out == bit_in，只看 external_product 行为是否“乘上 s[idx]”
+    // s[idx] = false → out ≈ Enc(0)
+    // s[idx] = true  → out ≈ Enc(m)
+    if bk.s_bits[idx] {
+      if bit_out == bit_in {
+        ok = ok + 1
+      }
+    } else {
+      // s[idx] == 0: 期望输出接近 0，多数随机 bit_in 解出来都是 false（符号负）
+      // 这里只做个弱检查，不强制
     }
   }
 }

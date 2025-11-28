@@ -1,0 +1,145 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src"
+
+// Values
+fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, CsPrng) -> BootstrappingKey
+
+fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
+
+fn ksk_generate(TfheParams, LweKey, LweKey, CsPrng) -> KeySwitchKey
+
+fn programmable_bootstrap(TfheParams, BootstrappingKey, LweCiphertext, Int, Int) -> LweCiphertext
+
+fn programmable_bootstrap_bin(TfheParams, BootstrappingKey, LweCiphertext, LutN) -> LweCiphertext
+
+fn tfhe_and(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+
+fn tfhe_id(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
+
+fn tfhe_nand(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+
+fn tfhe_not(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
+
+fn tfhe_or(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+
+fn tfhe_params_small_trlwe() -> TfheParams
+
+fn tfhe_params_tiny_trlwe() -> TfheParams
+
+fn tfhe_xnor(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+
+fn tfhe_xor(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+
+fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, CsPrng) -> TrgswCiphertext
+
+// Errors
+
+// Types and methods
+pub struct BootstrappingKey {
+  params : BskParams
+  n_in : Int
+  n_trlwe : Int
+  trgsw_params : TrgswParams
+  trgsw_data : Array[TrgswCiphertext]
+  s_bits : Array[Bool]
+  key_trlwe : TrlweKey
+  sigma_trlwe : Float
+}
+
+pub struct BskParams {
+  base_log : Int
+  level : Int
+}
+
+pub struct CsPrng {
+  mut state : UInt64
+}
+
+pub struct KeySwitchKey {
+  params : KskParams
+  n_in : Int
+  n_out : Int
+  data : Array[LweCiphertext]
+}
+
+pub struct KskParams {
+  base_log : Int
+  level : Int
+}
+
+pub struct Lut2 {
+  f0 : Int
+  f1 : Int
+}
+
+pub struct LutN {
+  table : Array[Int]
+}
+
+pub struct LweCiphertext {
+  a : Array[Int]
+  mut b : Int
+}
+
+pub struct LweKey {
+  s : Array[Bool]
+}
+
+pub struct TfheParams {
+  n_lwe_in : Int
+  n_lwe_out : Int
+  sigma_lwe : Float
+  ks_base_log : Int
+  ks_level : Int
+  sigma_ks : Float
+  n_trlwe : Int
+  sigma_trlwe : Float
+  bk_base_log : Int
+  bk_level : Int
+}
+
+pub struct TlweCiphertext {
+  params : TlweParams
+  a : Array[Int]
+  b : Array[Int]
+}
+
+pub struct TlweKey {
+  params : TlweParams
+  s : Array[Bool]
+}
+
+pub struct TlweParams {
+  n : Int
+}
+
+pub struct TrgswCiphertext {
+  params : TrgswParams
+  data : Array[TrlweCiphertext]
+}
+
+pub struct TrgswParams {
+  base_log : Int
+  level : Int
+  n : Int
+}
+
+pub struct TrlweCiphertext {
+  params : TrlweParams
+  a : Array[Int]
+  b : Array[Int]
+}
+
+pub struct TrlweKey {
+  params : TrlweParams
+  s : Array[Bool]
+}
+
+pub struct TrlweParams {
+  n : Int
+}
+
+// Type aliases
+
+// Traits
+

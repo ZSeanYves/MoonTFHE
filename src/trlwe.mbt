@@ -106,7 +106,7 @@ fn trlwe_encrypt(
   let be = poly_add(s, e)
   let b = poly_add(be, m)
   let t : TrlweCiphertext = { params: key.params, a, b }
-  //println("encrypt input poly[0] = \{m[0]}")
+  //////println("encrypt input poly[0] = \{m[0]}")
   t
 }
 
