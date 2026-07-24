@@ -8,6 +8,8 @@ import {
 // Values
 pub fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, CsPrng) -> BootstrappingKey
 
+pub fn experimental_boolean_keygen(UInt64) -> (ExperimentalBooleanClientKey, ExperimentalBooleanServerKey)
+
 pub fn experimental_keygen(Int, Float, UInt64) -> ExperimentalClientKey
 
 pub fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
@@ -45,6 +47,14 @@ pub fn tfhe_params_validate(TfheParams) -> Result[Unit, ParameterError]
 pub fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, CsPrng) -> TrgswCiphertext
 
 // Errors
+pub suberror BooleanCiphertextError {
+  InvalidMagic
+  UnsupportedVersion
+  InvalidLength
+  DimensionMismatch
+  KeyMismatch
+} derive(Eq, @debug.Debug)
+
 pub suberror ParameterError {
   InvalidDimension
   InvalidPolynomialSize
@@ -58,6 +68,12 @@ pub suberror SecureRandomError {
 } derive(Eq, @debug.Debug)
 
 // Types and methods
+pub struct BooleanCiphertext {
+  inner : LweCiphertext
+  key_tag : Int
+}
+pub fn BooleanCiphertext::serialize(Self) -> Bytes
+
 pub struct BootstrappingKey {
   params : BskParams
   n_in : Int
@@ -76,6 +92,24 @@ pub struct BskParams {
 pub struct CsPrng {
   mut state : UInt64
 }
+
+pub struct ExperimentalBooleanClientKey {
+  params : TfheParams
+  lwe_key : LweKey
+  rng : CsPrng
+  key_tag : Int
+}
+pub fn ExperimentalBooleanClientKey::decrypt(Self, BooleanCiphertext) -> Result[Bool, BooleanCiphertextError]
+pub fn ExperimentalBooleanClientKey::deserialize_ciphertext(Self, Bytes) -> Result[BooleanCiphertext, BooleanCiphertextError]
+pub fn ExperimentalBooleanClientKey::encrypt(Self, Bool) -> BooleanCiphertext
+
+pub struct ExperimentalBooleanServerKey {
+  params : TfheParams
+  bsk : BootstrappingKey
+  key_tag : Int
+}
+pub fn ExperimentalBooleanServerKey::nand(Self, BooleanCiphertext, BooleanCiphertext) -> Result[BooleanCiphertext, BooleanCiphertextError]
+pub fn ExperimentalBooleanServerKey::not(Self, BooleanCiphertext) -> Result[BooleanCiphertext, BooleanCiphertextError]
 
 pub struct ExperimentalCiphertext {
   inner : LweCiphertext

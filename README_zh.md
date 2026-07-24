@@ -6,7 +6,9 @@
 
 MoonTFHE 是使用 MoonBit 编写的 TFHE 研究实现。仓库正在从停止维护的教学原型，重建为具有明确客户端/服务端密钥边界、可独立验证的库。
 
-> 安全状态：**不可用于生产或敏感数据**。当前密钥生成与加密路径仍使用确定性的 SplitMix64 和 CLT 噪声近似；尚未提供标准安全参数和不含秘密的服务端密钥。
+> 安全状态：**不可用于生产或敏感数据**。`experimental_boolean_*` 门面为了可复现
+> 测试仍使用确定性的 SplitMix64 与零噪声；native 系统熵基础已存在，但尚未接入
+> 完整 TFHE 生产密钥生成路径。
 
 ## 当前状态
 
@@ -16,11 +18,10 @@ MoonTFHE 是使用 MoonBit 编写的 TFHE 研究实现。仓库正在从停止�
 
 - 生产级参数集和完整安全估计；
 - 所有后端的安全随机客户端密钥门面；
-- 密文序列化和版本校验；
 - 110 位或 128 位安全声明；
 - 侧信道攻击防护。
 
-旧 oracle 现在只存在于 `oracle_wbtest.mbt`，显式接收测试秘密，只能作为参考。`BootstrappingKey` 现在只包含加密 GGSW、维度元数据和加密 KSK，是当前 PBS 路径使用的评估对象，但还不是经过完整加固的生产服务端密钥。
+旧 oracle 现在只存在于 `oracle_wbtest.mbt`，显式接收测试秘密，只能作为参考。`BootstrappingKey` 现在只包含加密 GGSW、维度元数据和加密 KSK，是当前 PBS 路径使用的评估对象，但还不是经过完整加固的生产服务端密钥。实验性 Boolean 门面提供带 key-tag、版本化的 `MTFH` 密文序列化，但不会序列化客户端秘密或服务端密钥。
 
 ## 构建与测试
 
@@ -44,6 +45,14 @@ let client = experimental_keygen(64, 3.0, 0x4D4F4F4E)
 let encrypted = client.encrypt(true)
 let encrypted_not = encrypted.not()
 assert_eq(client.decrypt(encrypted_not), false)
+```
+
+完整实验性 Boolean 工作流也可通过公开 API 运行，服务端运算不接收客户端秘密：
+
+```moonbit
+let (client, server) = experimental_boolean_keygen(0x50464F)
+let result = server.nand(client.encrypt(true), client.encrypt(false)).unwrap()
+assert_eq(client.decrypt(result).unwrap(), true)
 ```
 
 ## 路线图

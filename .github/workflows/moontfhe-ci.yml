@@ -48,3 +48,17 @@ jobs:
 
       - name: Test ${{ matrix.target }}
         run: moon test --target "${{ matrix.target }}"
+
+  benchmark-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Native benchmark smoke
+        run: moon bench --target native --release --no-parallelize

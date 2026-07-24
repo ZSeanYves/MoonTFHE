@@ -2,7 +2,7 @@
 
 评估日期：2026-07-24。
 
-实施进度：基线、P0、P1 和 P2 熵源基础已推送；P3 的 secret-free BSK、真实盲旋转、PBS->KS 和小参数布尔门向量已推送。P4-P6 仍在实施，安全参数、跨后端生产熵源、序列化和性能后端尚未完成。
+实施进度：基线、P0、P1、P2 熵源基础、P3 真实 PBS、P4 参数元数据、P5 native benchmark 基线和 P6 实验性 Boolean facade 已分阶段推送。安全参数估计、跨后端生产熵源、FFT/NTT 性能后端和生产级发布仍未完成。
 
 本文件区分两件事：当前仓库已经恢复到可编译、可测试状态；当前密码学实现仍是研究原型，不能用于真实数据，也尚未满足最初任务要求中的完整性与安全性。
 
@@ -35,7 +35,7 @@ Torus32 / 多项式 / 随机数
 4. `CsPrng` 仍是 legacy SplitMix64；native 已有独立 `SecureRng` OS 熵适配，旧 LWE/TRLWE API 尚未全面切换到它。
 5. 高斯噪声的 legacy 路径仍是 CLT 近似；`SecureRng::gaussian` 是过渡实现，不替代参数化 TFHE 分布。
 6. 两套参数仍是实验参数，没有安全估计、失败概率、噪声预算或 110/128 位安全声明依据。
-7. 底层密钥生成、加密、解密仍不是完整的高层客户端/服务端 facade，外部用户尚不能仅靠稳定 API 生成 BSK 并运行 NAND。
+7. `ExperimentalBooleanClientKey`/`ExperimentalBooleanServerKey` 已提供外部 NAND 流程和不透明密文；它仍是 deterministic/zero-noise 原型，不是生产级客户端 facade。
 8. oracle 已移到白盒参考层；剩余测试仍需要独立 tfhe-rs 密文夹具和更广泛随机电路覆盖。
 
 ## 与 TFHE-rs 的关键差距
@@ -50,7 +50,7 @@ Torus32 / 多项式 / 随机数
 | Key switch | 无符号 LSB 分解，缺少标准舍入/有符号分解模型 | 使用 signed decomposer、维度检查和模数检查 | 需按论文/参考实现重写并用向量验证 |
 | GGSW/PBS | 标准域数组；生产路径已走真实 blind rotation + sample extraction + KS | 标准 BSK 生成后转 Fourier/NTT 域，真实 blind rotation + sample extraction | 正确性骨架已完成，参数/性能后端仍缺 |
 | 多项式性能 | 负循环乘法为 `O(N^2)`，NTT 是空占位 | FFT/FFT128/NTT/Karatsuba 多后端和预分配 scratch buffer | 正确性完成后再优化，优先 FFT 原生后端 |
-| API | 底层结构直接暴露，用户流程不完整 | 高层 API、Boolean/Shortint API、Core Crypto 分层 | 应采用 facade + internal packages，隐藏秘密与表示 |
+| API | 已有实验性 Boolean facade；底层结构仍在单包暴露 | 高层 API、Boolean/Shortint API、Core Crypto 分层 | 后续应拆包并把实验性入口替换为安全 facade |
 | 测试 | 37 个包内测试，存在弱断言和同路径对照 | 算法测试、噪声分布测试、参数化测试、后端测试、版本化测试 | 先建立规范测试，再替换实现 |
 
 ## 建议的破坏性架构
@@ -131,19 +131,19 @@ src/
 
 ### P5：性能后端
 
-- 保留朴素 `O(N^2)` 后端作正确性基准。
+- [x] 保留朴素 `O(N^2)` 后端作正确性基准，并记录 native 基线。
 - 原生后端优先实现 FFT negacyclic convolution、Fourier BSK 和 scratch buffer 复用；再评估 NTT。
-- 基准分开测 keygen、KSK、external product、blind rotation、单次 PBS 和门吞吐。
+- [x] 加入可重复的 polynomial/external-product benchmark smoke；完整 keygen/KSK/PBS/门吞吐基准仍待补齐。
 - 优化必须以基准和内存峰值为依据，不在算法尚未正确前做 SIMD 微调。
 
 验收：发布每个标准参数集的时间、内存、密钥/密文大小；性能回归进入 CI。
 
 ### P6：产品化 API 与发布
 
-- 提供 `boolean` facade，底层 core API 明确标为高级接口。
-- 增加安全序列化格式、版本号、长度/参数校验和 secret material 的显式处理策略。
-- CI 覆盖 `moon check --target all`、稳定后端测试、原生安全测试、文档测试和基准 smoke test。
-- README 给出真实可运行示例、安全警告、参数表和支持矩阵后，再发布 Mooncakes 新主版本。
+- [x] 提供明确标为 experimental 的 Boolean facade；底层 core API 仍需后续拆包。
+- [x] 增加 `MTFH` 密文格式、版本号、长度/维度/key-tag 校验，并不提供 secret/server key 序列化。
+- [x] CI 覆盖 `moon check --target all`、四后端测试、原生安全测试和 benchmark smoke；文档示例仍需独立文档编译 job。
+- [x] README 给出可运行的实验性 NAND 示例和安全警告；尚未发布 Mooncakes 新主版本。
 
 验收：外部用户只通过公开 API 即可运行完整 NAND 电路；服务端工件不含秘钥；发布包可复现构建和测试。
 

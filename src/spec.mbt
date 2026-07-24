@@ -30,3 +30,36 @@ declare pub fn ExperimentalClientKey::decrypt(
 declare pub fn ExperimentalCiphertext::not(
   self : ExperimentalCiphertext,
 ) -> ExperimentalCiphertext
+
+///|
+declare pub type ExperimentalBooleanClientKey
+
+///|
+declare pub type ExperimentalBooleanServerKey
+
+///|
+declare pub type BooleanCiphertext
+
+///|
+declare pub fn experimental_boolean_keygen(
+  seed : UInt64,
+) -> (ExperimentalBooleanClientKey, ExperimentalBooleanServerKey)
+
+///|
+declare pub fn ExperimentalBooleanClientKey::encrypt(
+  self : ExperimentalBooleanClientKey,
+  message : Bool,
+) -> BooleanCiphertext
+
+///|
+declare pub fn ExperimentalBooleanClientKey::decrypt(
+  self : ExperimentalBooleanClientKey,
+  ciphertext : BooleanCiphertext,
+) -> Result[Bool, BooleanCiphertextError]
+
+///|
+declare pub fn ExperimentalBooleanServerKey::nand(
+  self : ExperimentalBooleanServerKey,
+  left : BooleanCiphertext,
+  right : BooleanCiphertext,
+) -> Result[BooleanCiphertext, BooleanCiphertextError]

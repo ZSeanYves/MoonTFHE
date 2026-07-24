@@ -9,9 +9,9 @@ repository is being rebuilt from an unmaintained teaching prototype into a
 testable library with explicit client/server key boundaries.
 
 > Security status: **not suitable for production or sensitive data**. The
-> current key generation and encryption path uses deterministic SplitMix64 and
-> a CLT noise approximation. Standard security parameters and a secret-free
-> server key are not available yet.
+> the `experimental_boolean_*` facade uses deterministic SplitMix64 and zero
+> noise for reproducible vectors. Native OS entropy exists as a separate
+> foundation, but production key generation is not wired to the TFHE path.
 
 ## Current status
 
@@ -24,7 +24,6 @@ The following remain explicitly experimental or incomplete:
 
 - production-grade parameter sets and a complete security estimate;
 - a secure-randomness client-key facade on every backend;
-- ciphertext serialization and version validation;
 - any claim of 110-bit or 128-bit security;
 - resistance to side-channel attacks.
 
@@ -32,7 +31,9 @@ The old oracle now lives only in `oracle_wbtest.mbt`. It receives a test secret
 explicitly and exists solely as a reference. `BootstrappingKey` contains only
 encrypted GGSW data, dimensions, and an encrypted key-switching key; it is the
 evaluation object used by the current PBS path, but it is not yet a hardened
-production server key.
+production server key. The experimental Boolean facade adds key-tagged,
+versioned `MTFH` ciphertext serialization; secret and server keys are not
+serializable.
 
 ## Build and test
 
@@ -58,6 +59,17 @@ test {
   let encrypted = client.encrypt(true)
   let encrypted_not = encrypted.not()
   assert_eq(client.decrypt(encrypted_not), false)
+}
+```
+
+The complete experimental Boolean workflow is public, and server-side
+operations do not receive a client secret:
+
+```mbt check
+test {
+  let (client, server) = experimental_boolean_keygen(0x50464F)
+  let result = server.nand(client.encrypt(true), client.encrypt(false)).unwrap()
+  assert_eq(client.decrypt(result).unwrap(), true)
 }
 ```
 

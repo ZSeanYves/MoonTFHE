@@ -29,6 +29,8 @@ observable assertion; historical print-only probes were removed.
 
 - `experimental_api_test.mbt` uses only public symbols and exercises
   key generation -> encryption -> homomorphic NOT -> decryption.
+- `boolean_api_test.mbt` uses only the public experimental Boolean facade and
+  exercises NAND, cross-key rejection, and versioned ciphertext round trips.
 
 The P1 suite replaces self-referential legacy checks with independent
 reference arithmetic, boundary cases, pinned fixtures, and circuit properties.

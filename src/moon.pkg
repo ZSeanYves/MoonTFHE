@@ -1,5 +1,6 @@
 import {
   "moonbitlang/core/bench",
+  "moonbitlang/core/bytes",
   "moonbitlang/core/math",
 }
 
