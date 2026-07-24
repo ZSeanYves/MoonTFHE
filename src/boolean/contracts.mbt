@@ -18,6 +18,46 @@ pub struct SerializationKey {
 }
 
 ///|
+pub suberror SerializationKeyError {
+  InvalidLength
+} derive(Debug, Eq)
+
+///|
+/// Construct a key for explicit AES-256-GCM SecretExport.
+/// Passwords and implicit key derivation are intentionally not supported.
+pub fn serialization_key_from_bytes(
+  bytes : Bytes,
+) -> Result[SerializationKey, SerializationKeyError] {
+  if bytes.length() != 32 {
+    Err(InvalidLength)
+  } else {
+    Ok({ bytes, })
+  }
+}
+
+///|
+/// Host-provided AES-GCM boundary. The provider must generate a fresh secure
+/// nonce and return a versioned envelope containing nonce||ciphertext||tag.
+/// A missing provider is an explicit error.
+pub type AeadEncryptProvider = (Bytes, Bytes, Bytes) -> Result[
+  Bytes,
+  BackendError,
+]
+
+///|
+let aead_encrypt_provider : Ref[AeadEncryptProvider?] = @ref.new(None)
+
+///|
+pub fn install_aead_encrypt_provider(provider : AeadEncryptProvider) -> Unit {
+  aead_encrypt_provider.val = Some(provider)
+}
+
+///|
+pub fn clear_aead_encrypt_provider() -> Unit {
+  aead_encrypt_provider.val = None
+}
+
+///|
 pub suberror BackendError {
   UnsupportedBackend(backend~ : Backend)
   EntropyUnavailable

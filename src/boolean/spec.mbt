@@ -112,3 +112,14 @@ declare pub fn ClientKey::deserialize(
   self : ClientKey,
   bytes : Bytes,
 ) -> Result[Ciphertext, SerializationError]
+
+///|
+declare pub fn ClientKey::export_secret(
+  self : ClientKey,
+  key : SerializationKey,
+) -> Result[Bytes, SerializationError]
+
+///|
+declare pub fn ServerKey::serialize(
+  self : ServerKey,
+) -> Result[Bytes, SerializationError]

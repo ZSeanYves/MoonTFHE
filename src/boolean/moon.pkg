@@ -2,4 +2,5 @@ import {
   "ZSeanYves/MoonTFHE/src/params",
   "ZSeanYves/MoonTFHE/src",
   "moonbitlang/core/bytes",
+  "moonbitlang/core/ref",
 }

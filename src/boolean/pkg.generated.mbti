@@ -14,9 +14,15 @@ pub fn boolean_128_parameters() -> BooleanParameters
 
 pub fn boolean_test_parameters() -> BooleanParameters
 
+pub fn clear_aead_encrypt_provider() -> Unit
+
 pub fn generate_keys(BooleanParameters) -> Result[(ClientKey, ServerKey), KeyGenerationError]
 
 pub fn generate_test_keys(BooleanParameters, UInt64) -> Result[(ClientKey, ServerKey), KeyGenerationError]
+
+pub fn install_aead_encrypt_provider((Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]) -> Unit
+
+pub fn serialization_key_from_bytes(Bytes) -> Result[SerializationKey, SerializationKeyError]
 
 // Errors
 pub suberror BackendError {
@@ -49,6 +55,13 @@ pub suberror SerializationError {
   ParameterMismatch
   ChecksumMismatch
   InvalidCiphertext
+  InvalidKeyLength
+  AuthenticationFailed
+  UnsupportedBackend
+} derive(Eq, @debug.Debug)
+
+pub suberror SerializationKeyError {
+  InvalidLength
 } derive(Eq, @debug.Debug)
 
 // Types and methods
@@ -86,6 +99,7 @@ pub struct ClientKey {
 pub fn ClientKey::decrypt(Self, Ciphertext) -> Result[Bool, DecryptionError]
 pub fn ClientKey::deserialize(Self, Bytes) -> Result[Ciphertext, SerializationError]
 pub fn ClientKey::encrypt(Self, Bool) -> Ciphertext
+pub fn ClientKey::export_secret(Self, SerializationKey) -> Result[Bytes, SerializationError]
 
 pub struct SerializationKey {
   bytes : Bytes
@@ -102,10 +116,12 @@ pub fn ServerKey::mux(Self, Ciphertext, Ciphertext, Ciphertext) -> Result[Cipher
 pub fn ServerKey::nand(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::not(Self, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::or_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::serialize(Self) -> Result[Bytes, SerializationError]
 pub fn ServerKey::xnor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::xor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 
 // Type aliases
+pub type AeadEncryptProvider = (Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]
 
 // Traits
 

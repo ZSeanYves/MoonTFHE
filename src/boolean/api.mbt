@@ -36,6 +36,9 @@ pub suberror SerializationError {
   ParameterMismatch
   ChecksumMismatch
   InvalidCiphertext
+  InvalidKeyLength
+  AuthenticationFailed
+  UnsupportedBackend
 } derive(Debug, Eq)
 
 ///|
@@ -361,19 +364,30 @@ pub fn ServerKey::apply_lut(
 ///|
 pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes {
   let payload = self.inner.serialize()
-  let output = Array::make(25 + payload.length(), b'\x00')
+  let header_length = 39
+  let output = Array::make(header_length + payload.length(), b'\x00')
   output[0] = b'M'
   output[1] = b'B'
   output[2] = b'C'
   output[3] = b'T'
-  output[4] = b'\x01'
-  boolean_write_i32(output, 5, boolean_parameter_code(self.parameters))
-  boolean_write_i32(output, 9, self.parameters.dimension)
-  boolean_write_i32(output, 13, self.key_id)
-  boolean_write_i32(output, 17, payload.length())
-  boolean_write_i32(output, 21, boolean_checksum(payload))
+  output[4] = b'\x02'
+  output[5] = b'\x01'
+  boolean_write_u32(
+    output,
+    7,
+    boolean_parameter_code(self.parameters).reinterpret_as_uint(),
+  )
+  boolean_write_u32(output, 11, self.parameters.dimension.reinterpret_as_uint())
+  boolean_write_u32(output, 15, self.key_id.reinterpret_as_uint())
+  // Torus32 uses modulus 2^32, represented by zero modulo 2^32.
+  boolean_write_u32(output, 19, 0U)
+  // The compatibility facade has no production decomposition yet.
+  boolean_write_u32(output, 23, 0U)
+  boolean_write_u32(output, 27, if self.parameters.test_only { 0U } else { 1U })
+  boolean_write_u32(output, 31, payload.length().reinterpret_as_uint())
+  boolean_write_u32(output, 35, boolean_crc32c(payload))
   for i in 0..<payload.length() {
-    output[25 + i] = payload[i]
+    output[header_length + i] = payload[i]
   }
   Bytes::from_array(output)
 }
@@ -383,7 +397,7 @@ pub fn ClientKey::deserialize(
   self : ClientKey,
   bytes : Bytes,
 ) -> Result[Ciphertext, SerializationError] {
-  if bytes.length() < 25 {
+  if bytes.length() < 5 {
     return Err(InvalidLength)
   }
   if bytes[0] != b'M' ||
@@ -392,28 +406,54 @@ pub fn ClientKey::deserialize(
     bytes[3] != b'T' {
     return Err(InvalidMagic)
   }
-  if bytes[4] != b'\x01' {
+  let version = bytes[4]
+  let mut header_length = 25
+  let mut parameter_code = 0
+  let mut dimension = 0
+  let mut key_id = 0
+  let mut payload_length = 0
+  let mut payload = Bytes::make(0, 0)
+  let mut checksum_ok = false
+  if version == b'\x01' {
+    parameter_code = boolean_read_i32(bytes, 5)
+    dimension = boolean_read_i32(bytes, 9)
+    key_id = boolean_read_i32(bytes, 13)
+    payload_length = boolean_read_i32(bytes, 17)
+    if payload_length < 0 || bytes.length() != 25 + payload_length {
+      return Err(InvalidLength)
+    }
+    payload = bytes[25:].to_owned()
+    checksum_ok = boolean_checksum(payload) == boolean_read_i32(bytes, 21)
+  } else if version == b'\x02' {
+    header_length = 39
+    if bytes.length() < header_length || bytes[5] != b'\x01' {
+      return Err(InvalidLength)
+    }
+    parameter_code = boolean_read_u32(bytes, 7).reinterpret_as_int()
+    dimension = boolean_read_u32(bytes, 11).reinterpret_as_int()
+    key_id = boolean_read_u32(bytes, 15).reinterpret_as_int()
+    if boolean_read_u32(bytes, 19) != 0U || boolean_read_u32(bytes, 23) != 0U {
+      return Err(InvalidCiphertext)
+    }
+    let distribution = if self.parameters.test_only { 0U } else { 1U }
+    if boolean_read_u32(bytes, 27) != distribution {
+      return Err(ParameterMismatch)
+    }
+    payload_length = boolean_read_u32(bytes, 31).reinterpret_as_int()
+    if payload_length < 0 || bytes.length() != header_length + payload_length {
+      return Err(InvalidLength)
+    }
+    payload = bytes[header_length:].to_owned()
+    checksum_ok = boolean_crc32c(payload) == boolean_read_u32(bytes, 35)
+  } else {
     return Err(UnsupportedVersion)
   }
-  let parameter_code = boolean_read_i32(bytes, 5)
-  if parameter_code != boolean_parameter_code(self.parameters) {
+  if parameter_code != boolean_parameter_code(self.parameters) ||
+    dimension != self.parameters.dimension ||
+    key_id != self.key_id {
     return Err(ParameterMismatch)
   }
-  let dimension = boolean_read_i32(bytes, 9)
-  if dimension != self.parameters.dimension {
-    return Err(ParameterMismatch)
-  }
-  let key_id = boolean_read_i32(bytes, 13)
-  if key_id != self.key_id {
-    return Err(ParameterMismatch)
-  }
-  let payload_length = boolean_read_i32(bytes, 17)
-  if payload_length < 0 || bytes.length() != 25 + payload_length {
-    return Err(InvalidLength)
-  }
-  let expected_checksum = boolean_read_i32(bytes, 21)
-  let payload = bytes[25:].to_owned()
-  if boolean_checksum(payload) != expected_checksum {
+  if !checksum_ok {
     return Err(ChecksumMismatch)
   }
   match self.inner.deserialize_ciphertext(payload) {
@@ -435,7 +475,7 @@ fn boolean_parameter_code(parameters : BooleanParameters) -> Int {
 }
 
 ///|
-fn boolean_write_i32(output : Array[Byte], offset : Int, value : Int) -> Unit {
+fn boolean_write_u32(output : Array[Byte], offset : Int, value : UInt) -> Unit {
   output[offset] = value.to_byte()
   output[offset + 1] = (value >> 8).to_byte()
   output[offset + 2] = (value >> 16).to_byte()
@@ -451,10 +491,58 @@ fn boolean_read_i32(input : Bytes, offset : Int) -> Int {
 }
 
 ///|
+fn boolean_read_u32(input : Bytes, offset : Int) -> UInt {
+  input[offset].to_uint() |
+  (input[offset + 1].to_uint() << 8) |
+  (input[offset + 2].to_uint() << 16) |
+  (input[offset + 3].to_uint() << 24)
+}
+
+///|
 fn boolean_checksum(bytes : Bytes) -> Int {
   let mut hash = 0x811C9DC5
   for byte in bytes {
     hash = (hash ^ byte.to_int()) * 0x01000193
   }
   hash
+}
+
+///|
+/// Castagnoli CRC32C, used by the v2 binary format.
+fn boolean_crc32c(bytes : Bytes) -> UInt {
+  let mut crc = 0xFFFFFFFFU
+  for byte in bytes {
+    crc = crc ^ byte.to_uint()
+    for _ in 0..<8 {
+      let mask = 0U - (crc & 1U)
+      crc = (crc >> 1) ^ (0x82F63B78U & mask)
+    }
+  }
+  crc ^ 0xFFFFFFFFU
+}
+
+///|
+/// Explicit AES-GCM export boundary. A missing host provider is an error,
+/// never a deterministic or plaintext fallback.
+pub fn ClientKey::export_secret(
+  _self : ClientKey,
+  key : SerializationKey,
+) -> Result[Bytes, SerializationError] {
+  if key.bytes.length() != 32 {
+    return Err(InvalidKeyLength)
+  }
+  // The current facade deliberately cannot access its opaque secret bytes.
+  // Refuse export until the core provides the full secret payload to the
+  // AES-GCM provider; never encrypt metadata or emit a fake envelope.
+  Err(UnsupportedBackend)
+}
+
+///|
+/// Server-key serialization is gated until the encrypted BSK/KSK payload
+/// encoder is connected. Returning an error prevents metadata-only keys from
+/// being mistaken for usable evaluation keys.
+pub fn ServerKey::serialize(
+  _self : ServerKey,
+) -> Result[Bytes, SerializationError] {
+  Err(UnsupportedBackend)
 }

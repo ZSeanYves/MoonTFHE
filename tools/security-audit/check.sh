@@ -44,7 +44,7 @@ for type_name, text in (
 
 client_block = struct_body(boolean_interface, "ClientKey")
 assert "ClientKey::serialize" not in boolean_interface
-assert "ClientKey::export" not in boolean_interface
+assert "ClientKey::export_secret" in boolean_interface
 assert "ServerKey::deserialize" not in boolean_interface
 assert "lwe_key" not in client_block.lower()
 print("security boundary checks passed")

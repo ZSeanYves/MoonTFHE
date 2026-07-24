@@ -30,10 +30,62 @@ test "stable Boolean facade: serialization checksum rejects tampering" {
   let (client, _server) = generate_test_keys(parameters, 0x43484B).unwrap()
   let encoded = client.encrypt(true).serialize()
   let tampered = encoded.to_array()
-  tampered[25] = tampered[25] ^ 1U.to_byte()
+  tampered[39] = tampered[39] ^ 1U.to_byte()
   assert_true(
     client.deserialize(Bytes::from_array(tampered)) is Err(ChecksumMismatch),
   )
+}
+
+///|
+test "stable Boolean facade: v2 CRC32C and secret export boundary" {
+  let parameters = boolean_test_parameters()
+  let (client, _server) = generate_test_keys(parameters, 0x43524332).unwrap()
+  let encoded = client.encrypt(false).serialize()
+  assert_eq(encoded[0], b'M')
+  assert_eq(encoded[4], b'\x02')
+  let short_key = serialization_key_from_bytes(Bytes::make(31, 0))
+  assert_true(short_key is Err(InvalidLength))
+  let key = serialization_key_from_bytes(Bytes::make(32, 0))
+  let export_result = client.export_secret(key.unwrap())
+  assert_true(export_result is Err(UnsupportedBackend))
+}
+
+///|
+test "stable Boolean facade: MBCT v1 remains read-only compatible" {
+  let parameters = boolean_test_parameters()
+  let (client, _server) = generate_test_keys(parameters, 0x56314D47).unwrap()
+  let current = client.encrypt(true).serialize()
+  let payload = current[39:].to_owned()
+  let legacy = Array::make(25 + payload.length(), 0U.to_byte())
+  legacy[0] = b'M'
+  legacy[1] = b'B'
+  legacy[2] = b'C'
+  legacy[3] = b'T'
+  legacy[4] = b'\x01'
+  for i in 0..<4 {
+    legacy[5 + i] = current[7 + i]
+    legacy[9 + i] = current[11 + i]
+    legacy[13 + i] = current[15 + i]
+    legacy[17 + i] = current[31 + i]
+  }
+  let mut checksum = 0x811C9DC5
+  for byte in payload {
+    checksum = (checksum ^ byte.to_int()) * 0x01000193
+  }
+  for i in 0..<4 {
+    legacy[21 + i] = (checksum >> (8 * i)).to_byte()
+  }
+  for i in 0..<payload.length() {
+    legacy[25 + i] = payload[i]
+  }
+  assert_true(client.deserialize(Bytes::from_array(legacy)) is Ok(_))
+}
+
+///|
+test "stable Boolean facade: server key export never emits metadata-only key" {
+  let parameters = boolean_test_parameters()
+  let (_client, server) = generate_test_keys(parameters, 0x534B4559).unwrap()
+  assert_true(server.serialize() is Err(UnsupportedBackend))
 }
 
 ///|
