@@ -1,0 +1,77 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/params"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn boolean_110_reference() -> ParameterSet
+
+pub fn boolean_128_reference() -> ParameterSet
+
+pub fn boolean_test_record() -> ParameterSet
+
+// Errors
+pub suberror ParameterValidationError {
+  InvalidDimension
+  InvalidPolynomialSize
+  InvalidDecomposition
+  InvalidFailureExponent
+  UnsupportedDistribution
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct DecompositionParameters {
+  base_log : Int
+  level : Int
+} derive(Eq, @debug.Debug)
+pub fn DecompositionParameters::base_log(Self) -> Int
+pub fn DecompositionParameters::level(Self) -> Int
+
+pub struct GlweDimension {
+  value : Int
+} derive(Eq, @debug.Debug)
+pub fn GlweDimension::value(Self) -> Int
+
+pub struct LweDimension {
+  value : Int
+} derive(Eq, @debug.Debug)
+pub fn LweDimension::value(Self) -> Int
+
+pub enum NoiseDistribution {
+  Gaussian(Double)
+  TUniform(Int)
+} derive(Eq, @debug.Debug)
+
+pub struct ParameterSet {
+  id : String
+  target_security_bits : Int
+  upstream_security_bits : Int
+  failure_exponent : Double
+  lwe_dimension : LweDimension
+  glwe_dimension : GlweDimension
+  polynomial_size : PolynomialSize
+  pbs_decomposition : DecompositionParameters
+  ks_decomposition : DecompositionParameters
+  noise : NoiseDistribution
+  estimator_commit : String
+  reference_only : Bool
+} derive(@debug.Debug)
+pub fn ParameterSet::estimator_commit(Self) -> String
+pub fn ParameterSet::failure_exponent(Self) -> Double
+pub fn ParameterSet::id(Self) -> String
+pub fn ParameterSet::is_reference_only(Self) -> Bool
+pub fn ParameterSet::target_security_bits(Self) -> Int
+pub fn ParameterSet::upstream_security_bits(Self) -> Int
+pub fn ParameterSet::validate(Self) -> Result[Unit, ParameterValidationError]
+
+pub struct PolynomialSize {
+  value : Int
+} derive(Eq, @debug.Debug)
+pub fn PolynomialSize::value(Self) -> Int
+
+// Type aliases
+
+// Traits
+

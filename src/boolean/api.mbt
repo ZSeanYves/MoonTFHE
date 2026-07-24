@@ -5,6 +5,7 @@ pub struct BooleanParameters {
   security_bits : Int
   test_only : Bool
   dimension : Int
+  record : @params.ParameterSet
 }
 
 ///|
@@ -51,32 +52,38 @@ pub struct ServerKey {
 
 ///|
 pub fn boolean_110_parameters() -> BooleanParameters {
+  let record = @params.boolean_110_reference()
   {
     id: "tfhe-rs-boolean-110-reference".to_string(),
     security_bits: 110,
     test_only: false,
     dimension: 805,
+    record,
   }
 }
 
 ///|
 pub fn boolean_128_parameters() -> BooleanParameters {
+  let record = @params.boolean_128_reference()
   {
     id: "tfhe-rs-boolean-128-reference".to_string(),
     security_bits: 128,
     test_only: false,
-    dimension: 805,
+    dimension: 837,
+    record,
   }
 }
 
 ///|
 /// Tiny deterministic parameters used only by contract tests and examples.
 pub fn boolean_test_parameters() -> BooleanParameters {
+  let record = @params.boolean_test_record()
   {
     id: "moontfhe-boolean-test".to_string(),
     security_bits: 0,
     test_only: true,
     dimension: 4,
+    record,
   }
 }
 
@@ -104,6 +111,9 @@ pub fn generate_keys(
   if parameters.test_only || parameters.dimension <= 0 {
     return Err(InvalidParameters)
   }
+  if parameters.record.validate() is Err(_) {
+    return Err(InvalidParameters)
+  }
   Err(UnsupportedBackend)
 }
 
@@ -115,6 +125,9 @@ pub fn generate_test_keys(
   seed : UInt64,
 ) -> Result[(ClientKey, ServerKey), KeyGenerationError] {
   if !parameters.test_only || parameters.dimension != 4 {
+    return Err(InvalidParameters)
+  }
+  if parameters.record.validate() is Err(_) {
     return Err(InvalidParameters)
   }
   let (client, server) = @src.experimental_boolean_keygen(seed)

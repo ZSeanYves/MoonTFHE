@@ -3,6 +3,7 @@ package "ZSeanYves/MoonTFHE/src/boolean"
 
 import {
   "ZSeanYves/MoonTFHE/src",
+  "ZSeanYves/MoonTFHE/src/params",
   "moonbitlang/core/debug",
 }
 
@@ -39,6 +40,7 @@ pub struct BooleanParameters {
   security_bits : Int
   test_only : Bool
   dimension : Int
+  record : @params.ParameterSet
 }
 pub fn BooleanParameters::id(Self) -> String
 pub fn BooleanParameters::is_test_only(Self) -> Bool
