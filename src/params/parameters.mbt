@@ -20,9 +20,21 @@ pub struct DecompositionParameters {
 } derive(Debug, Eq)
 
 ///|
+pub struct QuantizedGaussian {
+  sigma_q64 : UInt64
+  tail_sigma : Int
+  fixture_hash : String
+} derive(Debug, Eq)
+
+///|
 pub enum NoiseDistribution {
-  Gaussian(Double)
+  Gaussian(QuantizedGaussian)
   TUniform(Int)
+} derive(Debug, Eq)
+
+///|
+pub struct FailureProbability {
+  log2_milli : Int
 } derive(Debug, Eq)
 
 ///|
@@ -30,13 +42,14 @@ pub struct ParameterSet {
   id : String
   target_security_bits : Int
   upstream_security_bits : Int
-  failure_exponent : Double
+  failure_probability : FailureProbability
   lwe_dimension : LweDimension
   glwe_dimension : GlweDimension
   polynomial_size : PolynomialSize
   pbs_decomposition : DecompositionParameters
   ks_decomposition : DecompositionParameters
-  noise : NoiseDistribution
+  lwe_noise : NoiseDistribution
+  glwe_noise : NoiseDistribution
   estimator_commit : String
   reference_only : Bool
 } derive(Debug)
@@ -55,7 +68,7 @@ fn parameter_set(
   id : String,
   target_security_bits : Int,
   upstream_security_bits : Int,
-  failure_exponent : Double,
+  failure_log2_milli : Int,
   lwe_dimension : Int,
   glwe_dimension : Int,
   polynomial_size : Int,
@@ -63,19 +76,29 @@ fn parameter_set(
   pbs_level : Int,
   ks_base_log : Int,
   ks_level : Int,
-  sigma : Double,
+  lwe_sigma_q64 : UInt64,
+  glwe_sigma_q64 : UInt64,
 ) -> ParameterSet {
   {
     id,
     target_security_bits,
     upstream_security_bits,
-    failure_exponent,
+    failure_probability: { log2_milli: failure_log2_milli },
     lwe_dimension: { value: lwe_dimension },
     glwe_dimension: { value: glwe_dimension },
     polynomial_size: { value: polynomial_size },
     pbs_decomposition: { base_log: pbs_base_log, level: pbs_level },
     ks_decomposition: { base_log: ks_base_log, level: ks_level },
-    noise: Gaussian(sigma),
+    lwe_noise: Gaussian({
+      sigma_q64: lwe_sigma_q64,
+      tail_sigma: 8,
+      fixture_hash: "unavailable:reference-only".to_string(),
+    }),
+    glwe_noise: Gaussian({
+      sigma_q64: glwe_sigma_q64,
+      tail_sigma: 8,
+      fixture_hash: "unavailable:reference-only".to_string(),
+    }),
     estimator_commit: "tfhe-rs-1.7.0:640911e".to_string(),
     reference_only: true,
   }
@@ -89,7 +112,7 @@ pub fn boolean_110_reference() -> ParameterSet {
     "tfhe-rs-boolean-default-reference".to_string(),
     110,
     132,
-    -64.344,
+    -64344,
     805,
     3,
     512,
@@ -97,7 +120,8 @@ pub fn boolean_110_reference() -> ParameterSet {
     2,
     3,
     5,
-    0.0000058615896642671336,
+    0x625755FE3CADUL,
+    0x40039996AUL,
   )
 }
 
@@ -109,7 +133,7 @@ pub fn boolean_128_reference() -> ParameterSet {
     "tfhe-rs-boolean-strong-reference".to_string(),
     128,
     165,
-    -165.434,
+    -165434,
     837,
     2,
     1024,
@@ -117,7 +141,8 @@ pub fn boolean_128_reference() -> ParameterSet {
     2,
     3,
     5,
-    0.000003374714376692653,
+    0x389E49B295AEUL,
+    0x400000000UL,
   )
 }
 
@@ -128,7 +153,7 @@ pub fn boolean_test_record() -> ParameterSet {
     "moontfhe-boolean-test".to_string(),
     0,
     0,
-    -1.0,
+    -1000,
     4,
     1,
     32,
@@ -136,7 +161,8 @@ pub fn boolean_test_record() -> ParameterSet {
     8,
     4,
     8,
-    1.0,
+    3UL << 32,
+    3UL << 32,
   )
 }
 
@@ -158,12 +184,17 @@ pub fn ParameterSet::validate(
       return Err(InvalidDecomposition)
     }
   }
-  if self.failure_exponent >= 0.0 {
+  if self.failure_probability.log2_milli >= 0 {
     return Err(InvalidFailureExponent)
   }
-  match self.noise {
-    Gaussian(sigma) => if sigma <= 0.0 { return Err(UnsupportedDistribution) }
-    TUniform(width) => if width <= 0 { return Err(UnsupportedDistribution) }
+  for noise in [self.lwe_noise, self.glwe_noise] {
+    match noise {
+      Gaussian(distribution) =>
+        if distribution.sigma_q64 == 0UL || distribution.tail_sigma <= 0 {
+          return Err(UnsupportedDistribution)
+        }
+      TUniform(width) => if width <= 0 { return Err(UnsupportedDistribution) }
+    }
   }
   Ok(())
 }
@@ -184,8 +215,33 @@ pub fn ParameterSet::upstream_security_bits(self : ParameterSet) -> Int {
 }
 
 ///|
-pub fn ParameterSet::failure_exponent(self : ParameterSet) -> Double {
-  self.failure_exponent
+pub fn ParameterSet::failure_log2_milli(self : ParameterSet) -> Int {
+  self.failure_probability.log2_milli
+}
+
+///|
+pub fn QuantizedGaussian::sigma_q64(self : QuantizedGaussian) -> UInt64 {
+  self.sigma_q64
+}
+
+///|
+pub fn QuantizedGaussian::tail_sigma(self : QuantizedGaussian) -> Int {
+  self.tail_sigma
+}
+
+///|
+pub fn QuantizedGaussian::fixture_hash(self : QuantizedGaussian) -> String {
+  self.fixture_hash
+}
+
+///|
+pub fn ParameterSet::lwe_noise(self : ParameterSet) -> NoiseDistribution {
+  self.lwe_noise
+}
+
+///|
+pub fn ParameterSet::glwe_noise(self : ParameterSet) -> NoiseDistribution {
+  self.glwe_noise
 }
 
 ///|
@@ -241,7 +297,7 @@ test "params: malformed failure records are rejected" {
     "invalid".to_string(),
     110,
     110,
-    0.0,
+    0,
     805,
     3,
     512,
@@ -249,7 +305,8 @@ test "params: malformed failure records are rejected" {
     2,
     3,
     5,
-    0.1,
+    1UL,
+    1UL,
   )
   assert_true(invalid.validate() is Err(InvalidFailureExponent))
 }

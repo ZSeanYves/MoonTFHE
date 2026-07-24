@@ -34,6 +34,9 @@ jobs:
       - name: Verify parameter fixtures
         run: sh tools/parameter_estimator/check.sh
 
+      - name: Verify noise fixtures
+        run: sh tools/noise_fixtures/check.sh
+
       - name: Verify security boundaries
         run: sh tools/security-audit/check.sh
 

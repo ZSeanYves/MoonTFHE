@@ -1,0 +1,23 @@
+{
+  "format": "moontfhe-cdt-v1",
+  "distribution": "discrete-gaussian",
+  "sigma_q32": "12884901888",
+  "tail_bound": 24,
+  "quantization_bits": 64,
+  "thresholds": [
+    "220B06EFC59DC000", "627326E31B016000", "98F80C58C41FC000",
+    "C243E9165D940800", "DE419EB854B03800", "EF3BD7AEDFB2A800",
+    "F872BE6BD7C64800", "FCEC65493DA1D000", "FEDE4B3B6D0EB000",
+    "FF9FEC9E1608F000", "FFE34EB751D53800", "FFF84A73D0751000",
+    "FFFE2351715FF000", "FFFF98909E326000", "FFFFEBD8F78A6000",
+    "FFFFFC79E8784000", "FFFFFF727D757000", "FFFFFFEC177B8800",
+    "FFFFFFFD7D26D800", "FFFFFFFFB7517000", "FFFFFFFFF8A2B800",
+    "FFFFFFFFFF54D800", "FFFFFFFFFFF21800", "FFFFFFFFFFFF0000",
+    "FFFFFFFFFFFFFFFF"
+  ],
+  "generator": {
+    "algorithm": "absolute-value CDT, symmetric sign",
+    "formula": "weight(k)=exp(-k^2/(2*sigma^2)); weight(k>0)*=2",
+    "generator_version": "c1-v1"
+  }
+}

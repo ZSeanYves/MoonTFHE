@@ -92,7 +92,7 @@ fn poly_add(
 pub fn GlweSecretKey::encrypt(
   self : GlweSecretKey,
   message : Array[@torus.Torus32],
-  sigma : Double,
+  noise_distribution : @random.DiscreteGaussian,
   rng : @random.RandomGenerator,
 ) -> Result[GlweCiphertext, GlweError] {
   let n = self.parameters.polynomial_size
@@ -119,7 +119,7 @@ pub fn GlweSecretKey::encrypt(
     body = poly_add(body, product)
   }
   for i in 0..<n {
-    let noise = match rng.sample_discrete_gaussian(sigma) {
+    let noise = match rng.sample_discrete_gaussian_fixed(noise_distribution) {
       Ok(value) => value
       Err(_) => return Err(NoiseFailure)
     }
@@ -198,7 +198,12 @@ test "glwe: explicit dimension and polynomial shape round trip" {
     @torus.Torus32::from_int(3),
     @torus.Torus32::from_int(-4),
   ]
-  let ciphertext = key.encrypt(message, 0.0, rng).unwrap()
+  let ciphertext = key
+    .encrypt(message, @random.gaussian_sigma_3_fixture(), rng)
+    .unwrap()
   let decoded = key.decrypt(ciphertext).unwrap()
-  assert_eq(decoded.map(fn(x) { x.to_int() }), [1, -2, 3, -4])
+  for i in 0..<message.length() {
+    let error = decoded[i].sub(message[i]).to_int()
+    assert_true(error >= -24 && error <= 24)
+  }
 }

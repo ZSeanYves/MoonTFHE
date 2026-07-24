@@ -1,15 +1,14 @@
 ///|
-extern "c" fn entropy_available() -> Bool = "moonbit_tfhe_entropy_available"
+// The C stub fills the caller-owned MoonBit byte buffer from the OS RNG.
+#borrow(buffer)
+extern "c" fn entropy_read(buffer : Bytes) -> Int = "moonbit_tfhe_entropy_read"
 
 ///|
-extern "c" fn entropy_u32() -> UInt = "moonbit_tfhe_entropy_u32"
-
-///|
-fn entropy_backend_available() -> Bool {
-  entropy_available()
-}
-
-///|
-fn entropy_backend_u32() -> UInt {
-  entropy_u32()
+fn entropy_backend_bytes(count : Int) -> Bytes? {
+  let buffer = Bytes::make(count, 0)
+  if entropy_read(buffer) == 0 {
+    Some(buffer)
+  } else {
+    None
+  }
 }

@@ -29,6 +29,10 @@ pub struct DecompositionParameters {
 pub fn DecompositionParameters::base_log(Self) -> Int
 pub fn DecompositionParameters::level(Self) -> Int
 
+pub struct FailureProbability {
+  log2_milli : Int
+} derive(Eq, @debug.Debug)
+
 pub struct GlweDimension {
   value : Int
 } derive(Eq, @debug.Debug)
@@ -40,7 +44,7 @@ pub struct LweDimension {
 pub fn LweDimension::value(Self) -> Int
 
 pub enum NoiseDistribution {
-  Gaussian(Double)
+  Gaussian(QuantizedGaussian)
   TUniform(Int)
 } derive(Eq, @debug.Debug)
 
@@ -48,20 +52,23 @@ pub struct ParameterSet {
   id : String
   target_security_bits : Int
   upstream_security_bits : Int
-  failure_exponent : Double
+  failure_probability : FailureProbability
   lwe_dimension : LweDimension
   glwe_dimension : GlweDimension
   polynomial_size : PolynomialSize
   pbs_decomposition : DecompositionParameters
   ks_decomposition : DecompositionParameters
-  noise : NoiseDistribution
+  lwe_noise : NoiseDistribution
+  glwe_noise : NoiseDistribution
   estimator_commit : String
   reference_only : Bool
 } derive(@debug.Debug)
 pub fn ParameterSet::estimator_commit(Self) -> String
-pub fn ParameterSet::failure_exponent(Self) -> Double
+pub fn ParameterSet::failure_log2_milli(Self) -> Int
+pub fn ParameterSet::glwe_noise(Self) -> NoiseDistribution
 pub fn ParameterSet::id(Self) -> String
 pub fn ParameterSet::is_reference_only(Self) -> Bool
+pub fn ParameterSet::lwe_noise(Self) -> NoiseDistribution
 pub fn ParameterSet::target_security_bits(Self) -> Int
 pub fn ParameterSet::upstream_security_bits(Self) -> Int
 pub fn ParameterSet::validate(Self) -> Result[Unit, ParameterValidationError]
@@ -70,6 +77,15 @@ pub struct PolynomialSize {
   value : Int
 } derive(Eq, @debug.Debug)
 pub fn PolynomialSize::value(Self) -> Int
+
+pub struct QuantizedGaussian {
+  sigma_q64 : UInt64
+  tail_sigma : Int
+  fixture_hash : String
+} derive(Eq, @debug.Debug)
+pub fn QuantizedGaussian::fixture_hash(Self) -> String
+pub fn QuantizedGaussian::sigma_q64(Self) -> UInt64
+pub fn QuantizedGaussian::tail_sigma(Self) -> Int
 
 // Type aliases
 

@@ -176,7 +176,23 @@ fn poly_rotate_negacyclic(a : Array[Int], k : Int) -> Array[Int] {
 ///|
 /// Transitional integer-domain Gaussian backed by bounded rejection sampling.
 fn sample_discrete_gaussian_integer(rng : CsPrng, sigma : Float) -> Int {
-  rng.sample_discrete_gaussian(sigma.to_double()).unwrap()
+  if sigma <= 0.0 {
+    return 0
+  }
+  let sigma_double = sigma.to_double()
+  let bound = (8.0 * sigma_double).ceil().to_int().max(1)
+  let width = 2 * bound + 1
+  for ;; {
+    let candidate = (rng.next_u32().reinterpret_as_int() & 0x7FFF_FFFF) % width -
+      bound
+    let exponent = -Double::from_int(candidate * candidate) /
+      (2.0 * sigma_double * sigma_double)
+    let mantissa = rng.next_u64() >> 11
+    let uniform = mantissa.to_double() / 9007199254740992.0
+    if uniform <= @math.exp(exponent) {
+      return candidate
+    }
+  }
 }
 
 // 占位版 NTT 接口

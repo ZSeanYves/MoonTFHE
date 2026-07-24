@@ -33,5 +33,6 @@ fn next_u32(rng : CsPrng) -> Int {
 ///|
 /// 均匀浮点 in [0,1)
 fn next_f64_01(rng : CsPrng) -> Float {
-  Float::from_double(rng.uniform_01())
+  let mantissa = rng.next_u64() >> 11
+  Float::from_double(mantissa.to_double() / 9007199254740992.0)
 }

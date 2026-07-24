@@ -6,7 +6,15 @@ import {
 }
 
 // Values
+pub fn clear_entropy_provider() -> Unit
+
+pub fn gaussian_sigma_3_fixture() -> DiscreteGaussian
+
+pub fn install_entropy_provider((Int) -> Bytes?) -> Unit
+
 pub fn secure_rng_new() -> Result[RandomGenerator, RandomError]
+
+pub fn secure_rng_new_for(RandomDomain) -> Result[RandomGenerator, RandomError]
 
 pub fn test_rng_new(UInt64) -> RandomGenerator
 
@@ -14,13 +22,33 @@ pub fn test_rng_new(UInt64) -> RandomGenerator
 pub suberror RandomError {
   UnsupportedBackend
   EntropyUnavailable
+  InvalidEntropyLength
   InvalidDistribution
 } derive(Eq, @debug.Debug)
 
 // Types and methods
+pub struct DiscreteGaussian {
+  sigma_q32 : UInt64
+  tail_bound : Int
+  cdt : Array[UInt64]
+  fixture_hash : String
+}
+pub fn DiscreteGaussian::fixture_hash(Self) -> String
+pub fn DiscreteGaussian::sigma_q32(Self) -> UInt64
+pub fn DiscreteGaussian::tail_bound(Self) -> Int
+
+pub enum RandomDomain {
+  KeyGeneration
+  EncryptionMask
+  EncryptionNoise
+  BootstrapKey
+  SerializationNonce
+} derive(Eq, @debug.Debug)
+
 pub struct RandomGenerator {
   key : Array[UInt]
   mut counter : UInt
+  nonce : Array[UInt]
   block : Array[UInt]
   mut block_index : Int
   secure_seeded : Bool
@@ -28,10 +56,11 @@ pub struct RandomGenerator {
 pub fn RandomGenerator::is_secure(Self) -> Bool
 pub fn RandomGenerator::next_u32(Self) -> UInt
 pub fn RandomGenerator::next_u64(Self) -> UInt64
-pub fn RandomGenerator::sample_discrete_gaussian(Self, Double) -> Result[Int, RandomError]
-pub fn RandomGenerator::uniform_01(Self) -> Double
+pub fn RandomGenerator::sample_discrete_gaussian_fixed(Self, DiscreteGaussian) -> Result[Int, RandomError]
+pub fn RandomGenerator::sample_tuniform(Self, Int) -> Result[Int, RandomError]
 
 // Type aliases
+pub type EntropyProvider = (Int) -> Bytes?
 
 // Traits
 

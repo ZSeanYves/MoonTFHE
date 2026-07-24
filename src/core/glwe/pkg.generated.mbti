@@ -45,7 +45,7 @@ pub struct GlweSecretKey {
   data : Array[Array[Bool]]
 }
 pub fn GlweSecretKey::decrypt(Self, GlweCiphertext) -> Result[Array[@torus.Torus32], GlweError]
-pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], Double, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]
+pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]
 
 // Type aliases
 

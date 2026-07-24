@@ -1,5 +1,5 @@
 import {
-  "moonbitlang/core/math",
+  "moonbitlang/core/ref",
 }
 
 options(
@@ -7,6 +7,9 @@ options(
   targets: {
     "entropy_native.mbt": [ "native" ],
     "entropy_native_test.mbt": [ "native" ],
-    "entropy_portable.mbt": [ "wasm", "wasm-gc", "js" ],
+    "entropy_js.mbt": [ "js" ],
+    "entropy_js_test.mbt": [ "js" ],
+    "entropy_portable.mbt": [ "wasm", "wasm-gc" ],
+    "entropy_portable_test.mbt": [ "wasm", "wasm-gc" ],
   },
 )

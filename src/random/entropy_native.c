@@ -11,7 +11,7 @@
 #include <sys/random.h>
 #endif
 
-static int moonbit_tfhe_entropy_read(void *buffer, size_t length) {
+static int entropy_read_all(void *buffer, size_t length) {
 #if defined(__APPLE__)
   arc4random_buf(buffer, length);
   return 1;
@@ -50,13 +50,7 @@ static int moonbit_tfhe_entropy_read(void *buffer, size_t length) {
   return 1;
 }
 
-MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_entropy_available(void) {
-  uint32_t probe = 0;
-  return moonbit_tfhe_entropy_read(&probe, sizeof(probe));
-}
-
-MOONBIT_FFI_EXPORT uint32_t moonbit_tfhe_entropy_u32(void) {
-  uint32_t value = 0;
-  (void)moonbit_tfhe_entropy_read(&value, sizeof(value));
-  return value;
+MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_entropy_read(moonbit_bytes_t buffer) {
+  size_t length = Moonbit_array_length(buffer);
+  return entropy_read_all(buffer, length) ? 0 : 1;
 }

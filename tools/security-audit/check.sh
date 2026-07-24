@@ -9,6 +9,12 @@ if rg -n 'SplitMix64|sample_discrete_gaussian_0sigma|Box[- ]Muller|central limit
   exit 1
 fi
 
+if rg -n 'Gaussian\(Double\)|sample_discrete_gaussian\(' \
+  $production_paths --glob '*.mbt' --glob '!**/*_test.mbt'; then
+  echo "floating-point Gaussian API found in a maintained production package" >&2
+  exit 1
+fi
+
 if rg -n 'panic\(' $production_paths --glob '*.mbt' --glob '!**/*_test.mbt'; then
   echo "panic found in a maintained production package" >&2
   exit 1
