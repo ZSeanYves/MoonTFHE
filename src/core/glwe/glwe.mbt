@@ -11,6 +11,8 @@ pub suberror GlweError {
   MessageLengthMismatch
   CiphertextShapeMismatch
   NoiseFailure
+  InvalidSampleIndex
+  InvalidSampleDimension
 } derive(Debug, Eq)
 
 ///|
@@ -53,6 +55,38 @@ pub fn GlweParameters::polynomial_size(self : GlweParameters) -> Int {
 ///|
 pub fn GlweCiphertext::parameters(self : GlweCiphertext) -> GlweParameters {
   self.parameters
+}
+
+///|
+/// Extract one coefficient into an LWE ciphertext using the standard GLWE
+/// negacyclic sign rule. The coefficient index is checked before any access.
+pub fn GlweCiphertext::sample_extract(
+  self : GlweCiphertext,
+  index : Int,
+) -> Result[@lwe.LweCiphertext, GlweError] {
+  let n = self.parameters.polynomial_size
+  if index < 0 || index >= n {
+    return Err(InvalidSampleIndex)
+  }
+  let dimension = self.parameters.glwe_dimension * n
+  let lwe_dimension = match @params.lwe_dimension(dimension) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidSampleDimension)
+  }
+  let a = Array::makei(dimension, fn(flat_index) {
+    let component = flat_index / n
+    let coefficient = flat_index % n
+    let source = index - coefficient
+    if source >= 0 {
+      self.a[component][source]
+    } else {
+      self.a[component][source + n].neg()
+    }
+  })
+  match @lwe.lwe_ciphertext_from_parts(lwe_dimension, a, self.b[index]) {
+    Ok(ciphertext) => Ok(ciphertext)
+    Err(_) => Err(InvalidSampleDimension)
+  }
 }
 
 ///|
@@ -206,4 +240,30 @@ test "glwe: explicit dimension and polynomial shape round trip" {
     let error = decoded[i].sub(message[i]).to_int()
     assert_true(error >= -24 && error <= 24)
   }
+}
+
+///|
+test "glwe: sample extraction handles k=0 and negacyclic wrap" {
+  let parameters = glwe_parameters(1, 4).unwrap()
+  let ciphertext : GlweCiphertext = {
+    parameters,
+    a: [
+      [
+        @torus.Torus32::from_int(1),
+        @torus.Torus32::from_int(2),
+        @torus.Torus32::from_int(3),
+        @torus.Torus32::from_int(4),
+      ],
+    ],
+    b: [
+      @torus.Torus32::from_int(10),
+      @torus.Torus32::from_int(11),
+      @torus.Torus32::from_int(12),
+      @torus.Torus32::from_int(13),
+    ],
+  }
+  let extracted = ciphertext.sample_extract(0).unwrap()
+  assert_eq(extracted.a().map(fn(value) { value.to_int() }), [1, -4, -3, -2])
+  assert_eq(extracted.b().to_int(), 10)
+  assert_true(ciphertext.sample_extract(4) is Err(InvalidSampleIndex))
 }

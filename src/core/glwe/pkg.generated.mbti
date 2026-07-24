@@ -2,6 +2,7 @@
 package "ZSeanYves/MoonTFHE/src/core/glwe"
 
 import {
+  "ZSeanYves/MoonTFHE/src/core/lwe",
   "ZSeanYves/MoonTFHE/src/random",
   "ZSeanYves/MoonTFHE/src/torus",
   "moonbitlang/core/debug",
@@ -21,6 +22,8 @@ pub suberror GlweError {
   MessageLengthMismatch
   CiphertextShapeMismatch
   NoiseFailure
+  InvalidSampleIndex
+  InvalidSampleDimension
 } derive(Eq, @debug.Debug)
 
 // Types and methods
@@ -31,6 +34,7 @@ pub struct GlweCiphertext {
 }
 pub fn GlweCiphertext::add(Self, Self) -> Result[Self, GlweError]
 pub fn GlweCiphertext::parameters(Self) -> GlweParameters
+pub fn GlweCiphertext::sample_extract(Self, Int) -> Result[@lwe.LweCiphertext, GlweError]
 pub fn GlweCiphertext::sub(Self, Self) -> Result[Self, GlweError]
 
 pub struct GlweParameters {

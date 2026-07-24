@@ -1,0 +1,43 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/core/lwe"
+
+import {
+  "ZSeanYves/MoonTFHE/src/params",
+  "ZSeanYves/MoonTFHE/src/random",
+  "ZSeanYves/MoonTFHE/src/torus",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn lwe_ciphertext_from_parts(@params.LweDimension, Array[@torus.Torus32], @torus.Torus32) -> Result[LweCiphertext, LweError]
+
+pub fn lwe_keygen(@params.LweDimension, @random.RandomGenerator) -> LweSecretKey
+
+// Errors
+pub suberror LweError {
+  InvalidDimension
+  CiphertextDimensionMismatch
+  NoiseFailure
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct LweCiphertext {
+  parameters : @params.LweDimension
+  a : Array[@torus.Torus32]
+  b : @torus.Torus32
+} derive(Eq, @debug.Debug)
+pub fn LweCiphertext::a(Self) -> Array[@torus.Torus32]
+pub fn LweCiphertext::b(Self) -> @torus.Torus32
+pub fn LweCiphertext::parameters(Self) -> @params.LweDimension
+
+pub struct LweSecretKey {
+  parameters : @params.LweDimension
+  bits : Array[Bool]
+}
+pub fn LweSecretKey::lwe_decrypt_binary(Self, LweCiphertext) -> Result[Bool, LweError]
+pub fn LweSecretKey::lwe_encrypt_binary(Self, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
+
+// Type aliases
+
+// Traits
+

@@ -1,0 +1,26 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/core/keyswitch"
+
+import {
+  "ZSeanYves/MoonTFHE/src/params",
+  "ZSeanYves/MoonTFHE/src/torus",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn signed_decompose(@torus.Torus32, @params.DecompositionParameters) -> Result[Array[Int], DecompositionError]
+
+pub fn signed_recompose(Array[Int], @params.DecompositionParameters) -> Result[@torus.Torus32, DecompositionError]
+
+// Errors
+pub suberror DecompositionError {
+  InvalidParameters
+  InsufficientLevels
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

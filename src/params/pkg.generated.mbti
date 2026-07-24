@@ -12,6 +12,14 @@ pub fn boolean_128_reference() -> ParameterSet
 
 pub fn boolean_test_record() -> ParameterSet
 
+pub fn decomposition_parameters(Int, Int) -> Result[DecompositionParameters, ParameterValidationError]
+
+pub fn glwe_dimension(Int) -> Result[GlweDimension, ParameterValidationError]
+
+pub fn lwe_dimension(Int) -> Result[LweDimension, ParameterValidationError]
+
+pub fn polynomial_size(Int) -> Result[PolynomialSize, ParameterValidationError]
+
 // Errors
 pub suberror ParameterValidationError {
   InvalidDimension

@@ -1,7 +1,7 @@
 ///|
 /// A value in the 32-bit torus Z/(2^32)Z.
 pub struct Torus32 {
-  raw : Int
+  raw : UInt
 } derive(Debug, Eq)
 
 ///|
@@ -18,17 +18,27 @@ pub enum CiphertextModulus {
 
 ///|
 pub fn Torus32::from_int(raw : Int) -> Torus32 {
+  { raw: raw.reinterpret_as_uint() }
+}
+
+///|
+pub fn Torus32::from_uint(raw : UInt) -> Torus32 {
   { raw, }
 }
 
 ///|
 pub fn Torus32::to_int(self : Torus32) -> Int {
+  self.raw.reinterpret_as_int()
+}
+
+///|
+pub fn Torus32::to_uint(self : Torus32) -> UInt {
   self.raw
 }
 
 ///|
 pub fn Torus32::zero() -> Torus32 {
-  { raw: 0 }
+  { raw: 0U }
 }
 
 ///|
@@ -43,12 +53,12 @@ pub fn Torus32::sub(self : Torus32, other : Torus32) -> Torus32 {
 
 ///|
 pub fn Torus32::neg(self : Torus32) -> Torus32 {
-  { raw: -self.raw }
+  { raw: 0U - self.raw }
 }
 
 ///|
 pub fn Torus32::scale(self : Torus32, scalar : Int) -> Torus32 {
-  { raw: self.raw * scalar }
+  { raw: self.raw * scalar.reinterpret_as_uint() }
 }
 
 ///|
@@ -62,7 +72,7 @@ pub fn Torus32::encode_bit_pm(message : Bool, amplitude : Torus32) -> Torus32 {
 
 ///|
 pub fn Torus32::decode_sign(self : Torus32) -> Bool {
-  self.raw >= 0
+  (self.raw & 0x8000_0000U) == 0U
 }
 
 ///|
@@ -82,13 +92,13 @@ pub fn Torus32::modulus_switch(
   modulus : CiphertextModulus,
 ) -> Result[Int, ModulusError] {
   match modulus {
-    Torus32Modulus => Ok(self.raw)
+    Torus32Modulus => Ok(self.to_int())
     PowerOfTwo(log_modulus) => {
       if log_modulus <= 0 || log_modulus > 16 {
         return Err(InvalidLogModulus)
       }
       let q : Int64 = 1L << log_modulus
-      let unsigned = self.raw.reinterpret_as_uint().to_int64()
+      let unsigned = self.raw.to_int64()
       Ok((((unsigned * q + 0x8000_0000L) >> 32) % q).to_int())
     }
   }

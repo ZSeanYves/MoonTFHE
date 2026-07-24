@@ -64,6 +64,18 @@ pub suberror ParameterValidationError {
 } derive(Debug, Eq)
 
 ///|
+pub fn decomposition_parameters(
+  base_log : Int,
+  level : Int,
+) -> Result[DecompositionParameters, ParameterValidationError] {
+  if base_log <= 0 || level <= 0 || base_log * level > 32 {
+    Err(InvalidDecomposition)
+  } else {
+    Ok({ base_log, level })
+  }
+}
+
+///|
 fn parameter_set(
   id : String,
   target_security_bits : Int,
@@ -101,6 +113,39 @@ fn parameter_set(
     }),
     estimator_commit: "tfhe-rs-1.7.0:640911e".to_string(),
     reference_only: true,
+  }
+}
+
+///|
+pub fn lwe_dimension(
+  value : Int,
+) -> Result[LweDimension, ParameterValidationError] {
+  if value <= 0 {
+    Err(InvalidDimension)
+  } else {
+    Ok({ value, })
+  }
+}
+
+///|
+pub fn glwe_dimension(
+  value : Int,
+) -> Result[GlweDimension, ParameterValidationError] {
+  if value <= 0 {
+    Err(InvalidDimension)
+  } else {
+    Ok({ value, })
+  }
+}
+
+///|
+pub fn polynomial_size(
+  value : Int,
+) -> Result[PolynomialSize, ParameterValidationError] {
+  if value <= 0 || (value & (value - 1)) != 0 {
+    Err(InvalidPolynomialSize)
+  } else {
+    Ok({ value, })
   }
 }
 
