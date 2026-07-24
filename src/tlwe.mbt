@@ -147,10 +147,12 @@ fn tlwe_decrypt_bit0(key : TlweKey, ct : TlweCiphertext) -> Bool {
 ///|
 /// 把 TLWE 相位（torus 32 位）映射到环 Z[X]/(X^n+1) 的“旋转步数”k：
 fn torus_phase_to_rot_k(t : Int, n : Int) -> Int {
-  let l = log2_pow2(n)
+  let l = log2_pow2(n) + 1
   let shift = 32 - l
-  // 以无符号视角右移，得到 [0, n) 的整步
-  let ku = (t.reinterpret_as_uint() >> shift) & (n.reinterpret_as_uint() - 1)
+  // 以无符号视角右移，得到 [0, 2n) 的 negacyclic 整步
+  let period = 2 * n
+  let ku = (t.reinterpret_as_uint() >> shift) &
+    (period.reinterpret_as_uint() - 1)
   ku.reinterpret_as_int()
 }
 

@@ -149,9 +149,12 @@ fn poly_rotate_negacyclic(a : Array[Int], k : Int) -> Array[Int] {
   if n == 0 {
     return a
   }
-  let kk = (k % n + n) % n
+  let period = 2 * n
+  let exponent = (k % period + period) % period
+  let negate = exponent >= n
+  let kk = exponent % n
   if kk == 0 {
-    return poly_clone(a)
+    return if negate { Array::makei(n, fn(i) { -a[i] }) } else { poly_clone(a) }
   }
   let out = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
@@ -160,10 +163,11 @@ fn poly_rotate_negacyclic(a : Array[Int], k : Int) -> Array[Int] {
       continue
     }
     let dest = i + kk
+    let signed_coeff = if negate { -coeff } else { coeff }
     if dest < n {
-      out[dest] = out[dest] + coeff
+      out[dest] = out[dest] + signed_coeff
     } else {
-      out[dest - n] = out[dest - n] - coeff // 折返取反
+      out[dest - n] = out[dest - n] - signed_coeff // 折返取反
     }
   }
   out
@@ -383,6 +387,8 @@ test "poly: rotate negacyclic" {
   // 乘 X^2： 1→X^2, 2X→2X^3, 3X^7→3X^9≡-3X
   let r = poly_rotate_negacyclic(a, 2)
   assert_eq(poly_eq(r, [0, -3, 1, 2, 0, 0, 0, 0]), true)
+  assert_eq(poly_rotate_negacyclic(a, 8), [-1, -2, 0, 0, 0, 0, 0, -3])
+  assert_eq(poly_rotate_negacyclic(a, 16), a)
 }
 
 ///|

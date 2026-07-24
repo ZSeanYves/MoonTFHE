@@ -179,19 +179,15 @@ pub fn trgsw_encrypt_bool(
   if !bit {
     return { params, data }
   }
-  let base_mu : Int = T32_QUARTER // 2^30
   let _ : Int = 1 << base_log // B = 2^base_log
 
   // s(X) 明文多项式：系数 0/1
   let s_poly = trlwe_key_to_poly(key_tr)
   for j in 0..<level {
-    let shift = base_log * j
-    let mu_j = if shift >= 30 {
-      // 防止右移过头变 0，做个保底
-      1
-    } else {
-      base_mu >> shift
-    }
+    // The decomposition below consumes the most significant digits first.
+    // Match digit j with the torus gadget weight 2^(32-base_log*(j+1)).
+    let shift = 32 - base_log * (j + 1)
+    let mu_j = if shift <= 0 { 1 } else { 1 << shift }
 
     // ===== 上半块：Enc( -s(X) * mu_j ) =====
     let poly_top = Array::makei(n, fn(i) {

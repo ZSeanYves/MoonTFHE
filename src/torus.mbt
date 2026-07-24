@@ -7,6 +7,10 @@ const T32_HALF : Int = 0x8000_0000
 ///|
 const T32_QUARTER : Int = 0x4000_0000
 
+///|
+/// Gate encoding with headroom for binary affine combinations.
+const T32_EIGHTH : Int = 0x2000_0000
+
 // 基本运算（自然溢出即模 2^32）
 
 ///|

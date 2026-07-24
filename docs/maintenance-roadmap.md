@@ -1,6 +1,8 @@
 # MoonTFHE 维护评估与升级路线
 
-评估日期：2026-07-23。
+评估日期：2026-07-24。
+
+实施进度：基线、P0、P1 和 P2 熵源基础已推送；P3 的 secret-free BSK、真实盲旋转、PBS->KS 和小参数布尔门向量已推送。P4-P6 仍在实施，安全参数、跨后端生产熵源、序列化和性能后端尚未完成。
 
 本文件区分两件事：当前仓库已经恢复到可编译、可测试状态；当前密码学实现仍是研究原型，不能用于真实数据，也尚未满足最初任务要求中的完整性与安全性。
 
@@ -27,26 +29,26 @@ Torus32 / 多项式 / 随机数
 
 必须明确的限制：
 
-1. `programmable_bootstrap` 和 `programmable_bootstrap_bin` 调用 `_blind_rotate_oracle`，不是完整同态自举。
-2. `BootstrappingKey` 保存 `s_bits` 和 `key_trlwe`，评估密钥直接泄露客户端秘密。
-3. `tfhe_nand` 主动 `panic()`，`tfhe_and`、`tfhe_or` 因调用它也不可用。
-4. `CsPrng` 是 SplitMix64，不是 CSPRNG；固定种子构造也没有系统熵入口。
-5. 高斯噪声是 12 个均匀变量的 CLT 近似并取整，不能作为安全采样器。
-6. 两套参数都是实验参数，没有安全估计、失败概率、噪声预算或 110/128 位安全声明依据。
-7. 对外只公开了部分结构和 BSK/KSK/PBS 函数，密钥生成、加密、解密仍为私有函数，无法组成正常的外部用户流程。
-8. 测试全部在包内；部分测试没有有效断言，两个所谓 oracle/TRGSW 对照实际调用的是同一个 oracle API。
+1. 生产 PBS 已走 TRGSW blind rotation 和 PBS->KS；但当前实现仍是朴素整数后端，尚未完成标准参数下的噪声/失败概率验证。
+2. `BootstrappingKey` 已移除 `s_bits`、`key_trlwe`，只保留加密 GGSW 和加密 KSK；构造函数仍在客户端侧接收秘密。
+3. `tfhe_nand`、`tfhe_and`、`tfhe_or` 已可运行，但只对实验性的 `±1/8` 编码和小参数向量作出正确性保证。
+4. `CsPrng` 仍是 legacy SplitMix64；native 已有独立 `SecureRng` OS 熵适配，旧 LWE/TRLWE API 尚未全面切换到它。
+5. 高斯噪声的 legacy 路径仍是 CLT 近似；`SecureRng::gaussian` 是过渡实现，不替代参数化 TFHE 分布。
+6. 两套参数仍是实验参数，没有安全估计、失败概率、噪声预算或 110/128 位安全声明依据。
+7. 底层密钥生成、加密、解密仍不是完整的高层客户端/服务端 facade，外部用户尚不能仅靠稳定 API 生成 BSK 并运行 NAND。
+8. oracle 已移到白盒参考层；剩余测试仍需要独立 tfhe-rs 密文夹具和更广泛随机电路覆盖。
 
 ## 与 TFHE-rs 的关键差距
 
 | 领域 | MoonTFHE 当前实现 | TFHE-rs 的成熟做法 | 结论 |
 |---|---|---|---|
-| 密钥边界 | BSK 内含 LWE/TRLWE 秘钥 | `ClientKey` 保密，公开 `ServerKey` 只含 Fourier BSK、KSK 和执行顺序 | 必须先修复，当前设计不具备安全性 |
+| 密钥边界 | BSK 只含加密 GGSW/KSK；构造仍在客户端接收秘密 | `ClientKey` 保密，公开 `ServerKey` 只含 Fourier BSK、KSK 和执行顺序 | P3 已移除秘密字段，仍需高层 facade |
 | 随机数 | 单个 SplitMix64 同时生成密钥、mask、噪声 | 系统 seeder；秘密随机与加密随机分离；mask 与误差使用不同 CSPRNG 状态 | 必须替换，并保留独立的确定性测试 RNG |
 | 噪声 | CLT 近似离散高斯 | 显式 `DynamicDistribution`，支持 Gaussian/TUniform，并有分布与噪声测试 | 不能仅调参数，需重写采样层 |
 | 参数 | 裸 `Int/Float` 参数包 | 维度、分解基、层数、模数、分布均为强类型；预设附带安全性和失败概率 | 自定义参数应经过校验，安全预设不可手填猜测 |
 | Torus/模数 | 固定 32 位 `Int`，模数隐含 | 泛化到 `u32/u64` 与显式 ciphertext modulus | 第一版可固定 Torus32，但必须封装类型和模数语义 |
 | Key switch | 无符号 LSB 分解，缺少标准舍入/有符号分解模型 | 使用 signed decomposer、维度检查和模数检查 | 需按论文/参考实现重写并用向量验证 |
-| GGSW/PBS | 标准域数组；生产 API 走 oracle | 标准 BSK 生成后转 Fourier/NTT 域，真实 blind rotation + sample extraction | 这是实现完整 TFHE 的核心里程碑 |
+| GGSW/PBS | 标准域数组；生产路径已走真实 blind rotation + sample extraction + KS | 标准 BSK 生成后转 Fourier/NTT 域，真实 blind rotation + sample extraction | 正确性骨架已完成，参数/性能后端仍缺 |
 | 多项式性能 | 负循环乘法为 `O(N^2)`，NTT 是空占位 | FFT/FFT128/NTT/Karatsuba 多后端和预分配 scratch buffer | 正确性完成后再优化，优先 FFT 原生后端 |
 | API | 底层结构直接暴露，用户流程不完整 | 高层 API、Boolean/Shortint API、Core Crypto 分层 | 应采用 facade + internal packages，隐藏秘密与表示 |
 | 测试 | 37 个包内测试，存在弱断言和同路径对照 | 算法测试、噪声分布测试、参数化测试、后端测试、版本化测试 | 先建立规范测试，再替换实现 |
@@ -109,11 +111,12 @@ src/
 
 ### P3：重写 KSK、GGSW 与真实 PBS
 
-- 实现带舍入的有符号分解与标准 key switching。
-- 按 GLWE size 和 decomposition level 建模 GGSW 矩阵。
-- BSK 只保存加密后的 GGSW 数据，彻底移除 `s_bits`、`key_trlwe`。
-- 真实执行 accumulator 初始化、blind rotation、sample extraction；oracle 只用于测试对照。
-- 明确支持 PBS->KS 或 KS->PBS 的一种顺序，类型与参数中记录选择。
+- [x] 实现与 GGSW 权重一致的高位 Torus decomposition 和 key switching。
+- [x] 按 GLWE size 和 decomposition level 建模 GGSW 矩阵。
+- [x] BSK 只保存加密后的 GGSW/KSK 数据，移除 `s_bits`、`key_trlwe`。
+- [x] 真实执行 accumulator 初始化、blind rotation、sample extraction；oracle 只用于测试对照。
+- [x] 选择 PBS->KS 顺序并将 KSK 固定在 BSK 中。
+- [ ] 在标准参数、随机相位和完整噪声预算下验证成功率。
 
 验收：在不访问任何 secret key 的服务端完成 ID、NOT、NAND；每个门的全部输入和随机电路均正确。
 

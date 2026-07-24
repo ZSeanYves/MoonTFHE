@@ -11,14 +11,12 @@ pub struct BootstrappingKey {
   n_trlwe : Int // TRLWE 多项式长度 n
   trgsw_params : TrgswParams // base_log, level, n
   trgsw_data : Array[TrgswCiphertext] // 长度 = n_in，每个是 TRGSW(s[i])
-  s_bits : Array[Bool] // Dev-only：公开 s[i]，方便无密钥 PBS 测试
-  key_trlwe : TrlweKey // TRLWE 秘钥（给 PBS 里的 acc 加密用）
-  sigma_trlwe : Float // PBS 中使用的 TRLWE 噪声
+  key_switch : KeySwitchKey // sample extraction key -> client LWE key
 }
 
 /// 生成 BootstrappingKey：
 /// 对每个 LWE 秘钥位 s[i] 生成一个 TRGSW(s[i])，存入 trgsw_data[i]
-/// 同时保存 s_bits、TRLWE 秘钥 key_trlwe 以及 PBS 用的 sigma
+/// 生成后只保留加密的 GGSW 控制数据；输入秘密仅用于构造过程。
 
 ///|
 pub fn bsk_generate(
@@ -37,33 +35,16 @@ pub fn bsk_generate(
   // TRGSW 参数：环维度 n_tr，base_log / level 来自调用参数
   let trgsw_params : TrgswParams = { base_log, level, n: n_tr }
 
-  // s_bits：公开版本的 LWE 秘钥比特（Dev-only）
-  let s_bits = {
-    let arr = Array::makei(n_in, fn(_) { false })
-    for i in 0..<n_in {
-      arr[i] = key_lwe.s[i]
-    }
-    arr
-  }
-
   // 为每个 LWE 秘钥位 s[i] 生成 TRGSW(s[i])
   let trgsw_data : Array[TrgswCiphertext] = Array::makei(n_in, fn(i) {
     let bit = key_lwe.s[i]
     trgsw_encrypt_bool(trgsw_params, key_trlwe, bit, sigma_bsk, rng)
   })
 
-  // PBS 中 accumulator 用的 TRLWE 噪声，先用和 sigma_bsk 相同
-  let sigma_trlwe : Float = sigma_bsk
-  {
-    params: bp,
-    n_in,
-    n_trlwe: n_tr,
-    trgsw_params,
-    trgsw_data,
-    s_bits,
-    key_trlwe,
-    sigma_trlwe,
-  }
+  let extracted_key = lwe_key_from_trlwe_key(key_trlwe)
+  let key_switch = ksk_generate(p, extracted_key, key_lwe, rng)
+
+  { params: bp, n_in, n_trlwe: n_tr, trgsw_params, trgsw_data, key_switch }
 }
 
 ///|

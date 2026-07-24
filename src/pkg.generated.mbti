@@ -14,9 +14,21 @@ pub fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
 
 pub fn ksk_generate(TfheParams, LweKey, LweKey, CsPrng) -> KeySwitchKey
 
+pub fn programmable_bootstrap(TfheParams, BootstrappingKey, LweCiphertext, Int, Int) -> LweCiphertext
+
 pub fn secure_rng_new() -> Result[SecureRng, SecureRandomError]
 
 pub fn test_rng_new(UInt64) -> CsPrng
+
+pub fn tfhe_and(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+
+pub fn tfhe_id(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
+
+pub fn tfhe_nand(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+
+pub fn tfhe_not(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
+
+pub fn tfhe_or(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
 pub fn tfhe_params_small_trlwe() -> TfheParams
 
@@ -37,9 +49,7 @@ pub struct BootstrappingKey {
   n_trlwe : Int
   trgsw_params : TrgswParams
   trgsw_data : Array[TrgswCiphertext]
-  s_bits : Array[Bool]
-  key_trlwe : TrlweKey
-  sigma_trlwe : Float
+  key_switch : KeySwitchKey
 }
 
 pub struct BskParams {

@@ -16,20 +16,23 @@ testable library with explicit client/server key boundaries.
 ## Current status
 
 The maintained baseline includes Torus32 arithmetic, naive negacyclic
-polynomials, LWE/TLWE/TRLWE encryption, legacy key switching, TRGSW external
-products, sample extraction, and a deterministic experimental LWE facade.
+polynomials, LWE/TLWE/TRLWE encryption, signed high-bit key switching, TRGSW
+external products, sample extraction, a secret-free encrypted BSK, real TRGSW
+blind rotation, PBS->KS, and experimental unary/NAND/AND/OR gates.
 
-The following are deliberately absent from the stable public API:
+The following remain explicitly experimental or incomplete:
 
-- programmable bootstrapping and Boolean NAND/AND/OR;
-- the plaintext oracle used by legacy bootstrap tests;
+- production-grade parameter sets and a complete security estimate;
+- a secure-randomness client-key facade on every backend;
+- ciphertext serialization and version validation;
 - any claim of 110-bit or 128-bit security;
-- cryptographically secure key generation.
+- resistance to side-channel attacks.
 
-The old oracle now lives only in `oracle_wbtest.mbt`. It can inspect legacy
-secret fields and exists solely as a test reference. The current
-`BootstrappingKey` representation still embeds those fields and will be replaced
-in P3; do not serialize or distribute it as a server key.
+The old oracle now lives only in `oracle_wbtest.mbt`. It receives a test secret
+explicitly and exists solely as a reference. `BootstrappingKey` contains only
+encrypted GGSW data, dimensions, and an encrypted key-switching key; it is the
+evaluation object used by the current PBS path, but it is not yet a hardened
+production server key.
 
 ## Build and test
 

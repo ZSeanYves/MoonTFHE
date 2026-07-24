@@ -1,23 +1,4 @@
 ///|
-///工具：整型幂（快速幂）
-fn int_pow(base : Int, exp : Int) -> Int {
-  if exp <= 0 {
-    return 1
-  }
-  let mut b = base
-  let mut e = exp
-  let mut r = 1
-  while e > 0 {
-    if (e & 1) == 1 {
-      r = r * b
-    }
-    b = b * b
-    e = e >> 1
-  }
-  r
-}
-
-///|
 ///KSK 参数与结构
 pub struct KskParams {
   base_log : Int
@@ -55,8 +36,8 @@ fn _ksk_generate(
   rng : CsPrng,
 ) -> KeySwitchKey {
   let kp = ksk_params_from(p0)
-  let b = 1 << kp.base_log
-  let n_in = p0.n_lwe_in
+  // KSK input is the extracted LWE dimension (usually polynomial N).
+  let n_in = key_in.s.length()
   let n_out = p0.n_lwe_out
   let cells = kp.level * n_in
 
@@ -66,10 +47,11 @@ fn _ksk_generate(
     { a, b: 0 }
   })
   for i in 0..<kp.level {
-    let scale = int_pow(b, i)
+    let shift = 32 - kp.base_log * (i + 1)
+    let gadget = if shift <= 0 { 1 } else { 1 << shift }
     for j in 0..<n_in {
       let bit = key_in.s[j]
-      let mu = if bit { scale } else { 0 }
+      let mu = if bit { gadget } else { 0 }
       let t = lwe_encrypt_const_torus(key_out, mu, p0.sigma_ks, rng)
       let idx = ksk_idx(i, j, n_in)
       data[idx] = t
@@ -101,14 +83,15 @@ fn lwe_encrypt_const_torus(
 }
 
 ///|
-///LSB 分解：返回 level 个以 2^{base_log} 为基的“位片”
+///高位 gadget 分解：返回与 KSK 加密权重匹配的 Torus digit。
 fn decompose_torus32_lsb(x : Int, base_log : Int, level : Int) -> Array[Int] {
   let b = 1 << base_log
   let mask = b - 1
   let limbs = Array::makei(level, fn(_i) { 0 })
-  let xu = x.reinterpret_as_uint()
+  let total = base_log * level
+  let xu = x.reinterpret_as_uint() >> (32 - total)
   for i in 0..<level {
-    let shift = i * base_log
+    let shift = (level - 1 - i) * base_log
     limbs[i] = ((xu >> shift) & mask.reinterpret_as_uint()).reinterpret_as_int()
   }
   limbs

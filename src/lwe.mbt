@@ -43,6 +43,17 @@ fn lwe_encrypt(
   sigma : Float,
   rng : CsPrng,
 ) -> LweCiphertext {
+  lwe_encrypt_with_mu(key, m, T32_QUARTER, sigma, rng)
+}
+
+///|
+fn lwe_encrypt_with_mu(
+  key : LweKey,
+  m : Bool,
+  mu : Int,
+  sigma : Float,
+  rng : CsPrng,
+) -> LweCiphertext {
   let n = key.s.length()
   let a = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
@@ -51,8 +62,8 @@ fn lwe_encrypt(
   let e = sample_discrete_gaussian_0sigma(rng, sigma)
 
   // 对称编码，留出安全边界
-  let mu = t32_encode_bit_pm(m, T32_QUARTER)
-  let b = lwe_phase_from_a_s(a, key.s) + mu + e
+  let encoded = t32_encode_bit_pm(m, mu)
+  let b = lwe_phase_from_a_s(a, key.s) + encoded + e
   let s = { a, b }
   s
 }

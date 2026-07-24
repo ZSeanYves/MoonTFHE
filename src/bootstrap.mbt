@@ -110,6 +110,147 @@ fn _blind_rotate_trgsw(
   acc
 }
 
+///|
+/// Build the two-point Boolean test vector used by the unary PBS path. With
+/// the symmetric encoding, the coefficient at X^(N/2) produces opposite
+/// phases for rotations +N/2 and -N/2.
+fn accumulator_set_output(
+  polynomial : Array[Int],
+  rotation : Int,
+  output : Int,
+) -> Unit {
+  let n = polynomial.length()
+  let period = 2 * n
+  let exponent = (period - rotation % period) % period
+  if exponent < n {
+    polynomial[exponent] = output
+  } else {
+    polynomial[exponent - n] = -output
+  }
+}
+
+///|
+fn boolean_accumulator(
+  n : Int,
+  _input_mu : Int,
+  f_true : Int,
+  f_false : Int,
+) -> TrlweCiphertext {
+  if n <= 0 || (n & (n - 1)) != 0 || f_false != -f_true {
+    panic()
+  }
+  let b = Array::make(n, 0)
+  // Rotations [0, N) represent non-negative torus phases. The negacyclic
+  // relation supplies the opposite output automatically for [N, 2N).
+  for rotation in 0..<n {
+    accumulator_set_output(b, rotation, f_true)
+  }
+  { params: { n, }, a: Array::make(n, 0), b }
+}
+
+///|
+fn programmable_bootstrap_accumulator(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  ciphertext : LweCiphertext,
+  accumulator : TrlweCiphertext,
+) -> LweCiphertext {
+  let rotated = _blind_rotate_trgsw(accumulator, ciphertext, bk)
+  let extracted = sample_extract_const(rotated)
+  ksk_apply(p, bk.key_switch, extracted)
+}
+
+///|
+/// Secret-free programmable bootstrap for a symmetric unary Boolean LUT.
+/// The result is key-switched back to the client LWE key recorded in the
+/// encrypted evaluation key.
+pub fn programmable_bootstrap(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  ciphertext : LweCiphertext,
+  f_true : Int,
+  f_false : Int,
+) -> LweCiphertext {
+  let accumulator = boolean_accumulator(p.n_trlwe, T32_EIGHTH, f_true, f_false)
+  programmable_bootstrap_accumulator(p, bk, ciphertext, accumulator)
+}
+
+///|
+pub fn tfhe_id(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  ciphertext : LweCiphertext,
+) -> LweCiphertext {
+  programmable_bootstrap(p, bk, ciphertext, T32_EIGHTH, -T32_EIGHTH)
+}
+
+///|
+pub fn tfhe_not(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  ciphertext : LweCiphertext,
+) -> LweCiphertext {
+  programmable_bootstrap(p, bk, ciphertext, -T32_EIGHTH, T32_EIGHTH)
+}
+
+///|
+/// NAND for ciphertexts encoded with `T32_EIGHTH`.
+pub fn tfhe_nand(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  left : LweCiphertext,
+  right : LweCiphertext,
+) -> LweCiphertext {
+  let combined = lwe_sub_plain(lwe_add(left, right), T32_EIGHTH)
+  let n = p.n_trlwe
+  let polynomial = Array::make(n, 0)
+  // Mixed inputs are centered at rotation 0 and evaluate to true. Two true
+  // inputs are centered at N/2 and evaluate to false. The anti-periodic half
+  // then maps two false inputs (3N/2) back to true.
+  let false_start = n / 8
+  let false_end = 3 * n / 8
+  let false_start_2 = 5 * n / 8
+  let false_end_2 = 7 * n / 8
+  for rotation in 0..<n {
+    let in_first_false = rotation >= false_start && rotation < false_end
+    let in_second_false = rotation >= false_start_2 && rotation < false_end_2
+    let output = if in_first_false || in_second_false {
+      -T32_EIGHTH
+    } else {
+      T32_EIGHTH
+    }
+    accumulator_set_output(polynomial, rotation, output)
+  }
+  let accumulator : TrlweCiphertext = {
+    params: { n, },
+    a: Array::make(n, 0),
+    b: polynomial,
+  }
+  programmable_bootstrap_accumulator(p, bk, combined, accumulator)
+}
+
+///|
+pub fn tfhe_and(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  left : LweCiphertext,
+  right : LweCiphertext,
+) -> LweCiphertext {
+  tfhe_not(p, bk, tfhe_nand(p, bk, left, right))
+}
+
+///|
+pub fn tfhe_or(
+  p : TfheParams,
+  bk : BootstrappingKey,
+  left : LweCiphertext,
+  right : LweCiphertext,
+) -> LweCiphertext {
+  let not_left = tfhe_not(p, bk, left)
+  let not_right = tfhe_not(p, bk, right)
+  tfhe_nand(p, bk, not_left, not_right)
+}
+
 // ============ Tests =============
 
 ///|
