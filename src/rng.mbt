@@ -7,6 +7,16 @@ pub struct CsPrng {
 }
 
 ///|
+/// Deterministic generator reserved for tests and reproducible fixtures.
+/// Production callers must use `SecureRng` instead.
+pub type TestRng = CsPrng
+
+///|
+pub fn test_rng_new(seed : UInt64) -> TestRng {
+  csprng_new(seed)
+}
+
+///|
 /// 用 64 位种子初始化
 fn csprng_new(seed : UInt64) -> CsPrng {
   let s = seed ^ 0x9E37_79B9_7F4A_7C15

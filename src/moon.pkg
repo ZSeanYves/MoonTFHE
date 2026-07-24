@@ -1,1 +1,13 @@
-// This package only uses the MoonBit core library.
+import {
+  "moonbitlang/core/math",
+}
+
+options(
+  "native-stub": [ "secure_random_native.c" ],
+  targets: {
+    "secure_random_native.mbt": [ "native" ],
+    "secure_random_native_test.mbt": [ "native" ],
+    "secure_random_portable.mbt": [ "wasm", "wasm-gc" ],
+    "secure_random_js.mbt": [ "js" ],
+  },
+)

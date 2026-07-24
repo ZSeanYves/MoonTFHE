@@ -1,6 +1,10 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "ZSeanYves/MoonTFHE/src"
 
+import {
+  "moonbitlang/core/debug",
+}
+
 // Values
 pub fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, CsPrng) -> BootstrappingKey
 
@@ -10,6 +14,10 @@ pub fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
 
 pub fn ksk_generate(TfheParams, LweKey, LweKey, CsPrng) -> KeySwitchKey
 
+pub fn secure_rng_new() -> Result[SecureRng, SecureRandomError]
+
+pub fn test_rng_new(UInt64) -> CsPrng
+
 pub fn tfhe_params_small_trlwe() -> TfheParams
 
 pub fn tfhe_params_tiny_trlwe() -> TfheParams
@@ -17,6 +25,10 @@ pub fn tfhe_params_tiny_trlwe() -> TfheParams
 pub fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, CsPrng) -> TrgswCiphertext
 
 // Errors
+pub suberror SecureRandomError {
+  UnsupportedBackend
+  EntropyUnavailable
+} derive(Eq, @debug.Debug)
 
 // Types and methods
 pub struct BootstrappingKey {
@@ -35,6 +47,7 @@ pub struct BskParams {
   level : Int
 }
 
+#alias(TestRng)
 pub struct CsPrng {
   mut state : UInt64
 }
@@ -72,6 +85,13 @@ pub struct LweCiphertext {
 pub struct LweKey {
   s : Array[Bool]
 }
+
+pub struct SecureRng {
+  ready : Bool
+}
+pub fn SecureRng::gaussian(Self, Float) -> Result[Int, SecureRandomError]
+pub fn SecureRng::next_u64(Self) -> Result[UInt64, SecureRandomError]
+pub fn SecureRng::uniform_01(Self) -> Result[Float, SecureRandomError]
 
 pub struct TfheParams {
   n_lwe_in : Int
