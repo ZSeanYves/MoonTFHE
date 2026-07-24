@@ -34,3 +34,11 @@ Total tests: 2, passed: 2, failed: 0.
 ```
 
 These values are a local reference only; they are not a TFHE-rs performance claim.
+
+The current branch also includes a MoonBit radix-2 FFT candidate. On the same
+host, n=128 measured approximately `7.73 us`, versus `9.66 us` for the naive
+reference in the same run. This candidate uses double precision and is only
+validated for the small/reference coefficient range; it is not yet suitable
+for full-width Torus32 products or Fourier-domain BSK. The planned Rust
+`concrete-fft` C ABI wrapper remains a separate native-backend task and is not
+claimed complete until a Rust toolchain and differential tests are present.
