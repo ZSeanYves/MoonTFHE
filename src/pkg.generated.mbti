@@ -30,13 +30,28 @@ pub fn tfhe_not(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
 
 pub fn tfhe_or(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
+pub fn tfhe_params_128_reference() -> TfheParams
+
+pub fn tfhe_params_165_reference() -> TfheParams
+
+pub fn tfhe_params_metadata(TfheParams) -> TfheParameterMetadata
+
 pub fn tfhe_params_small_trlwe() -> TfheParams
 
 pub fn tfhe_params_tiny_trlwe() -> TfheParams
 
+pub fn tfhe_params_validate(TfheParams) -> Result[Unit, ParameterError]
+
 pub fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, CsPrng) -> TrgswCiphertext
 
 // Errors
+pub suberror ParameterError {
+  InvalidDimension
+  InvalidPolynomialSize
+  DecompositionOverflow
+  NegativeNoise
+} derive(Eq, @debug.Debug)
+
 pub suberror SecureRandomError {
   UnsupportedBackend
   EntropyUnavailable
@@ -102,6 +117,15 @@ pub struct SecureRng {
 pub fn SecureRng::gaussian(Self, Float) -> Result[Int, SecureRandomError]
 pub fn SecureRng::next_u64(Self) -> Result[UInt64, SecureRandomError]
 pub fn SecureRng::uniform_01(Self) -> Result[Float, SecureRandomError]
+
+pub struct TfheParameterMetadata {
+  name : String
+  security_bits : Int
+  failure_exponent : Float
+  estimator : String
+  noise_distribution : String
+  test_only : Bool
+}
 
 pub struct TfheParams {
   n_lwe_in : Int
