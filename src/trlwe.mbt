@@ -1,27 +1,27 @@
-///|TRLWE 参数：环多项式长度 n
+///|
+///TRLWE 参数：环多项式长度 n
 pub struct TrlweParams {
   n : Int
 }
 
-///|TRLWE 秘钥：二进制多项式 s(X) ∈ {0,1}[X]/(X^n + 1)
+///|
+///TRLWE 秘钥：二进制多项式 s(X) ∈ {0,1}[X]/(X^n + 1)
 pub struct TrlweKey {
   params : TrlweParams
   s : Array[Bool]
 }
 
-///|TRLWE 密文：(a(X), b(X))
+///|
+///TRLWE 密文：(a(X), b(X))
 pub struct TrlweCiphertext {
   params : TrlweParams
   a : Array[Int]
   b : Array[Int]
 }
 
-
-///| TRLWE 线性算子
-fn trlwe_ct_add(
-  x : TrlweCiphertext,
-  y : TrlweCiphertext,
-) -> TrlweCiphertext {
+///|
+/// TRLWE 线性算子
+fn trlwe_ct_add(x : TrlweCiphertext, y : TrlweCiphertext) -> TrlweCiphertext {
   let n = x.params.n
   let a2 = Array::makei(n, fn(_) { 0 })
   let b2 = Array::makei(n, fn(_) { 0 })
@@ -31,6 +31,7 @@ fn trlwe_ct_add(
   }
   { params: x.params, a: a2, b: b2 }
 }
+
 ///|
 fn _trlwe_ct_sub(x : TrlweCiphertext, y : TrlweCiphertext) -> TrlweCiphertext {
   let n = x.params.n
@@ -43,7 +44,8 @@ fn _trlwe_ct_sub(x : TrlweCiphertext, y : TrlweCiphertext) -> TrlweCiphertext {
   { params: x.params, a: a2, b: b2 }
 }
 
-///|生成 TRLWE 秘钥：系数 ∈ {0,1}
+///|
+///生成 TRLWE 秘钥：系数 ∈ {0,1}
 fn trlwe_key_new(n : Int, r : CsPrng) -> TrlweKey {
   let params : TrlweParams = { n, }
   let s = Array::makei(n, fn(_i) { false })
@@ -55,7 +57,8 @@ fn trlwe_key_new(n : Int, r : CsPrng) -> TrlweKey {
   t
 }
 
-///|将 {0,1} 系数秘钥转成整数多项式
+///|
+///将 {0,1} 系数秘钥转成整数多项式
 fn trlwe_key_to_poly(key : TrlweKey) -> Array[Int] {
   let n = key.params.n
   let sp = Array::makei(n, fn(_i) { 0 })
@@ -75,8 +78,8 @@ fn trlwe_encode_bit_const(n : Int, bit : Bool) -> Array[Int] {
   m
 }
 
-
-///|TRLWE 加密：m 必须是长度为 n 的多项式
+///|
+///TRLWE 加密：m 必须是长度为 n 的多项式
 fn trlwe_encrypt(
   key : TrlweKey,
   m : Array[Int],
@@ -110,7 +113,7 @@ fn trlwe_encrypt(
   t
 }
 
-
+///|
 fn trlwe_encrypt_zero(
   params : TrgswParams,
   key_tr : TrlweKey,
@@ -122,33 +125,37 @@ fn trlwe_encrypt_zero(
   trlwe_encrypt(key_tr, poly, sigma, rng)
 }
 
-
-///|TRLWE 解密，得到整系数多项式：mu = b - a*s
+///|
+///TRLWE 解密，得到整系数多项式：mu = b - a*s
 fn trlwe_decrypt_to_poly(key : TrlweKey, ct : TrlweCiphertext) -> Array[Int] {
   let s_poly = trlwe_key_to_poly(key)
   let s = poly_mul_negacyclic(ct.a, s_poly)
   poly_sub(ct.b, s)
 }
 
-///|解出常数项布尔值（阈值 0.5）
+///|
+///解出常数项布尔值（阈值 0.5）
 fn trlwe_decrypt_bit0(key : TrlweKey, ct : TrlweCiphertext) -> Bool {
   let mu = trlwe_decrypt_to_poly(key, ct)
   t32_decode_sign(mu[0])
 }
 
+///|
 test "trlwe: encrypt/decrypt constant message" {
-  let r = csprng_new(20241102)  // 也给种子加上 u64
+  let r = csprng_new(20241102) // 也给种子加上 u64
   let n = 512
   let key = trlwe_key_new(n, r)
   let trials = 128
   let sigma : Float = 3.0
-  let mut  ok = 0
+  let mut ok = 0
   for _i in 0..<trials {
     let bit = (next_u64(r) & 1) == 1
     let m = trlwe_encode_bit_const(n, bit)
     let ct = trlwe_encrypt(key, m, sigma, r)
     let dec = trlwe_decrypt_bit0(key, ct)
-    if dec == bit { ok = ok + 1 }
+    if dec == bit {
+      ok = ok + 1
+    }
   }
   assert_eq(ok, trials)
 }

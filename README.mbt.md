@@ -54,7 +54,7 @@ At the current stage the implementation reaches **TRGSW external products and bo
     * `BskParams`, `BootstrappingKey`.
     * `bsk_generate` builds a BSK from an LWE key and a TRLWE key.
 
-* **Programmable bootstrapping & gates (API skeleton)**
+* **Oracle-backed bootstrapping prototypes (API skeleton)**
 
   * Lookup tables: `Lut2`, `LutN`.
   * Single-bit programmable bootstrap:
@@ -64,9 +64,9 @@ At the current stage the implementation reaches **TRGSW external products and bo
   * Binary programmable bootstrap:
 
     * `programmable_bootstrap_bin(p, bk, ct, lut)`.
-  * Boolean gates built on top of PBS:
+  * Boolean operations exercised by the current tests:
 
-    * `tfhe_xnor`, `tfhe_xor`, `tfhe_nand`, `tfhe_and`, `tfhe_or`.
+    * `tfhe_xnor`, `tfhe_xor`.
 
 * **Debugging helpers**
 
@@ -81,9 +81,13 @@ These pieces exist in code but should be treated as **experimental**:
 * TRGSW-driven blind rotation (`_blind_rotate_trgsw`).
 * Full programmable bootstrapping pipeline using TRGSW + BSK.
 * Homomorphic Boolean gates `tfhe_*` running on the TRGSW path instead of the oracle path.
+* `tfhe_nand`, `tfhe_and`, and `tfhe_or`; these APIs currently reach an intentional
+  `panic()` in the unimplemented NAND path and must not be used.
 * Noise tracking and safer parameter presets.
 
 The current PBS path still calls an **oracle blind rotation** internally for most tests, so it is **not yet a fully homomorphic implementation** end-to-end.
+
+See the [maintenance assessment and upgrade roadmap](docs/maintenance-roadmap.md) for the security gaps and proposed breaking redesign.
 
 ---
 
@@ -91,14 +95,6 @@ The current PBS path still calls an **oracle blind rotation** internally for mos
 
 ```bash
 moon add ZSeanYves/MoonTFHE
-```
-
-or add to `moon.mod.json`:
-
-```json
-{
-  "import": ["ZSeanYves/MoonTFHE"]
-}
 ```
 
 ---
@@ -112,8 +108,7 @@ or add to `moon.mod.json`:
 | `torus.mbt`        | `torus`         | Torus32 representation, constants, add/sub, encode/decode.       |
 | `params.mbt`       | `params`        | `TfheParams` presets and helpers.                                |
 | `rng.mbt`          | `rng`           | `CsPrng` PRNG and random helpers.                                |
-| `math.mbt`         | `math`          | Modular arithmetic and numeric utilities.                        |
-| `noise.mbt`        | `noise`         | Noise sampling helpers.                                          |
+| `math.mbt`         | `math`          | Polynomial arithmetic, numeric utilities, and noise sampling.    |
 | `lwe.mbt`          | `lwe`           | `LweKey`, `LweCiphertext`, enc/dec and phase helpers.            |
 | `tlwe.mbt`         | `tlwe`          | `TlweKey`, `TlweCiphertext`, ring-based enc/dec.                 |
 | `trlwe.mbt`        | `trlwe`         | `TrlweKey`, `TrlweCiphertext`, polynomial enc/dec.               |
@@ -121,9 +116,8 @@ or add to `moon.mod.json`:
 | `key.mbt`          | `key`           | Key-switching parameters and keys (`KskParams`, `KeySwitchKey`). |
 | `bsk.mbt`          | `bsk`           | `BskParams`, `BootstrappingKey`, BSK generation.                 |
 | `bootstrap.mbt`    | `bootstrap`     | LUTs, programmable bootstrap, Boolean gates.                     |
-| `boostrap_exp.mbt` | `bootstrap_exp` | Experimental / debug code for PBS.                               |
 | `gates.mbt`        | `gates`         | Additional gate tests and oracle wiring.                         |
-| `moon.pkg.json`    | —               | MoonBit package metadata.                                        |
+| `moon.pkg`         | —               | MoonBit package metadata.                                        |
 
 ---
 

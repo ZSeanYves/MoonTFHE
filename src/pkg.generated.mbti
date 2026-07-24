@@ -2,35 +2,35 @@
 package "ZSeanYves/MoonTFHE/src"
 
 // Values
-fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, CsPrng) -> BootstrappingKey
+pub fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, CsPrng) -> BootstrappingKey
 
-fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
+pub fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
 
-fn ksk_generate(TfheParams, LweKey, LweKey, CsPrng) -> KeySwitchKey
+pub fn ksk_generate(TfheParams, LweKey, LweKey, CsPrng) -> KeySwitchKey
 
-fn programmable_bootstrap(TfheParams, BootstrappingKey, LweCiphertext, Int, Int) -> LweCiphertext
+pub fn programmable_bootstrap(TfheParams, BootstrappingKey, LweCiphertext, Int, Int) -> LweCiphertext
 
-fn programmable_bootstrap_bin(TfheParams, BootstrappingKey, LweCiphertext, LutN) -> LweCiphertext
+pub fn programmable_bootstrap_bin(TfheParams, BootstrappingKey, LweCiphertext, LutN) -> LweCiphertext
 
-fn tfhe_and(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+pub fn tfhe_and(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
-fn tfhe_id(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
+pub fn tfhe_id(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
 
-fn tfhe_nand(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+pub fn tfhe_nand(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
-fn tfhe_not(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
+pub fn tfhe_not(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
 
-fn tfhe_or(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+pub fn tfhe_or(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
-fn tfhe_params_small_trlwe() -> TfheParams
+pub fn tfhe_params_small_trlwe() -> TfheParams
 
-fn tfhe_params_tiny_trlwe() -> TfheParams
+pub fn tfhe_params_tiny_trlwe() -> TfheParams
 
-fn tfhe_xnor(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+pub fn tfhe_xnor(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
-fn tfhe_xor(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
+pub fn tfhe_xor(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
-fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, CsPrng) -> TrgswCiphertext
+pub fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, CsPrng) -> TrgswCiphertext
 
 // Errors
 
@@ -78,7 +78,7 @@ pub struct LutN {
 
 pub struct LweCiphertext {
   a : Array[Int]
-  mut b : Int
+  b : Int
 }
 
 pub struct LweKey {

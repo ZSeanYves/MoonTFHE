@@ -1,9 +1,10 @@
+///|
 /// 生成长度为 n 的零多项式
 fn _poly_zero(n : Int) -> Array[Int] {
   Array::makei(n, fn(_i) { 0 })
 }
 
-
+///|
 /// 拷贝
 fn poly_clone(a : Array[Int]) -> Array[Int] {
   let n = a.length()
@@ -14,11 +15,13 @@ fn poly_clone(a : Array[Int]) -> Array[Int] {
   out
 }
 
+///|
 /// 长度
 fn _poly_len(a : Array[Int]) -> Int {
   a.length()
 }
 
+///|
 /// 逐项相等性检查（用于测试/断言）
 fn poly_eq(a : Array[Int], b : Array[Int]) -> Bool {
   if a.length() != b.length() {
@@ -32,6 +35,7 @@ fn poly_eq(a : Array[Int], b : Array[Int]) -> Bool {
   true
 }
 
+///|
 /// 逐项加法
 fn poly_add(a : Array[Int], b : Array[Int]) -> Array[Int] {
   let n = a.length()
@@ -46,6 +50,7 @@ fn poly_add(a : Array[Int], b : Array[Int]) -> Array[Int] {
   out
 }
 
+///|
 /// 逐项减法
 fn poly_sub(a : Array[Int], b : Array[Int]) -> Array[Int] {
   let n = a.length()
@@ -59,6 +64,7 @@ fn poly_sub(a : Array[Int], b : Array[Int]) -> Array[Int] {
   out
 }
 
+///|
 /// 逐项取负
 fn _poly_neg(a : Array[Int]) -> Array[Int] {
   let n = a.length()
@@ -69,6 +75,7 @@ fn _poly_neg(a : Array[Int]) -> Array[Int] {
   out
 }
 
+///|
 /// 逐项加常数
 fn _poly_scalar_add(a : Array[Int], c : Int) -> Array[Int] {
   let n = a.length()
@@ -79,6 +86,7 @@ fn _poly_scalar_add(a : Array[Int], c : Int) -> Array[Int] {
   out
 }
 
+///|
 /// 逐项乘常数
 fn _poly_scalar_mul(a : Array[Int], c : Int) -> Array[Int] {
   let n = a.length()
@@ -89,43 +97,52 @@ fn _poly_scalar_mul(a : Array[Int], c : Int) -> Array[Int] {
   out
 }
 
-
-
-
-
+///|
 /// 将任意长度的系数折回到长度 n（X^n ≡ -1）
 fn poly_from_coeffs_fold(coeffs : Array[Int], n : Int) -> Array[Int] {
   let out = Array::makei(n, fn(_i) { 0 })
   let m = coeffs.length()
   for i in 0..<m {
     let c = coeffs[i]
-    if c == 0 { continue }
+    if c == 0 {
+      continue
+    }
     let r = i % n
     let q = i / n
-    if (q % 2) == 0 { out[r] = out[r] + c } else { out[r] = out[r] - c }
+    if q % 2 == 0 {
+      out[r] = out[r] + c
+    } else {
+      out[r] = out[r] - c
+    }
   }
   out
 }
 
+///|
 /// 负循环卷积：c = a * b mod (X^n + 1)
 fn poly_mul_negacyclic(a : Array[Int], b : Array[Int]) -> Array[Int] {
   let n = a.length()
   let c = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
     let ai = a[i]
-    if ai == 0 { continue }
+    if ai == 0 {
+      continue
+    }
     for j in 0..<n {
       let prod = ai * b[j]
       let idx = i + j
-      if idx < n { c[idx] = c[idx] + prod } else {
+      if idx < n {
+        c[idx] = c[idx] + prod
+      } else {
         let t = idx - n
-        c[t] = c[t] - prod   // X^{n+t} ≡ -X^t
+        c[t] = c[t] - prod // X^{n+t} ≡ -X^t
       }
     }
   }
   c
 }
 
+///|
 /// 旋转：a * X^k mod (X^n + 1)
 fn poly_rotate_negacyclic(a : Array[Int], k : Int) -> Array[Int] {
   let n = a.length()
@@ -153,6 +170,8 @@ fn poly_rotate_negacyclic(a : Array[Int], k : Int) -> Array[Int] {
 }
 
 // TODO:后续可将CLT 替换为CDT 离散高斯采样器
+
+///|
 /// 从 N(0, sigma^2) 的离散高斯采样一个整数噪声
 fn sample_discrete_gaussian_0sigma(rng : CsPrng, sigma : Float) -> Int {
   if sigma <= 0.0 {
@@ -167,30 +186,31 @@ fn sample_discrete_gaussian_0sigma(rng : CsPrng, sigma : Float) -> Int {
   (z * sigma.to_double()).round().to_int()
 }
 
-
-
 // 占位版 NTT 接口
 //TODO：v0.2 做性能优化时再填充真实实现。
+
+///|
 /// 计划对象占位（将来可换成包含根表、bit-reverse 索引等的结构体）
 /// 预生成 NTT 计划（占位：直接返回 Unit）
 fn _ntt_plan_new(_n : Int) -> Unit {
   ()
 }
 
+///|
 /// 原地 NTT 变换（占位：不对输入做任何修改）
 fn _ntt_inplace(_plan : Unit, _a : Array[Int]) -> Unit {
   // TODO: implement NTT in v0.2
 }
 
+///|
 /// 原地逆 NTT 变换（占位：不对输入做任何修改）
 fn _intt_inplace(_plan : Unit, _a : Array[Int]) -> Unit {
   // TODO: implement inverse NTT in v0.2
 }
 
-
-
-
 // 位分解（LSB-first）与重构工具
+
+///|
 /// LSB 分解：把 x 分解为 level 个“基数为 2^base_log”的 limb
 fn t32_decompose_lsb(x : Int, base_log : Int, level : Int) -> Array[Int] {
   let b = 1 << base_log
@@ -206,6 +226,7 @@ fn t32_decompose_lsb(x : Int, base_log : Int, level : Int) -> Array[Int] {
   limbs
 }
 
+///|
 /// LSB 重构：从 limbs 重构“低 base_log*level 比特”
 fn t32_recompose_lsb(limbs : Array[Int], base_log : Int) -> Int {
   let mut acc_u : UInt = 0
@@ -217,6 +238,7 @@ fn t32_recompose_lsb(limbs : Array[Int], base_log : Int) -> Int {
   acc_u.reinterpret_as_int()
 }
 
+///|
 /// 用于比较：取 x 的低 w 比特（其余位置清零）
 fn t32_low_bits(x : Int, w : Int) -> Int {
   if w <= 0 {
@@ -229,9 +251,8 @@ fn t32_low_bits(x : Int, w : Int) -> Int {
   (x.reinterpret_as_uint() & mask_u).reinterpret_as_int()
 }
 
-
-
 // 小工具
+
 ///|
 fn abs_f(x : Float) -> Float {
   if x >= 0.0 {
@@ -240,6 +261,7 @@ fn abs_f(x : Float) -> Float {
     -x
   }
 }
+
 ///|
 fn min_f(a : Float, b : Float) -> Float {
   if a < b {
@@ -248,6 +270,7 @@ fn min_f(a : Float, b : Float) -> Float {
     b
   }
 }
+
 ///|
 fn max_f(a : Float, b : Float) -> Float {
   if a > b {
@@ -294,12 +317,12 @@ test "rng: next_f64_01 in [0,1) and mean ~ 0.5" {
     assert_eq(u >= 0.0, true)
     assert_eq(u < 1.0, true)
     sum = sum + u.to_double()
-    lo = min_f(lo.to_float(), u).to_double()
-    hi = max_f(hi.to_float(), u).to_double()
+    lo = min_f(Float::from_double(lo), u).to_double()
+    hi = max_f(Float::from_double(hi), u).to_double()
   }
   let mean = sum / n.to_double()
   // 均值接近 0.5（宽松容差）
-  assert_eq(abs_f(mean.to_float() - 0.5) < 0.03, true)
+  assert_eq(abs_f(Float::from_double(mean) - 0.5) < 0.03, true)
   // 覆盖范围应较宽
   assert_eq(lo < 0.02, true)
   assert_eq(hi > 0.98, true)
@@ -313,7 +336,7 @@ test "gaussian: mean ~ 0, variance ~ sigma^2 (coarse bounds)" {
   let mut sum = 0.0
   let mut sumsq = 0.0
   for _i in 0..<n {
-    let g = sample_discrete_gaussian_0sigma(r, sigma.to_float()).to_float()
+    let g = sample_discrete_gaussian_0sigma(r, Float::from_double(sigma))
     sum = sum + g.to_double()
     sumsq = sumsq + (g * g).to_double()
   }
@@ -321,14 +344,13 @@ test "gaussian: mean ~ 0, variance ~ sigma^2 (coarse bounds)" {
   let var_hat = sumsq / n.to_double() - mean * mean
 
   // 均值接近 0
-  assert_eq(abs_f(mean.to_float()) < 0.2, true)
+  assert_eq(abs_f(Float::from_double(mean)) < 0.2, true)
 
   // 方差大致落在 [0.5*sigma^2, 1.5*sigma^2] 内（CLT 近似+离散化，放宽区间）
   let target = sigma * sigma
   assert_eq(var_hat > 0.5 * target, true)
   assert_eq(var_hat < 1.5 * target, true)
 }
-
 
 ///|
 test "poly: fold coeffs modulo X^n+1" {

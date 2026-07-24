@@ -1,4 +1,5 @@
-///|工具：整型幂（快速幂）
+///|
+///工具：整型幂（快速幂）
 fn int_pow(base : Int, exp : Int) -> Int {
   if exp <= 0 {
     return 1
@@ -16,7 +17,8 @@ fn int_pow(base : Int, exp : Int) -> Int {
   r
 }
 
-///|KSK 参数与结构
+///|
+///KSK 参数与结构
 pub struct KskParams {
   base_log : Int
   level : Int
@@ -31,21 +33,19 @@ pub struct KeySwitchKey {
   data : Array[LweCiphertext]
 }
 
-
-
 // TOOLS
-///|计算 KSK 中 (i, j) 的线性下标
+
+///|
+///计算 KSK 中 (i, j) 的线性下标
 fn ksk_idx(i : Int, j : Int, n_in : Int) -> Int {
   i * n_in + j
 }
+
 ///|
 fn ksk_params_from(p0 : TfheParams) -> KskParams {
-  let a:KskParams = { base_log: p0.ks_base_log, level: p0.ks_level }
+  let a : KskParams = { base_log: p0.ks_base_log, level: p0.ks_level }
   a
 }
-
-
-
 
 ///|
 fn _ksk_generate(
@@ -71,26 +71,16 @@ fn _ksk_generate(
       let bit = key_in.s[j]
       let mu = if bit { scale } else { 0 }
       let t = lwe_encrypt_const_torus(key_out, mu, p0.sigma_ks, rng)
-      let t1 = { val: t }
-
-      // 取出单元，字段级拷贝，然后回写
       let idx = ksk_idx(i, j, n_in)
-      let cell : Ref[LweCiphertext] = { val: data[idx] }
-      let n = t.a.length()
-      for k in 0..<n {
-        cell.val.a[k] = t1.val.a[k]
-      }
-      cell.val.b = t1.val.b
-      let cell1 = cell.val
-      data[idx] = cell1
+      data[idx] = t
     }
   }
   let s = { params: kp, n_in, n_out, data }
   s
 }
 
-
-///|直接加密“torus 常数”消息：b = <a,s> + mu + e
+///|
+///直接加密“torus 常数”消息：b = <a,s> + mu + e
 fn lwe_encrypt_const_torus(
   key : LweKey,
   mu : Int,
@@ -110,7 +100,8 @@ fn lwe_encrypt_const_torus(
   s
 }
 
-///|LSB 分解：返回 level 个以 2^{base_log} 为基的“位片”
+///|
+///LSB 分解：返回 level 个以 2^{base_log} 为基的“位片”
 fn decompose_torus32_lsb(x : Int, base_log : Int, level : Int) -> Array[Int] {
   let b = 1 << base_log
   let mask = b - 1
@@ -123,7 +114,8 @@ fn decompose_torus32_lsb(x : Int, base_log : Int, level : Int) -> Array[Int] {
   limbs
 }
 
-///|线性算子（缩放/加/减）
+///|
+///线性算子（缩放/加/减）
 fn lwe_ct_scale(ct : LweCiphertext, k : Int) -> LweCiphertext {
   let n = ct.a.length()
   let a2 = Array::makei(n, fn(_i) { 0 })
@@ -133,6 +125,7 @@ fn lwe_ct_scale(ct : LweCiphertext, k : Int) -> LweCiphertext {
   let s = { a: a2, b: ct.b * k }
   s
 }
+
 ///|
 fn _lwe_ct_add(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
   let n = x.a.length()
@@ -143,6 +136,7 @@ fn _lwe_ct_add(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
   let s = { a: a2, b: x.b + y.b }
   s
 }
+
 ///|
 fn lwe_ct_sub(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
   let n = x.a.length()
@@ -154,7 +148,8 @@ fn lwe_ct_sub(x : LweCiphertext, y : LweCiphertext) -> LweCiphertext {
   s
 }
 
-///| 应用 KSK：ct(s_in) → ct'(s_out)
+///|
+/// 应用 KSK：ct(s_in) → ct'(s_out)
 fn _ksk_apply(
   p0 : TfheParams,
   ksk : KeySwitchKey,
@@ -180,49 +175,50 @@ fn _ksk_apply(
   acc
 }
 
-
-///| Public API: 生成 KeySwitchKey
+///|
+/// Public API: 生成 KeySwitchKey
 pub fn ksk_generate(
-  p0      : TfheParams,
-  key_in  : LweKey,
+  p0 : TfheParams,
+  key_in : LweKey,
   key_out : LweKey,
-  rng     : CsPrng,
+  rng : CsPrng,
 ) -> KeySwitchKey {
   _ksk_generate(p0, key_in, key_out, rng)
 }
 
-///| Public API: 应用 KeySwitchKey
+///|
+/// Public API: 应用 KeySwitchKey
 pub fn ksk_apply(
-  p0    : TfheParams,
-  ksk   : KeySwitchKey,
+  p0 : TfheParams,
+  ksk : KeySwitchKey,
   ct_in : LweCiphertext,
 ) -> LweCiphertext {
   _ksk_apply(p0, ksk, ct_in)
 }
 
-
+///|
 test "ksk: lwe(n_in) -> lwe(n_out) preserves boolean message" {
   // 1. 用已有的小参数集
   let p0 = tfhe_params_small_trlwe()
 
   let rng = csprng_new(0xDEAD_BEEF)
 
-  let key_in  = lwe_key_new(p0.n_lwe_in,  rng)
+  let key_in = lwe_key_new(p0.n_lwe_in, rng)
   let key_out = lwe_key_new(p0.n_lwe_out, rng)
 
   let ksk = ksk_generate(p0, key_in, key_out, rng)
 
   let trials = 200
-  let sigma  = p0.sigma_lwe
+  let sigma = p0.sigma_lwe
   let mut ok = 0
 
   for _i in 0..<trials {
     let bit = (next_u64(rng) & 1) == 1
 
-    let ct_in  = lwe_encrypt(key_in,  bit, sigma, rng)
+    let ct_in = lwe_encrypt(key_in, bit, sigma, rng)
     let ct_out = ksk_apply(p0, ksk, ct_in)
 
-    let dec    = lwe_decrypt(key_out, ct_out)
+    let dec = lwe_decrypt(key_out, ct_out)
     if dec == bit {
       ok = ok + 1
     }
@@ -230,7 +226,9 @@ test "ksk: lwe(n_in) -> lwe(n_out) preserves boolean message" {
 
   assert_eq(ok, trials)
 }
-///| KSK roundtrip: LWE(32) -> LWE(64) 保持布尔消息不变
+
+///|
+/// KSK roundtrip: LWE(32) -> LWE(64) 保持布尔消息不变
 test "ksk: lwe(32) -> lwe(64) preserves boolean message" {
   // 手动构造一份专门用于 KSK 的 TfheParams
   // 注意：ks_base_log * ks_level 必须 >= 32（Torus 是 32bit）

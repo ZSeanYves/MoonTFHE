@@ -1,3 +1,4 @@
+///|
 /// TODO:伪·NAND：仅占位，真实 NAND 需要二元 LUT 。
 fn _hom_nand_single_input_todo(
   _p : TfheParams,
@@ -6,6 +7,7 @@ fn _hom_nand_single_input_todo(
   x
 }
 
+///|
 /// DEBUG: 列出 XNOR gate 在四种输入下的解密结果（零噪声）
 test "debug gate: XNOR truth table (oracle PBS, zero-noise)" {
   // 测试专用零噪声参数
@@ -50,6 +52,7 @@ test "debug gate: XNOR truth table (oracle PBS, zero-noise)" {
   }
 }
 
+///|
 /// XNOR(x,y) 在随机输入上的真值测试（零噪声参数）
 test "gate: XNOR(x,y) truth over random bits (oracle PBS, zero-noise)" {
   let p : TfheParams = {

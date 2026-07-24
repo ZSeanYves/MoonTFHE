@@ -54,7 +54,7 @@
     * `BskParams`、`BootstrappingKey`。
     * `bsk_generate` 从 LWE 密钥和 TRLWE 密钥生成 BSK。
 
-* **可编程自举 & 逻辑门（API 雏形）**
+* **基于 oracle 的自举原型（API 雏形）**
 
   * 查找表：`Lut2`、`LutN`。
   * 一元可编程自举：
@@ -64,9 +64,9 @@
   * 二元可编程自举：
 
     * `programmable_bootstrap_bin(p, bk, ct, lut)`。
-  * 基于 PBS 的布尔门：
+  * 当前测试覆盖的布尔操作：
 
-    * `tfhe_xnor`、`tfhe_xor`、`tfhe_nand`、`tfhe_and`、`tfhe_or`。
+    * `tfhe_xnor`、`tfhe_xor`。
 
 * **调试辅助**
 
@@ -81,9 +81,13 @@
 * 基于 TRGSW 的盲旋转实现（`_blind_rotate_trgsw`）。
 * 使用 TRGSW + BSK 的完整 PBS 流水线。
 * 真正走 TRGSW 路径的 `tfhe_*` 布尔门栈。
+* `tfhe_nand`、`tfhe_and`、`tfhe_or`；这些 API 当前会进入尚未实现的
+  NAND 路径并触发 `panic()`，不能使用。
 * 噪声跟踪与更安全的参数预设。
 
 目前 PBS 内部仍大多走 **oracle 盲旋转路径**，即内部直接访问秘钥，所以整体还 **不能视作完整的同态计算实现**。
+
+安全性差距和允许破坏兼容的重构方案见[维护评估与升级路线](docs/maintenance-roadmap.md)。
 
 ---
 
@@ -91,14 +95,6 @@
 
 ```bash
 moon add ZSeanYves/MoonTFHE
-```
-
-或在 `moon.mod.json` 中加入：
-
-```json
-{
-  "import": ["ZSeanYves/MoonTFHE"]
-}
 ```
 
 ---
@@ -112,8 +108,7 @@ moon add ZSeanYves/MoonTFHE
 | `torus.mbt`        | `torus`         | Torus32 表示、常量与加减、编码/解码。             |
 | `params.mbt`       | `params`        | `TfheParams` 参数集合与预设。               |
 | `rng.mbt`          | `rng`           | `CsPrng` 伪随机数发生器与工具函数。              |
-| `math.mbt`         | `math`          | 数值与模运算工具。                           |
-| `noise.mbt`        | `noise`         | 噪声采样相关辅助函数。                         |
+| `math.mbt`         | `math`          | 多项式与数值运算工具、噪声采样。                    |
 | `lwe.mbt`          | `lwe`           | `LweKey`、`LweCiphertext` 及 enc/dec。 |
 | `tlwe.mbt`         | `tlwe`          | `TlweKey`、`TlweCiphertext`。         |
 | `trlwe.mbt`        | `trlwe`         | `TrlweKey`、`TrlweCiphertext`。       |
@@ -121,9 +116,8 @@ moon add ZSeanYves/MoonTFHE
 | `key.mbt`          | `key`           | 密钥切换参数与 `KeySwitchKey`。             |
 | `bsk.mbt`          | `bsk`           | `BskParams`、`BootstrappingKey` 与构造。 |
 | `bootstrap.mbt`    | `bootstrap`     | LUT、可编程自举、布尔门。                      |
-| `boostrap_exp.mbt` | `bootstrap_exp` | PBS 实验与调试代码。                        |
 | `gates.mbt`        | `gates`         | 额外门电路测试与 oracle 对照。                 |
-| `moon.pkg.json`    | —               | MoonBit 包配置。                        |
+| `moon.pkg`         | —               | MoonBit 包配置。                        |
 
 ---
 

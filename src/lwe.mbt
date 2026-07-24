@@ -1,14 +1,17 @@
+///|
 /// LWE 秘钥：s ∈ {0,1}^n
 pub struct LweKey {
   s : Array[Bool]
 }
 
+///|
 /// LWE 密文：a ∈ T^n, b ∈ T
 pub struct LweCiphertext {
   a : Array[Int]
-  mut b : Int
+  b : Int
 }
 
+///|
 /// 生成长度为 n 的 {0,1} 秘钥
 fn lwe_key_new(n : Int, rng : CsPrng) -> LweKey {
   let s = Array::makei(n, fn(_i) { false })
@@ -20,6 +23,7 @@ fn lwe_key_new(n : Int, rng : CsPrng) -> LweKey {
   a
 }
 
+///|
 /// LWE 加密（布尔消息：true->0, false->0.5）
 fn lwe_phase_from_a_s(a : Array[Int], s : Array[Bool]) -> Int {
   let n = a.length()
@@ -53,6 +57,7 @@ fn lwe_encrypt(
   s
 }
 
+///|
 ///  LWE 解密：相位减去 <a,s>，再阈值判定,解密得到布尔值
 fn lwe_decrypt(key : LweKey, ct : LweCiphertext) -> Bool {
   let n = key.s.length()
@@ -66,6 +71,7 @@ fn lwe_decrypt(key : LweKey, ct : LweCiphertext) -> Bool {
   t32_decode_sign(mu)
 }
 
+///|
 /// 从 TRLWE 提取为 LWE：提取第 k 个系数
 fn sample_extract_index(ct : TrlweCiphertext, k : Int) -> LweCiphertext {
   let n = ct.a.length()
@@ -90,6 +96,7 @@ fn sample_extract_index(ct : TrlweCiphertext, k : Int) -> LweCiphertext {
   s
 }
 
+///|
 /// 将 TRLWE 的 {0,1} 多项式密钥转换为同维度 LWE 密钥（逐系数）
 fn lwe_key_from_trlwe_key(k_tr : TrlweKey) -> LweKey {
   let n = k_tr.params.n
@@ -101,11 +108,11 @@ fn lwe_key_from_trlwe_key(k_tr : TrlweKey) -> LweKey {
   a
 }
 
+///|
 /// 专门提取常数项（k = 0），做一个便捷封装
 fn sample_extract_const(ct : TrlweCiphertext) -> LweCiphertext {
   sample_extract_index(ct, 0)
 }
-
 
 ///|
 test "lwe: encrypt/decrypt roundtrip (n=512, 400 trials)" {
@@ -125,7 +132,6 @@ test "lwe: encrypt/decrypt roundtrip (n=512, 400 trials)" {
   assert_eq(ok, trials)
 }
 
-
 ///|
 test "sanity: LWE encryption noise matches sigma_lwe" {
   let p = {
@@ -143,7 +149,7 @@ test "sanity: LWE encryption noise matches sigma_lwe" {
   let rng = csprng_new(0xABCDEF)
   let key = lwe_key_new(p.n_lwe_in, rng)
   let trials = 50
-  for i in 0..<trials {
+  for _i in 0..<trials {
     let m = (next_u64(rng) & 1) == 1
     let ct = lwe_encrypt(key, m, p.sigma_lwe, rng)
 
@@ -162,6 +168,3 @@ test "sanity: LWE encryption noise matches sigma_lwe" {
   }
   assert_true(true) // 只是打印检查
 }
-
-
-

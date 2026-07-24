@@ -1,22 +1,23 @@
 ///|
 pub struct BskParams {
   base_log : Int
-  level    : Int
+  level : Int
 }
 
 ///|
 pub struct BootstrappingKey {
-  params       : BskParams        // base_log, level
-  n_in         : Int              // LWE 输入维度
-  n_trlwe      : Int              // TRLWE 多项式长度 n
-  trgsw_params : TrgswParams      // base_log, level, n
-  trgsw_data   : Array[TrgswCiphertext] // 长度 = n_in，每个是 TRGSW(s[i])
-  s_bits       : Array[Bool]      // Dev-only：公开 s[i]，方便无密钥 PBS 测试
-  key_trlwe    : TrlweKey         // TRLWE 秘钥（给 PBS 里的 acc 加密用）
-  sigma_trlwe  : Float            // PBS 中使用的 TRLWE 噪声
+  params : BskParams // base_log, level
+  n_in : Int // LWE 输入维度
+  n_trlwe : Int // TRLWE 多项式长度 n
+  trgsw_params : TrgswParams // base_log, level, n
+  trgsw_data : Array[TrgswCiphertext] // 长度 = n_in，每个是 TRGSW(s[i])
+  s_bits : Array[Bool] // Dev-only：公开 s[i]，方便无密钥 PBS 测试
+  key_trlwe : TrlweKey // TRLWE 秘钥（给 PBS 里的 acc 加密用）
+  sigma_trlwe : Float // PBS 中使用的 TRLWE 噪声
 }
 
 /// 利用公开的 s_bits 直接计算 φ = b - <a, s>
+
 ///|
 fn phase_from_bsk_public(bk : BootstrappingKey, ct : LweCiphertext) -> Int {
   let n = bk.n_in
@@ -29,10 +30,10 @@ fn phase_from_bsk_public(bk : BootstrappingKey, ct : LweCiphertext) -> Int {
   t32_sub(ct.b, dot)
 }
 
-
 /// 生成 BootstrappingKey：
 /// 对每个 LWE 秘钥位 s[i] 生成一个 TRGSW(s[i])，存入 trgsw_data[i]
 /// 同时保存 s_bits、TRLWE 秘钥 key_trlwe 以及 PBS 用的 sigma
+
 ///|
 pub fn bsk_generate(
   p : TfheParams,
@@ -78,7 +79,6 @@ pub fn bsk_generate(
     sigma_trlwe,
   }
 }
-
 
 ///|
 test "bsk: trgsw shape matches (n_in, level, n_trlwe)" {

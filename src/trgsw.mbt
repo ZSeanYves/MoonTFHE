@@ -1,4 +1,5 @@
 // ===================== TRGSW 参数与结构 =====================
+
 ///|
 pub struct TrgswParams {
   base_log : Int // log_B，B = 2^base_log
@@ -9,29 +10,28 @@ pub struct TrgswParams {
 ///|
 pub struct TrgswCiphertext {
   params : TrgswParams
-  data   : Array[TrlweCiphertext]  // length = 2 * params.level
+  data : Array[TrlweCiphertext] // length = 2 * params.level
 }
 
 // ===================== gadget 分解 =====================
+
 ///|
 fn gadget_decompose(value : Int, base_log : Int, level : Int) -> Array[Int] {
   t32_decompose_lsb_trgsw(value, base_log, level)
 }
 
-
 /// 对一个多项式 poly 做 gadget 分解：
 //// 返回长度为 level 的数组，每个元素是一整个“digit 多项式”
 /// 第 j 个 digit 多项式的第 i 项 = gadget_decompose(poly[i])[j]
+
 ///|
 fn gadget_decompose_poly(
-  poly     : Array[Int],
+  poly : Array[Int],
   base_log : Int,
-  level    : Int,
+  level : Int,
 ) -> Array[Array[Int]] {
   let n = poly.length()
-  let res = Array::makei(level, fn(_) {
-    Array::makei(n, fn(_) { 0 })
-  })
+  let res = Array::makei(level, fn(_) { Array::makei(n, fn(_) { 0 }) })
 
   for i in 0..<n {
     let digits = gadget_decompose(poly[i], base_log, level)
@@ -45,6 +45,7 @@ fn gadget_decompose_poly(
 
 // ===================== TRLWE 辅助运算 =====================
 /// 生成全零 TRLWE 密文（a=0, b=0）
+
 ///|
 fn trlwe_zero(params : TrlweParams) -> TrlweCiphertext {
   let n = params.n
@@ -54,6 +55,7 @@ fn trlwe_zero(params : TrlweParams) -> TrlweCiphertext {
 }
 
 /// TRLWE × 整数（逐系数乘），保留 torus 效应
+
 ///|
 fn _trlwe_scalar_mul(ct : TrlweCiphertext, k : Int) -> TrlweCiphertext {
   let n = ct.params.n
@@ -89,6 +91,7 @@ fn trlwe_mul_by_plain_poly(
 }
 
 // ===================== Torus 整数分解（MBS-first） =====================
+
 ///|
 fn t32_decompose_lsb_trgsw(x : Int, base_log : Int, level : Int) -> Array[Int] {
   let b = 1 << base_log
@@ -105,8 +108,9 @@ fn t32_decompose_lsb_trgsw(x : Int, base_log : Int, level : Int) -> Array[Int] {
   limbs
 }
 
-
 // ===================== TRGSW × TRLWE 外积（GSW 真语义） =====================
+
+///|
 fn external_product(
   g : TrgswCiphertext,
   v : TrlweCiphertext,
@@ -153,6 +157,8 @@ fn external_product(
 }
 
 // ===================== TRGSW 加密：Bool 版本（真正 H 结构） =====================
+
+///|
 /// 对 bit=false: 返回 Enc(0) 的 TRGSW；
 /// 对 bit=true : 返回“TRGSW_K(1)”，满足 external_product(G, Enc(m)) ≈ Enc(m)
 pub fn trgsw_encrypt_bool(
@@ -205,10 +211,6 @@ pub fn trgsw_encrypt_bool(
   { params, data }
 }
 
-
-
-
-
 ///|
 test "trgsw: external_product with bit=1 preserves encrypted bit0" {
   let r = csprng_new(0x20251127)
@@ -251,7 +253,6 @@ test "debug: t32_decompose encode bits" {
   //////println("d_false =\{d_false}")
 }
 
-
 ///|
 test "debug: decomp x_true vs mu_vec sum" {
   let base_log = 2
@@ -267,8 +268,6 @@ test "debug: decomp x_true vs mu_vec sum" {
   //////println("recompose = \{acc}")
   assert_eq(acc.reinterpret_as_uint(), T32_HALF.reinterpret_as_uint())
 }
-
-
 
 ///|
 test "trgsw-learn-rule: external_product tiny, sigma=0" {
@@ -307,7 +306,7 @@ test "trgsw-learn-rule: external_product tiny, sigma=0" {
   //////println("m_mono out      = \{_mu_mono}")
 }
 
-
+///|
 /// 小参数下“反解” external_product 对明文多项式的线性作用 L
 /// 这里我们取 n=8, base_log=2, level=3, sigma=0
 /// 对每个基底多项式 e_j(X)=μ·X^j，测出 L(e_j) 解密后的系数。
@@ -363,7 +362,7 @@ test "trgsw-debug: learn_hidden_linear_kernel_tiny" {
     }
   }
   ////println("=== hidden linear kernel L (单位 step = μ/16) ===")
-  for i in 0..<n {
+  for _i in 0..<n {
     ////println("row \{i}: \{mat[i]}")
   }
 

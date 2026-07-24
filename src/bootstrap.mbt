@@ -1,16 +1,19 @@
+///|
 /// LUT 结构（最简：两个点 f(0), f(1))
 pub struct Lut2 {
-  f0 : Int  // Torus32 编码
+  f0 : Int // Torus32 编码
   f1 : Int
 }
 
+///|
 /// 通用 LUT：长度 = n_trlwe，每个 index 存一个 Torus32 值
 pub struct LutN {
   table : Array[Int]
 }
 
-
 // ============ Tool =============
+
+///|
 /// 要求 n 是 2 的幂，返回 log2(n)；否则 panic
 fn log2_pow2(n : Int) -> Int {
   let mut x = n
@@ -28,7 +31,8 @@ fn log2_pow2(n : Int) -> Int {
   lg
 }
 
-///|测试用
+///|
+///测试用
 fn _int_to_hex(x : Int) -> String {
   let digits = "0123456789ABCDEF"
   let mut s = ""
@@ -41,8 +45,9 @@ fn _int_to_hex(x : Int) -> String {
   "0x" + s
 }
 
-fn[T] _slice(arr: Array[T], start: Int, end: Int) -> Array[T] {
-  let res = Array::makei(end - start, fn(_) { arr[start] })  // 占位初始
+///|
+fn[T] _slice(arr : Array[T], start : Int, end : Int) -> Array[T] {
+  let res = Array::makei(end - start, fn(_) { arr[start] }) // 占位初始
   for i in start..<end {
     res[i - start] = arr[i]
   }
@@ -50,6 +55,8 @@ fn[T] _slice(arr: Array[T], start: Int, end: Int) -> Array[T] {
 }
 
 // ============ Bootstrap =============
+
+///|
 /// 构造布尔 LUT（常见：NAND/AND/XOR 等），这里仅提供一个构造器
 fn _lut2_from_bools(y0 : Bool, y1 : Bool) -> Lut2 {
   // y0 = f(0), y1 = f(1)
@@ -59,6 +66,7 @@ fn _lut2_from_bools(y0 : Bool, y1 : Bool) -> Lut2 {
   a
 }
 
+///|
 /// 初始化累加器多项式：把 v 放在常数项（index 0），其它为 0
 fn acc_init_const(n : Int, v : Int) -> Array[Int] {
   let a = Array::makei(n, fn(_i) { 0 })
@@ -66,6 +74,7 @@ fn acc_init_const(n : Int, v : Int) -> Array[Int] {
   a
 }
 
+///|
 /// 针对布尔函数的“可编程累加器”: 按位选择 f0 或 f1 的常数项
 /// PS：这里并不根据密文选择，仅构建两个候选。实际选择由盲旋转完成。
 fn _acc_init_for_lut(n : Int, lut : Lut2) -> (Array[Int], Array[Int]) {
@@ -74,18 +83,15 @@ fn _acc_init_for_lut(n : Int, lut : Lut2) -> (Array[Int], Array[Int]) {
   (acc0, acc1)
 }
 
+///|
 /// 使用通用 LUTN 初始化累加器：直接把 table 拷进 b(x)
-fn acc_init_from_lutn(
-  n  : Int,
-  lut: LutN,
-) -> Array[Int] {
+fn acc_init_from_lutn(n : Int, lut : LutN) -> Array[Int] {
   if lut.table.length() != n {
     panic()
   }
   let acc = Array::makei(n, fn(i) { lut.table[i] })
   acc
 }
-
 
 ///|
 fn acc_from_lut2_for_boolean(
@@ -106,7 +112,6 @@ fn acc_from_lut2_for_boolean(
     acc[j] = val
   }
 
-
   for d in -w..<w {
     set_at(n - (n4 + d), -f_true)
   }
@@ -117,20 +122,20 @@ fn acc_from_lut2_for_boolean(
 }
 
 // ============ Blind rotat 1 =============
+
+///|
 /// TRLWE 旋转：同时对 a(X), b(X) 做 negacyclic 旋转
-fn trlwe_rotate(
-  ct : TrlweCiphertext,
-  k  : Int,
-) -> TrlweCiphertext {
+fn trlwe_rotate(ct : TrlweCiphertext, k : Int) -> TrlweCiphertext {
   let params = ct.params
   let a2 = poly_rotate_negacyclic(ct.a, k)
   let b2 = poly_rotate_negacyclic(ct.b, k)
   { params, a: a2, b: b2 }
 }
 
+///|
 /// CMUX(s, c0, c1) = c0 + s·(c1 - c0)，其中 s 由 TRGSW(g) 加密
 fn cmux_trlwe(
-  g  : TrgswCiphertext,
+  g : TrgswCiphertext,
   c0 : TrlweCiphertext,
   c1 : TrlweCiphertext,
 ) -> TrlweCiphertext {
@@ -142,13 +147,12 @@ fn cmux_trlwe(
   trlwe_ct_add(c0, e)
 }
 
+///|
 /// 直接把 -a 当成一个“phase”，映射到旋转步长
 fn torus_coeff_to_negrot(a : Int, n : Int) -> Int {
   let minus_a = t32_sub(0, a)
   torus_phase_to_rot_k(minus_a, n)
 }
-
-
 
 ///|
 fn _blind_rotate_oracle(
@@ -165,13 +169,13 @@ fn _blind_rotate_oracle(
   { params: acc_init.params, a: a0, b: acc_rot }
 }
 
+///|
 /// TRGSW blind rotation（真实版）：
 fn _blind_rotate_trgsw(
   acc_init : TrlweCiphertext,
   ct_in : LweCiphertext,
   bk : BootstrappingKey,
 ) -> TrlweCiphertext {
-
   let n = acc_init.params.n
 
   // 初始旋转：根据 ct.b 
@@ -183,10 +187,14 @@ fn _blind_rotate_trgsw(
   // 对每个 a[i] 应用 CMUX 
   for i in 0..<bk.n_in {
     let ai = ct_in.a[i]
-    if ai == 0 { continue }
+    if ai == 0 {
+      continue
+    }
 
     let ki = torus_coeff_to_negrot(ai, n)
-    if ki == 0 { continue }
+    if ki == 0 {
+      continue
+    }
 
     let acc_rot = trlwe_rotate(acc, ki)
     let gi = bk.trgsw_data[i]
@@ -195,8 +203,8 @@ fn _blind_rotate_trgsw(
   acc
 }
 
-
 // ============ Blind rotat 2 =============、
+
 ///|
 fn lutn_nand_for_params(p : TfheParams) -> LutN {
   let n = p.n_trlwe
@@ -215,8 +223,8 @@ fn lutn_nand_for_params(p : TfheParams) -> LutN {
   { table, }
 }
 
-
 // ============ Programmable Bootstrap =============
+
 ///|
 pub fn programmable_bootstrap(
   p : TfheParams,
@@ -243,7 +251,7 @@ pub fn tfhe_id(
   bk : BootstrappingKey,
   ct : LweCiphertext,
 ) -> LweCiphertext {
-  programmable_bootstrap(p, bk, ct, 0x0000_0000, 0x8000_0000) 
+  programmable_bootstrap(p, bk, ct, 0x0000_0000, 0x8000_0000)
 }
 
 ///|
@@ -252,9 +260,10 @@ pub fn tfhe_not(
   bk : BootstrappingKey,
   ct : LweCiphertext,
 ) -> LweCiphertext {
-  programmable_bootstrap(p, bk, ct, 0x8000_0000, 0x0000_0000) 
+  programmable_bootstrap(p, bk, ct, 0x8000_0000, 0x0000_0000)
 }
 
+///|
 /// 二元门专用 PBS：使用通用 LutN
 pub fn programmable_bootstrap_bin(
   p : TfheParams,
@@ -271,11 +280,13 @@ pub fn programmable_bootstrap_bin(
   sample_extract_const(acc_final)
 }
 
+///|
 fn tfhe_mu() -> Int {
   bool_to_t32(true)
 }
 
-///| 二元 NAND：一次线性组合 + 一次二元 PBS
+///|
+/// 二元 NAND：一次线性组合 + 一次二元 PBS
 pub fn tfhe_xnor(
   p : TfheParams,
   bk : BootstrappingKey,
@@ -289,9 +300,10 @@ pub fn tfhe_xnor(
   programmable_bootstrap_bin(p, bk, ct_lin, lut)
 }
 
+///|
 /// XNOR(a,b) 已实现，XOR = NOT(XNOR)
 pub fn tfhe_xor(
-  p  : TfheParams,
+  p : TfheParams,
   bk : BootstrappingKey,
   cx : LweCiphertext,
   cy : LweCiphertext,
@@ -300,10 +312,10 @@ pub fn tfhe_xor(
   tfhe_not(p, bk, c_xnor)
 }
 
-
+///|
 /// TODO: 真正的二元 NAND 尚未实现，当前禁止调用
 pub fn tfhe_nand(
-  _p  : TfheParams,
+  _p : TfheParams,
   _bk : BootstrappingKey,
   _cx : LweCiphertext,
   _cy : LweCiphertext,
@@ -311,6 +323,7 @@ pub fn tfhe_nand(
   panic() // 或者直接返回 tfhe_xnor(p,bk,cx,cy) 但不对外宣称是 NAND
 }
 
+///|
 /// AND = NOT(NAND)
 pub fn tfhe_and(
   p : TfheParams,
@@ -322,6 +335,7 @@ pub fn tfhe_and(
   tfhe_not(p, bk, n)
 }
 
+///|
 /// OR = NAND(NOT x, NOT y)
 pub fn tfhe_or(
   p : TfheParams,
@@ -388,7 +402,7 @@ test "pbs-final: NOT gate (no LWE key in API)" {
   let bk = bsk_generate(p, key_lwe, key_tr, 2, 3, 3.0, r)
   let trials = 128
   let mut ok = 0
-  for t in 0..<trials {
+  for _t in 0..<trials {
     let bit = (next_u64(r) & 1) == 1
     let ct = lwe_encrypt(key_lwe, bit, 3.0, r)
     let ct2 = tfhe_not(p, bk, ct)
@@ -436,7 +450,7 @@ test "pbs-final: identity gate (no LWE key in API)" {
   assert_eq(ok, trials)
 }
 
-
+///|
 /// Tiny 参数下：NOT 门 TRGSW blind rotation vs oracle & 明文正确性
 test "pbs-tiny-trgsw: NOT matches oracle and !bit" {
   let r = csprng_new(0xC0FFEE01)
@@ -452,7 +466,15 @@ test "pbs-tiny-trgsw: NOT matches oracle and !bit" {
 
   // TRLWE 秘钥 & BSK（真正 TRGSW 版）
   let key_tr = trlwe_key_new(p.n_trlwe, r)
-  let bk = bsk_generate(p, key_lwe, key_tr, p.bk_base_log, p.bk_level, p.sigma_trlwe, r)
+  let bk = bsk_generate(
+    p,
+    key_lwe,
+    key_tr,
+    p.bk_base_log,
+    p.bk_level,
+    p.sigma_trlwe,
+    r,
+  )
 
   let trials = 128
   let mut ok = 0
@@ -463,10 +485,10 @@ test "pbs-tiny-trgsw: NOT matches oracle and !bit" {
     // oracle 版本（当前 programmable_bootstrap 内部用的）
     let ct_oracle = tfhe_not(p, bk, ct)
     // TRGSW 盲旋转版本
-    let ct_trgsw  = tfhe_not(p, bk, ct)
+    let ct_trgsw = tfhe_not(p, bk, ct)
 
     let dec_oracle = lwe_decrypt(key_lwe, ct_oracle)
-    let dec_trgsw  = lwe_decrypt(key_lwe, ct_trgsw)
+    let dec_trgsw = lwe_decrypt(key_lwe, ct_trgsw)
 
     if dec_oracle == !bit && dec_trgsw == !bit && dec_oracle == dec_trgsw {
       ok = ok + 1
@@ -475,6 +497,7 @@ test "pbs-tiny-trgsw: NOT matches oracle and !bit" {
   assert_eq(ok, trials)
 }
 
+///|
 /// Tiny 参数下：ID 门 TRGSW blind rotation vs oracle & 明文正确性
 test "pbs-tiny-trgsw: ID matches oracle and bit" {
   let r = csprng_new(0x1234ABCD)
@@ -488,7 +511,15 @@ test "pbs-tiny-trgsw: ID matches oracle and bit" {
   let key_lwe : LweKey = { s, }
 
   let key_tr = trlwe_key_new(p.n_trlwe, r)
-  let bk = bsk_generate(p, key_lwe, key_tr, p.bk_base_log, p.bk_level, p.sigma_trlwe, r)
+  let bk = bsk_generate(
+    p,
+    key_lwe,
+    key_tr,
+    p.bk_base_log,
+    p.bk_level,
+    p.sigma_trlwe,
+    r,
+  )
 
   let trials = 128
   let mut ok = 0
@@ -497,10 +528,10 @@ test "pbs-tiny-trgsw: ID matches oracle and bit" {
     let ct = lwe_encrypt(key_lwe, bit, p.sigma_lwe, r)
 
     let ct_oracle = tfhe_id(p, bk, ct)
-    let ct_trgsw  = tfhe_id(p, bk, ct)
+    let ct_trgsw = tfhe_id(p, bk, ct)
 
     let dec_oracle = lwe_decrypt(key_lwe, ct_oracle)
-    let dec_trgsw  = lwe_decrypt(key_lwe, ct_trgsw)
+    let dec_trgsw = lwe_decrypt(key_lwe, ct_trgsw)
 
     if dec_oracle == bit && dec_trgsw == bit && dec_oracle == dec_trgsw {
       ok = ok + 1
@@ -508,4 +539,3 @@ test "pbs-tiny-trgsw: ID matches oracle and bit" {
   }
   assert_eq(ok, trials)
 }
-
