@@ -1,0 +1,16 @@
+{
+  "format": "moontfhe-p1-canonical-torus",
+  "upstream": {
+    "project": "zama-ai/tfhe-rs",
+    "version": "1.7.0",
+    "commit": "640911eba7a394f078fa5d7d14e146105757e34f"
+  },
+  "status": "scalar-contract-fixture",
+  "warning": "This fixture pins canonical Torus32 encoding only; it is not ciphertext interoperability data.",
+  "vectors": [
+    { "name": "bool_true", "message": true, "torus32": 1073741824 },
+    { "name": "bool_false", "message": false, "torus32": -1073741824 },
+    { "name": "zero", "message": 0, "torus32": 0 },
+    { "name": "half", "message": 2, "torus32": -2147483648 }
+  ]
+}
