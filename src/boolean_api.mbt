@@ -13,6 +13,7 @@ pub suberror BooleanCiphertextError {
 ///
 /// This type is deliberately named experimental: its key generation and
 /// encryption still use TestRng and zero noise, so it is not secure.
+#deprecated("Use ZSeanYves/MoonTFHE/src/boolean::ClientKey")
 pub struct ExperimentalBooleanClientKey {
   params : TfheParams
   lwe_key : LweKey
@@ -22,6 +23,7 @@ pub struct ExperimentalBooleanClientKey {
 
 ///|
 /// Secret-free server-side evaluation material.
+#deprecated("Use ZSeanYves/MoonTFHE/src/boolean::ServerKey")
 pub struct ExperimentalBooleanServerKey {
   params : TfheParams
   bsk : BootstrappingKey
@@ -30,6 +32,7 @@ pub struct ExperimentalBooleanServerKey {
 
 ///|
 /// Opaque Boolean ciphertext accepted by the experimental Boolean facade.
+#deprecated("Use ZSeanYves/MoonTFHE/src/boolean::Ciphertext")
 pub struct BooleanCiphertext {
   inner : LweCiphertext
   key_tag : Int
@@ -57,6 +60,7 @@ fn experimental_boolean_params() -> TfheParams {
 /// The returned server key contains only encrypted GGSW and key-switching
 /// material. The seed makes this API reproducible and therefore unsuitable
 /// for sensitive data.
+#deprecated("Use boolean.generate_keys; this deterministic function is test-only")
 pub fn experimental_boolean_keygen(
   seed : UInt64,
 ) -> (ExperimentalBooleanClientKey, ExperimentalBooleanServerKey) {
@@ -78,6 +82,7 @@ pub fn experimental_boolean_keygen(
 }
 
 ///|
+#deprecated("Use ClientKey::encrypt")
 pub fn ExperimentalBooleanClientKey::encrypt(
   self : ExperimentalBooleanClientKey,
   message : Bool,
@@ -95,6 +100,7 @@ pub fn ExperimentalBooleanClientKey::encrypt(
 }
 
 ///|
+#deprecated("Use ClientKey::decrypt")
 pub fn ExperimentalBooleanClientKey::decrypt(
   self : ExperimentalBooleanClientKey,
   ciphertext : BooleanCiphertext,
@@ -109,6 +115,7 @@ pub fn ExperimentalBooleanClientKey::decrypt(
 }
 
 ///|
+#deprecated("Use ServerKey::not")
 pub fn ExperimentalBooleanServerKey::not(
   self : ExperimentalBooleanServerKey,
   ciphertext : BooleanCiphertext,
@@ -126,6 +133,7 @@ pub fn ExperimentalBooleanServerKey::not(
 }
 
 ///|
+#deprecated("Use ServerKey::nand")
 pub fn ExperimentalBooleanServerKey::nand(
   self : ExperimentalBooleanServerKey,
   left : BooleanCiphertext,

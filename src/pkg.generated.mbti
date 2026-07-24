@@ -9,8 +9,10 @@ import {
 // Values
 pub fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, @random.RandomGenerator) -> BootstrappingKey
 
+#deprecated
 pub fn experimental_boolean_keygen(UInt64) -> (ExperimentalBooleanClientKey, ExperimentalBooleanServerKey)
 
+#deprecated
 pub fn experimental_keygen(Int, Float, UInt64) -> ExperimentalClientKey
 
 pub fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
@@ -69,6 +71,7 @@ pub suberror SecureRandomError {
 } derive(Eq, @debug.Debug)
 
 // Types and methods
+#deprecated
 pub struct BooleanCiphertext {
   inner : LweCiphertext
   key_tag : Int
@@ -89,35 +92,46 @@ pub struct BskParams {
   level : Int
 }
 
+#deprecated
 pub struct ExperimentalBooleanClientKey {
   params : TfheParams
   lwe_key : LweKey
   rng : @random.RandomGenerator
   key_tag : Int
 }
+#deprecated
 pub fn ExperimentalBooleanClientKey::decrypt(Self, BooleanCiphertext) -> Result[Bool, BooleanCiphertextError]
 pub fn ExperimentalBooleanClientKey::deserialize_ciphertext(Self, Bytes) -> Result[BooleanCiphertext, BooleanCiphertextError]
+#deprecated
 pub fn ExperimentalBooleanClientKey::encrypt(Self, Bool) -> BooleanCiphertext
 
+#deprecated
 pub struct ExperimentalBooleanServerKey {
   params : TfheParams
   bsk : BootstrappingKey
   key_tag : Int
 }
+#deprecated
 pub fn ExperimentalBooleanServerKey::nand(Self, BooleanCiphertext, BooleanCiphertext) -> Result[BooleanCiphertext, BooleanCiphertextError]
+#deprecated
 pub fn ExperimentalBooleanServerKey::not(Self, BooleanCiphertext) -> Result[BooleanCiphertext, BooleanCiphertextError]
 
+#deprecated
 pub struct ExperimentalCiphertext {
   inner : LweCiphertext
 }
+#deprecated
 pub fn ExperimentalCiphertext::not(Self) -> Self
 
+#deprecated
 pub struct ExperimentalClientKey {
   key : LweKey
   rng : @random.RandomGenerator
   sigma : Float
 }
+#deprecated
 pub fn ExperimentalClientKey::decrypt(Self, ExperimentalCiphertext) -> Bool
+#deprecated
 pub fn ExperimentalClientKey::encrypt(Self, Bool) -> ExperimentalCiphertext
 
 pub struct KeySwitchKey {

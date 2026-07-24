@@ -19,6 +19,12 @@ pub fn generate_keys(BooleanParameters) -> Result[(ClientKey, ServerKey), KeyGen
 pub fn generate_test_keys(BooleanParameters, UInt64) -> Result[(ClientKey, ServerKey), KeyGenerationError]
 
 // Errors
+pub suberror BackendError {
+  UnsupportedBackend(backend~ : Backend)
+  EntropyUnavailable
+  InvalidProviderOutput
+} derive(Eq, @debug.Debug)
+
 pub suberror DecryptionError {
   KeyMismatch
   InvalidCiphertext
@@ -45,6 +51,14 @@ pub suberror SerializationError {
 } derive(Eq, @debug.Debug)
 
 // Types and methods
+pub enum Backend {
+  Native
+  JavaScript
+  Wasm
+  WasmGc
+} derive(Eq, @debug.Debug)
+pub fn Backend::name(Self) -> String
+
 pub struct BooleanParameters {
   id : String
   security_bits : Int
@@ -71,6 +85,10 @@ pub struct ClientKey {
 pub fn ClientKey::decrypt(Self, Ciphertext) -> Result[Bool, DecryptionError]
 pub fn ClientKey::deserialize(Self, Bytes) -> Result[Ciphertext, SerializationError]
 pub fn ClientKey::encrypt(Self, Bool) -> Ciphertext
+
+pub struct SerializationKey {
+  bytes : Bytes
+}
 
 pub struct ServerKey {
   inner : @src.ExperimentalBooleanServerKey

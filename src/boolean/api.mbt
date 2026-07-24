@@ -115,8 +115,8 @@ pub fn BooleanParameters::is_test_only(self : BooleanParameters) -> Bool {
 }
 
 ///|
-/// Production key generation is intentionally unavailable until B2 wires the
-/// secure entropy provider into the core encryption path.
+/// Production key generation remains unavailable during C0/C1. The error is
+/// intentional until the migrated core owns the full entropy and PBS path.
 pub fn generate_keys(
   parameters : BooleanParameters,
 ) -> Result[(ClientKey, ServerKey), KeyGenerationError] {

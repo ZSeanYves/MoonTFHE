@@ -2,6 +2,12 @@
 declare pub type BooleanParameters
 
 ///|
+declare pub type Backend
+
+///|
+declare pub type SerializationKey
+
+///|
 declare pub type ClientKey
 
 ///|
