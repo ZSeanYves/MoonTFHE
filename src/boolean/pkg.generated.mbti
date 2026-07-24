@@ -1,0 +1,75 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/boolean"
+
+import {
+  "ZSeanYves/MoonTFHE/src",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn boolean_110_parameters() -> BooleanParameters
+
+pub fn boolean_128_parameters() -> BooleanParameters
+
+pub fn boolean_test_parameters() -> BooleanParameters
+
+pub fn generate_keys(BooleanParameters) -> Result[(ClientKey, ServerKey), KeyGenerationError]
+
+pub fn generate_test_keys(BooleanParameters, UInt64) -> Result[(ClientKey, ServerKey), KeyGenerationError]
+
+// Errors
+pub suberror DecryptionError {
+  KeyMismatch
+  InvalidCiphertext
+} derive(Eq, @debug.Debug)
+
+pub suberror EvaluationError {
+  KeyMismatch
+  InvalidCiphertext
+} derive(Eq, @debug.Debug)
+
+pub suberror KeyGenerationError {
+  UnsupportedBackend
+  InvalidParameters
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct BooleanParameters {
+  id : String
+  security_bits : Int
+  test_only : Bool
+  dimension : Int
+}
+pub fn BooleanParameters::id(Self) -> String
+pub fn BooleanParameters::is_test_only(Self) -> Bool
+pub fn BooleanParameters::security_bits(Self) -> Int
+
+pub struct Ciphertext {
+  inner : @src.BooleanCiphertext
+  key_id : Int
+}
+pub fn Ciphertext::serialize(Self) -> Bytes
+
+pub struct ClientKey {
+  inner : @src.ExperimentalBooleanClientKey
+  parameters : BooleanParameters
+  key_id : Int
+}
+pub fn ClientKey::decrypt(Self, Ciphertext) -> Result[Bool, DecryptionError]
+pub fn ClientKey::deserialize(Self, Bytes) -> Result[Ciphertext, DecryptionError]
+pub fn ClientKey::encrypt(Self, Bool) -> Ciphertext
+
+pub struct ServerKey {
+  inner : @src.ExperimentalBooleanServerKey
+  parameters : BooleanParameters
+  key_id : Int
+}
+pub fn ServerKey::and_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::nand(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::not(Self, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::or_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+
+// Type aliases
+
+// Traits
+
