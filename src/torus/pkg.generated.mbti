@@ -1,0 +1,41 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/torus"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn torus_from_modulus(Int, CiphertextModulus) -> Result[Torus32, ModulusError]
+
+// Errors
+pub suberror ModulusError {
+  InvalidLogModulus
+  ValueOutOfRange
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub enum CiphertextModulus {
+  Torus32Modulus
+  PowerOfTwo(Int)
+} derive(Eq, @debug.Debug)
+pub fn CiphertextModulus::power_of_two(Int) -> Result[Self, ModulusError]
+
+pub struct Torus32 {
+  raw : Int
+} derive(Eq, @debug.Debug)
+pub fn Torus32::add(Self, Self) -> Self
+pub fn Torus32::decode_sign(Self) -> Bool
+pub fn Torus32::encode_bit_pm(Bool, Self) -> Self
+pub fn Torus32::from_int(Int) -> Self
+pub fn Torus32::modulus_switch(Self, CiphertextModulus) -> Result[Int, ModulusError]
+pub fn Torus32::neg(Self) -> Self
+pub fn Torus32::scale(Self, Int) -> Self
+pub fn Torus32::sub(Self, Self) -> Self
+pub fn Torus32::to_int(Self) -> Int
+pub fn Torus32::zero() -> Self
+
+// Type aliases
+
+// Traits
+
