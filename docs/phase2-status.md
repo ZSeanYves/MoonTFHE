@@ -1,6 +1,6 @@
 # 第二阶段状态
 
-截至 2026-07-24，B0-B5 已分别提交、推送并通过 GitHub Actions；B6 的本地实现正在收尾。
+截至 2026-07-24，B0-B6 已分别提交、推送并通过 GitHub Actions；B7 审计已完成并阻止 RC 发布。
 
 已经落地的内容包括：
 
@@ -19,4 +19,4 @@
 4. FFT candidate 只覆盖 reference coefficient range；Rust `concrete-fft` C ABI、Fourier BSK 和 scratch reuse 尚未实现。
 5. 只有 ciphertext 可序列化；client secret/server key 的显式格式和结构化导入导出仍待完成。
 
-因此本文件是实施状态记录，不是安全认证或发布声明。完成 B7 前仍必须保留“未经审计、不可用于生产敏感数据”的警告。
+因此本文件是实施状态记录，不是安全认证或发布声明。B7 当前评分为 55/100 且多个硬门槛失败，仍必须保留“未经独立审计、不可用于生产敏感数据”的警告。具体见 `docs/boolean-core-audit.md`。

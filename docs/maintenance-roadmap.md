@@ -6,7 +6,7 @@
 
 ## 第二阶段 B0-B7 执行记录
 
-当前按 Boolean Core 补强计划执行。B0、B1、B2、B3、B4、B5 已逐阶段提交、推送并通过远端 CI；B6 正在收尾，B7 审计尚未完成。阶段提交和 CI 记录以 Git 历史及 GitHub Actions 为准。
+当前按 Boolean Core 补强计划执行。B0-B6 已逐阶段提交、推送并通过远端 CI；B7 审计结论为 55/100，因硬门槛失败而禁止 RC。阶段提交和 CI 记录以 Git 历史及 GitHub Actions 为准。
 
 本轮新增的稳定 facade 是 `src/boolean`，但它目前只对
 `boolean_test_parameters()` 提供确定性测试 keygen。110/128 命名参数已经有固定
