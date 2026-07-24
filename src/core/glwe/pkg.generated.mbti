@@ -1,0 +1,53 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/core/glwe"
+
+import {
+  "ZSeanYves/MoonTFHE/src/random",
+  "ZSeanYves/MoonTFHE/src/torus",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn glwe_keygen(GlweParameters, @random.RandomGenerator) -> GlweSecretKey
+
+pub fn glwe_parameters(Int, Int) -> Result[GlweParameters, GlweError]
+
+pub fn glwe_zero_ciphertext(GlweParameters) -> GlweCiphertext
+
+// Errors
+pub suberror GlweError {
+  InvalidDimension
+  InvalidPolynomialSize
+  MessageLengthMismatch
+  CiphertextShapeMismatch
+  NoiseFailure
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct GlweCiphertext {
+  parameters : GlweParameters
+  a : Array[Array[@torus.Torus32]]
+  b : Array[@torus.Torus32]
+}
+pub fn GlweCiphertext::add(Self, Self) -> Result[Self, GlweError]
+pub fn GlweCiphertext::parameters(Self) -> GlweParameters
+pub fn GlweCiphertext::sub(Self, Self) -> Result[Self, GlweError]
+
+pub struct GlweParameters {
+  glwe_dimension : Int
+  polynomial_size : Int
+} derive(Eq, @debug.Debug)
+pub fn GlweParameters::glwe_dimension(Self) -> Int
+pub fn GlweParameters::polynomial_size(Self) -> Int
+
+pub struct GlweSecretKey {
+  parameters : GlweParameters
+  data : Array[Array[Bool]]
+}
+pub fn GlweSecretKey::decrypt(Self, GlweCiphertext) -> Result[Array[@torus.Torus32], GlweError]
+pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], Double, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]
+
+// Type aliases
+
+// Traits
+

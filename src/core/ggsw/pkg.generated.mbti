@@ -1,0 +1,40 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/core/ggsw"
+
+import {
+  "ZSeanYves/MoonTFHE/src/core/glwe",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn ggsw_parameters(@glwe.GlweParameters, Int, Int) -> Result[GgswParameters, GgswError]
+
+pub fn ggsw_zero(GgswParameters) -> GgswCiphertext
+
+// Errors
+pub suberror GgswError {
+  InvalidDecomposition
+  ShapeMismatch
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct GgswCiphertext {
+  parameters : GgswParameters
+  rows : Array[Array[@glwe.GlweCiphertext]]
+}
+pub fn GgswCiphertext::validate(Self) -> Result[Unit, GgswError]
+
+pub struct GgswParameters {
+  glwe : @glwe.GlweParameters
+  base_log : Int
+  level : Int
+} derive(Eq, @debug.Debug)
+pub fn GgswParameters::base_log(Self) -> Int
+pub fn GgswParameters::glwe(Self) -> @glwe.GlweParameters
+pub fn GgswParameters::level(Self) -> Int
+pub fn GgswParameters::rows(Self) -> Int
+
+// Type aliases
+
+// Traits
+
