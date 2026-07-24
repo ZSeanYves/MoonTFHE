@@ -70,4 +70,39 @@ declare pub fn ServerKey::or_gate(
 ) -> Result[Ciphertext, EvaluationError]
 
 ///|
+declare pub fn ServerKey::xor_gate(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+) -> Result[Ciphertext, EvaluationError]
+
+///|
+declare pub fn ServerKey::xnor_gate(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+) -> Result[Ciphertext, EvaluationError]
+
+///|
+declare pub fn ServerKey::mux(
+  self : ServerKey,
+  selector : Ciphertext,
+  when_true : Ciphertext,
+  when_false : Ciphertext,
+) -> Result[Ciphertext, EvaluationError]
+
+///|
+declare pub fn ServerKey::apply_lut(
+  self : ServerKey,
+  ciphertext : Ciphertext,
+  table : Array[Bool],
+) -> Result[Ciphertext, EvaluationError]
+
+///|
 declare pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes
+
+///|
+declare pub fn ClientKey::deserialize(
+  self : ClientKey,
+  bytes : Bytes,
+) -> Result[Ciphertext, SerializationError]

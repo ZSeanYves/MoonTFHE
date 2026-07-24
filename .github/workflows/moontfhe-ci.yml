@@ -31,6 +31,9 @@ jobs:
           moon info --target all
           git diff --exit-code -- src/pkg.generated.mbti
 
+      - name: Verify parameter fixtures
+        run: sh tools/parameter_estimator/check.sh
+
   test:
     runs-on: ubuntu-latest
     strategy:

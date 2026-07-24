@@ -9,16 +9,17 @@ repository is being rebuilt from an unmaintained teaching prototype into a
 testable library with explicit client/server key boundaries.
 
 > Security status: **not suitable for production or sensitive data**. The
-> the `experimental_boolean_*` facade uses deterministic SplitMix64 and zero
-> noise for reproducible vectors. Native OS entropy exists as a separate
-> foundation, but production key generation is not wired to the TFHE path.
+> The `experimental_boolean_*` facade uses a deterministic test-only ChaCha20
+> stream and zero noise for reproducible vectors. Native OS entropy exists as
+> a separate foundation, but production key generation is not wired to the
+> TFHE path.
 
 ## Current status
 
 The maintained baseline includes Torus32 arithmetic, naive negacyclic
 polynomials, LWE/TLWE/TRLWE encryption, signed high-bit key switching, TRGSW
 external products, sample extraction, a secret-free encrypted BSK, real TRGSW
-blind rotation, PBS->KS, and experimental unary/NAND/AND/OR gates.
+blind rotation, PBS->KS, and experimental unary/NAND/AND/OR/XOR/XNOR/MUX gates.
 
 The following remain explicitly experimental or incomplete:
 
@@ -27,13 +28,18 @@ The following remain explicitly experimental or incomplete:
 - any claim of 110-bit or 128-bit security;
 - resistance to side-channel attacks.
 
+The maintained `src/boolean` facade exposes opaque `ClientKey`, `ServerKey`,
+and `Ciphertext` types, versioned `MBCT` ciphertext envelopes, and the Boolean
+gate surface. Production `generate_keys` deliberately returns
+`UnsupportedBackend` until secure key generation is fully connected.
+
 The old oracle now lives only in `oracle_wbtest.mbt`. It receives a test secret
 explicitly and exists solely as a reference. `BootstrappingKey` contains only
 encrypted GGSW data, dimensions, and an encrypted key-switching key; it is the
 evaluation object used by the current PBS path, but it is not yet a hardened
-production server key. The experimental Boolean facade adds key-tagged,
-versioned `MTFH` ciphertext serialization; secret and server keys are not
-serializable.
+production server key. The stable envelope wraps the legacy `MTFH` payload with
+a version, parameters, dimensions, payload length, and checksum. Secret and
+server keys are intentionally not serializable.
 
 ## Build and test
 

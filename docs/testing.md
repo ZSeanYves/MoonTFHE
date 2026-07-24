@@ -29,8 +29,18 @@ observable assertion; historical print-only probes were removed.
 
 - `experimental_api_test.mbt` uses only public symbols and exercises
   key generation -> encryption -> homomorphic NOT -> decryption.
-- `boolean_api_test.mbt` uses only the public experimental Boolean facade and
-  exercises NAND, cross-key rejection, and versioned ciphertext round trips.
+- `boolean_api_test.mbt` uses only the public Boolean facade and exercises
+  NAND, the complete Boolean gate truth tables, cross-key rejection, versioned
+  ciphertext round trips, checksum rejection, and the explicit unsupported LUT
+  contract.
+
+## Current B6 serialization contract
+
+`src/boolean` ciphertexts use an `MBCT` envelope containing a format version,
+parameter code, LWE dimension, key tag, payload length, and an FNV-style
+checksum. The checksum detects accidental corruption; it is not an
+authenticated encryption scheme. Client and server key serialization remains
+intentionally unavailable until a secret-safe format and audit are completed.
 
 The P1 suite replaces self-referential legacy checks with independent
 reference arithmetic, boundary cases, pinned fixtures, and circuit properties.

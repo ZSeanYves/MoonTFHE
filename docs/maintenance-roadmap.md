@@ -4,6 +4,20 @@
 
 实施进度：基线、P0、P1、P2 熵源基础、P3 真实 PBS、P4 参数元数据、P5 native benchmark 基线和 P6 实验性 Boolean facade 已分阶段推送。安全参数估计、跨后端生产熵源、FFT/NTT 性能后端和生产级发布仍未完成。
 
+## 第二阶段 B0-B7 执行记录
+
+当前按 Boolean Core 补强计划执行。B0、B1、B2、B3、B4、B5 已逐阶段提交、推送并通过远端 CI；B6 正在收尾，B7 审计尚未完成。阶段提交和 CI 记录以 Git 历史及 GitHub Actions 为准。
+
+本轮新增的稳定 facade 是 `src/boolean`，但它目前只对
+`boolean_test_parameters()` 提供确定性测试 keygen。110/128 命名参数已经有固定
+metadata fixture，不能被解释为 MoonTFHE 已证明的安全参数。`generate_keys` 对生产参数
+仍返回 `UnsupportedBackend`，这是刻意保留的安全失败行为。
+
+B6 的 `MBCT` 只序列化密文，包含 magic、version、parameter code、dimension、key tag、
+payload length 和 checksum。checksum 只用于完整性检测，不提供认证加密；client secret
+和 server key 没有默认导出 API。B7 必须审计这些边界，并在生产 keygen、参数 estimator、
+FFT FFI 和完整 LUT/PBS 尚未完成时阻止 RC 发布。
+
 本文件区分两件事：当前仓库已经恢复到可编译、可测试状态；当前密码学实现仍是研究原型，不能用于真实数据，也尚未满足最初任务要求中的完整性与安全性。
 
 ## 对照基线

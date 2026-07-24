@@ -27,11 +27,21 @@ pub suberror DecryptionError {
 pub suberror EvaluationError {
   KeyMismatch
   InvalidCiphertext
+  UnsupportedLut
 } derive(Eq, @debug.Debug)
 
 pub suberror KeyGenerationError {
   UnsupportedBackend
   InvalidParameters
+} derive(Eq, @debug.Debug)
+
+pub suberror SerializationError {
+  InvalidMagic
+  UnsupportedVersion
+  InvalidLength
+  ParameterMismatch
+  ChecksumMismatch
+  InvalidCiphertext
 } derive(Eq, @debug.Debug)
 
 // Types and methods
@@ -49,6 +59,7 @@ pub fn BooleanParameters::security_bits(Self) -> Int
 pub struct Ciphertext {
   inner : @src.BooleanCiphertext
   key_id : Int
+  parameters : BooleanParameters
 }
 pub fn Ciphertext::serialize(Self) -> Bytes
 
@@ -58,7 +69,7 @@ pub struct ClientKey {
   key_id : Int
 }
 pub fn ClientKey::decrypt(Self, Ciphertext) -> Result[Bool, DecryptionError]
-pub fn ClientKey::deserialize(Self, Bytes) -> Result[Ciphertext, DecryptionError]
+pub fn ClientKey::deserialize(Self, Bytes) -> Result[Ciphertext, SerializationError]
 pub fn ClientKey::encrypt(Self, Bool) -> Ciphertext
 
 pub struct ServerKey {
@@ -67,9 +78,13 @@ pub struct ServerKey {
   key_id : Int
 }
 pub fn ServerKey::and_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::apply_lut(Self, Ciphertext, Array[Bool]) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::mux(Self, Ciphertext, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::nand(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::not(Self, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::or_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::xnor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::xor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 
 // Type aliases
 
