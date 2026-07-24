@@ -34,6 +34,7 @@ pub suberror EvaluationError {
   KeyMismatch
   InvalidCiphertext
   UnsupportedLut
+  InvalidLutLength
 } derive(Eq, @debug.Debug)
 
 pub suberror KeyGenerationError {

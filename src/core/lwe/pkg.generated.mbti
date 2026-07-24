@@ -13,9 +13,13 @@ pub fn lwe_ciphertext_from_parts(@params.LweDimension, Array[@torus.Torus32], @t
 
 pub fn lwe_keygen(@params.LweDimension, @random.RandomGenerator) -> LweSecretKey
 
+pub fn lwe_trivial(@params.LweDimension, @torus.Torus32) -> LweCiphertext
+
 // Errors
 pub suberror LweError {
   InvalidDimension
+  InvalidIndex
+  InvalidDecomposition
   CiphertextDimensionMismatch
   NoiseFailure
 } derive(Eq, @debug.Debug)
@@ -29,13 +33,17 @@ pub struct LweCiphertext {
 pub fn LweCiphertext::a(Self) -> Array[@torus.Torus32]
 pub fn LweCiphertext::b(Self) -> @torus.Torus32
 pub fn LweCiphertext::parameters(Self) -> @params.LweDimension
+pub fn LweCiphertext::sub_scaled(Self, Self, Int) -> Result[Self, LweError]
 
 pub struct LweSecretKey {
   parameters : @params.LweDimension
   bits : Array[Bool]
 }
+pub fn LweSecretKey::encrypt_secret_gadget_row(Self, Int, Self, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[Array[LweCiphertext], LweError]
 pub fn LweSecretKey::lwe_decrypt_binary(Self, LweCiphertext) -> Result[Bool, LweError]
 pub fn LweSecretKey::lwe_encrypt_binary(Self, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
+pub fn LweSecretKey::lwe_encrypt_torus(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
+pub fn LweSecretKey::parameters(Self) -> @params.LweDimension
 
 // Type aliases
 

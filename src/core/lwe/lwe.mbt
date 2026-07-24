@@ -14,6 +14,8 @@ pub struct LweCiphertext {
 ///|
 pub suberror LweError {
   InvalidDimension
+  InvalidIndex
+  InvalidDecomposition
   CiphertextDimensionMismatch
   NoiseFailure
 } derive(Debug, Eq)
@@ -48,13 +50,24 @@ pub fn LweSecretKey::lwe_encrypt_binary(
   noise : @random.DiscreteGaussian,
   rng : @random.RandomGenerator,
 ) -> Result[LweCiphertext, LweError] {
-  let n = self.parameters.value()
-  let a = Array::makei(n, fn(_) { @torus.Torus32::from_uint(rng.next_u32()) })
-  let mut phase = if message {
+  let encoded = if message {
     @torus.Torus32::from_int(0x2000_0000)
   } else {
     @torus.Torus32::from_int(-0x2000_0000)
   }
+  self.lwe_encrypt_torus(encoded, noise, rng)
+}
+
+///|
+pub fn LweSecretKey::lwe_encrypt_torus(
+  self : LweSecretKey,
+  message : @torus.Torus32,
+  noise : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+) -> Result[LweCiphertext, LweError] {
+  let n = self.parameters.value()
+  let a = Array::makei(n, fn(_) { @torus.Torus32::from_uint(rng.next_u32()) })
+  let mut phase = message
   for i in 0..<n {
     if self.bits[i] {
       phase = phase.add(a[i])
@@ -69,6 +82,76 @@ pub fn LweSecretKey::lwe_encrypt_binary(
     a,
     b: phase.add(@torus.Torus32::from_int(error)),
   })
+}
+
+///|
+pub fn lwe_trivial(
+  parameters : @params.LweDimension,
+  message : @torus.Torus32,
+) -> LweCiphertext {
+  {
+    parameters,
+    a: Array::make(parameters.value(), @torus.Torus32::zero()),
+    b: message,
+  }
+}
+
+///|
+pub fn LweCiphertext::sub_scaled(
+  self : LweCiphertext,
+  other : LweCiphertext,
+  scalar : Int,
+) -> Result[LweCiphertext, LweError] {
+  if self.parameters != other.parameters || self.a.length() != other.a.length() {
+    return Err(CiphertextDimensionMismatch)
+  }
+  Ok({
+    parameters: self.parameters,
+    a: Array::makei(self.a.length(), fn(i) {
+      self.a[i].sub(other.a[i].scale(scalar))
+    }),
+    b: self.b.sub(other.b.scale(scalar)),
+  })
+}
+
+///|
+/// Encrypt one input-key bit multiplied by every gadget power. This keygen
+/// hook never returns the secret bit itself.
+pub fn LweSecretKey::encrypt_secret_gadget_row(
+  self : LweSecretKey,
+  index : Int,
+  target : LweSecretKey,
+  decomposition : @params.DecompositionParameters,
+  noise : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+) -> Result[Array[LweCiphertext], LweError] {
+  if index < 0 || index >= self.bits.length() {
+    return Err(InvalidIndex)
+  }
+  let base_log = decomposition.base_log()
+  let level = decomposition.level()
+  if base_log <= 0 || level <= 0 || base_log * level > 32 {
+    return Err(InvalidDecomposition)
+  }
+  let result : Array[LweCiphertext] = []
+  for level_index in 0..<level {
+    let gadget = 1U << (level_index * base_log)
+    let plaintext = if self.bits[index] {
+      @torus.Torus32::from_uint(gadget)
+    } else {
+      @torus.Torus32::zero()
+    }
+    match target.lwe_encrypt_torus(plaintext, noise, rng) {
+      Ok(ciphertext) => result.push(ciphertext)
+      Err(error) => return Err(error)
+    }
+  }
+  Ok(result)
+}
+
+///|
+pub fn LweSecretKey::parameters(self : LweSecretKey) -> @params.LweDimension {
+  self.parameters
 }
 
 ///|

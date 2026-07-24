@@ -30,10 +30,120 @@ pub fn signed_decompose(
       remaining = remaining >> base_log
     }
   }
-  if parameters.base_log() * parameters.level() < 32 && remaining != 0U {
+  // Standard gadget decompositions intentionally truncate high remainder bits;
+  // callers that require an exact reconstruction use the strict wrapper.
+  Ok(digits)
+}
+
+///|
+pub fn signed_decompose_exact(
+  value : @torus.Torus32,
+  parameters : @params.DecompositionParameters,
+) -> Result[Array[Int], DecompositionError] {
+  if parameters.base_log() * parameters.level() < 32 {
     return Err(InsufficientLevels)
   }
-  Ok(digits)
+  signed_decompose(value, parameters)
+}
+
+///|
+pub struct KeySwitchKey {
+  input_parameters : @params.LweDimension
+  output_parameters : @params.LweDimension
+  decomposition : @params.DecompositionParameters
+  rows : Array[Array[@lwe.LweCiphertext]]
+}
+
+///|
+pub suberror KeySwitchError {
+  InvalidInputDimension
+  InvalidOutputDimension
+  InvalidDecomposition
+  CiphertextError
+} derive(Debug, Eq)
+
+///|
+/// Generate a KSK whose rows encrypt input-key bits under the target key.
+pub fn keyswitch_keygen(
+  input : @lwe.LweSecretKey,
+  target : @lwe.LweSecretKey,
+  decomposition : @params.DecompositionParameters,
+  noise : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+) -> Result[KeySwitchKey, KeySwitchError] {
+  if decomposition.base_log() <= 0 ||
+    decomposition.level() <= 0 ||
+    decomposition.base_log() * decomposition.level() > 32 {
+    return Err(InvalidDecomposition)
+  }
+  let rows : Array[Array[@lwe.LweCiphertext]] = []
+  for index in 0..<input.parameters().value() {
+    match
+      input.encrypt_secret_gadget_row(index, target, decomposition, noise, rng) {
+      Ok(row) => rows.push(row)
+      Err(_) => return Err(CiphertextError)
+    }
+  }
+  Ok({
+    input_parameters: input.parameters(),
+    output_parameters: target.parameters(),
+    decomposition,
+    rows,
+  })
+}
+
+///|
+pub fn KeySwitchKey::apply(
+  self : KeySwitchKey,
+  ciphertext : @lwe.LweCiphertext,
+) -> Result[@lwe.LweCiphertext, KeySwitchError] {
+  if ciphertext.parameters() != self.input_parameters {
+    return Err(InvalidInputDimension)
+  }
+  let mut result = @lwe.lwe_trivial(self.output_parameters, ciphertext.b())
+  let mask = ciphertext.a()
+  for index in 0..<mask.length() {
+    let digits = match signed_decompose(mask[index], self.decomposition) {
+      Ok(value) => value
+      Err(_) => return Err(InvalidDecomposition)
+    }
+    for level in 0..<digits.length() {
+      result = match result.sub_scaled(self.rows[index][level], digits[level]) {
+        Ok(value) => value
+        Err(_) => return Err(CiphertextError)
+      }
+    }
+  }
+  Ok(result)
+}
+
+///|
+test "keyswitch: encrypted gadget rows preserve an LWE message" {
+  let input = @lwe.lwe_keygen(
+    @params.lwe_dimension(4).unwrap(),
+    @random.test_rng_new(0x494E505554),
+  )
+  let target = @lwe.lwe_keygen(
+    @params.lwe_dimension(4).unwrap(),
+    @random.test_rng_new(0x544152474554),
+  )
+  let decomposition = @params.decomposition_parameters(4, 8).unwrap()
+  let ksk = keyswitch_keygen(
+    input,
+    target,
+    decomposition,
+    @random.gaussian_sigma_3_fixture(),
+    @random.test_rng_new(0x4B534B),
+  ).unwrap()
+  let ciphertext = input
+    .lwe_encrypt_binary(
+      true,
+      @random.gaussian_sigma_3_fixture(),
+      @random.test_rng_new(9),
+    )
+    .unwrap()
+  let switched = ksk.apply(ciphertext).unwrap()
+  assert_eq(target.lwe_decrypt_binary(switched), Ok(true))
 }
 
 ///|
@@ -66,7 +176,10 @@ test "keyswitch: signed decomposition reconstructs full-width torus" {
   let parameters = @params.decomposition_parameters(4, 8).unwrap()
   let values = [0U, 1U, 0x7FFF_FFFFU, 0x8000_0000U, 0xFFFF_FFFFU]
   for value in values {
-    let digits = signed_decompose(@torus.Torus32::from_uint(value), parameters).unwrap()
+    let digits = signed_decompose_exact(
+      @torus.Torus32::from_uint(value),
+      parameters,
+    ).unwrap()
     let reconstructed = signed_recompose(digits, parameters).unwrap()
     assert_eq(reconstructed.to_uint(), value)
   }
@@ -76,7 +189,7 @@ test "keyswitch: signed decomposition reconstructs full-width torus" {
 test "keyswitch: insufficient levels are explicit" {
   let parameters = @params.decomposition_parameters(10, 2).unwrap()
   assert_true(
-    signed_decompose(@torus.Torus32::from_uint(0xFFFF_FFFFU), parameters)
+    signed_decompose_exact(@torus.Torus32::from_uint(0xFFFF_FFFFU), parameters)
     is Err(InsufficientLevels),
   )
 }

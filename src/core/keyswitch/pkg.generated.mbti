@@ -2,13 +2,19 @@
 package "ZSeanYves/MoonTFHE/src/core/keyswitch"
 
 import {
+  "ZSeanYves/MoonTFHE/src/core/lwe",
   "ZSeanYves/MoonTFHE/src/params",
+  "ZSeanYves/MoonTFHE/src/random",
   "ZSeanYves/MoonTFHE/src/torus",
   "moonbitlang/core/debug",
 }
 
 // Values
+pub fn keyswitch_keygen(@lwe.LweSecretKey, @lwe.LweSecretKey, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[KeySwitchKey, KeySwitchError]
+
 pub fn signed_decompose(@torus.Torus32, @params.DecompositionParameters) -> Result[Array[Int], DecompositionError]
+
+pub fn signed_decompose_exact(@torus.Torus32, @params.DecompositionParameters) -> Result[Array[Int], DecompositionError]
 
 pub fn signed_recompose(Array[Int], @params.DecompositionParameters) -> Result[@torus.Torus32, DecompositionError]
 
@@ -18,7 +24,21 @@ pub suberror DecompositionError {
   InsufficientLevels
 } derive(Eq, @debug.Debug)
 
+pub suberror KeySwitchError {
+  InvalidInputDimension
+  InvalidOutputDimension
+  InvalidDecomposition
+  CiphertextError
+} derive(Eq, @debug.Debug)
+
 // Types and methods
+pub struct KeySwitchKey {
+  input_parameters : @params.LweDimension
+  output_parameters : @params.LweDimension
+  decomposition : @params.DecompositionParameters
+  rows : Array[Array[@lwe.LweCiphertext]]
+}
+pub fn KeySwitchKey::apply(Self, @lwe.LweCiphertext) -> Result[@lwe.LweCiphertext, KeySwitchError]
 
 // Type aliases
 

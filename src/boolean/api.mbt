@@ -25,6 +25,7 @@ pub suberror EvaluationError {
   KeyMismatch
   InvalidCiphertext
   UnsupportedLut
+  InvalidLutLength
 } derive(Debug, Eq)
 
 ///|
@@ -327,15 +328,34 @@ pub fn ServerKey::mux(
 }
 
 ///|
-/// The generic LUT surface is reserved until the production PBS path supports
-/// arbitrary torus tables. Returning a typed error prevents callers from
-/// accidentally assuming the current two-point Boolean prototype is generic.
+/// Evaluate the complete two-point Boolean LUT family. Constant tables are
+/// derived homomorphically and do not require server-side secret material.
 pub fn ServerKey::apply_lut(
-  _self : ServerKey,
-  _ciphertext : Ciphertext,
-  _table : Array[Bool],
+  self : ServerKey,
+  ciphertext : Ciphertext,
+  table : Array[Bool],
 ) -> Result[Ciphertext, EvaluationError] {
-  Err(UnsupportedLut)
+  if table.length() != 2 {
+    return Err(InvalidLutLength)
+  }
+  match (table[0], table[1]) {
+    (false, true) => Ok(ciphertext)
+    (true, false) => self.not(ciphertext)
+    (false, false) => {
+      let negated = match self.not(ciphertext) {
+        Ok(value) => value
+        Err(error) => return Err(error)
+      }
+      self.and_gate(ciphertext, negated)
+    }
+    (true, true) => {
+      let negated = match self.not(ciphertext) {
+        Ok(value) => value
+        Err(error) => return Err(error)
+      }
+      self.or_gate(ciphertext, negated)
+    }
+  }
 }
 
 ///|

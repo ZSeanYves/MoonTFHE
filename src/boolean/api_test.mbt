@@ -93,9 +93,19 @@ test "stable Boolean facade: complete Boolean gate truth tables" {
 }
 
 ///|
-test "stable Boolean facade: generic LUT is explicit until PBS tables land" {
+test "stable Boolean facade: all two-point LUTs are evaluated" {
   let parameters = boolean_test_parameters()
   let (client, server) = generate_test_keys(parameters, 0x4C5554).unwrap()
-  let result = server.apply_lut(client.encrypt(true), [false, true])
-  assert_true(result is Err(UnsupportedLut))
+  for input in [false, true] {
+    for table in [[false, false], [false, true], [true, false], [true, true]] {
+      let result = server.apply_lut(client.encrypt(input), table).unwrap()
+      assert_eq(
+        client.decrypt(result),
+        Ok(if input { table[1] } else { table[0] }),
+      )
+    }
+  }
+  assert_true(
+    server.apply_lut(client.encrypt(true), [true]) is Err(InvalidLutLength),
+  )
 }

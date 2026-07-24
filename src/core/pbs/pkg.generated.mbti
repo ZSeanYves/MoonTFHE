@@ -1,0 +1,34 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/core/pbs"
+
+import {
+  "ZSeanYves/MoonTFHE/src/torus",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn boolean_lut(@torus.Torus32, @torus.Torus32) -> BooleanLut
+
+// Errors
+pub suberror PbsError {
+  InvalidLut
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct BooleanLut {
+  false_value : @torus.Torus32
+  true_value : @torus.Torus32
+} derive(Eq, @debug.Debug)
+pub fn BooleanLut::evaluate_reference(Self, Bool) -> @torus.Torus32
+pub fn BooleanLut::false_value(Self) -> @torus.Torus32
+pub fn BooleanLut::true_value(Self) -> @torus.Torus32
+
+pub enum PbsOrder {
+  KeyswitchBootstrap
+  BootstrapKeyswitch
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits
+
