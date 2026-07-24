@@ -241,20 +241,7 @@ test "trgsw: external_product with bit=1 preserves encrypted bit0" {
 }
 
 ///|
-test "debug: t32_decompose encode bits" {
-  let base_log = 2
-  let level = 3
-  let x_true = T32_QUARTER // encode_bit_const(true)[0]
-  let x_false = -T32_QUARTER // encode_bit_const(false)[0]
-  let _d_true = t32_decompose_lsb_trgsw(x_true, base_log, level)
-  let _d_false = t32_decompose_lsb_trgsw(x_false, base_log, level)
-  // 把 d_true/d_false 打印出来看一眼
-  //////println("d_true  =\{d_true}")
-  //////println("d_false =\{d_false}")
-}
-
-///|
-test "debug: decomp x_true vs mu_vec sum" {
+test "trgsw: decomposition recomposes expected scale" {
   let base_log = 2
   let level = 3
   let x_true = T32_QUARTER
@@ -267,104 +254,4 @@ test "debug: decomp x_true vs mu_vec sum" {
   //////println("digits   = \{digits}")
   //////println("recompose = \{acc}")
   assert_eq(acc.reinterpret_as_uint(), T32_HALF.reinterpret_as_uint())
-}
-
-///|
-test "trgsw-learn-rule: external_product tiny, sigma=0" {
-  let r = csprng_new(0x31415926)
-  let n = 8 // 尽量小，方便看
-  let base_log = 2
-  let level = 3
-  let _trlwe_params : TrlweParams = { n, }
-  let trgsw_params : TrgswParams = { base_log, level, n }
-  let key_tr = trlwe_key_new(n, r)
-
-  // 噪声关掉，方便观察纯线性关系
-  let sigma_trgsw : Float = 0.0
-  let sigma_trlwe : Float = 0.0
-  let g = trgsw_encrypt_bool(trgsw_params, key_tr, true, sigma_trgsw, r)
-  let m_const_pos = Array::makei(n, fn(_i) { 0 })
-  m_const_pos[0] = T32_QUARTER
-  let m_const_neg = Array::makei(n, fn(_i) { 0 })
-  m_const_neg[0] = -T32_QUARTER
-  let k = 3
-  let m_mono = Array::makei(n, fn(_i) { 0 })
-  m_mono[k] = T32_QUARTER
-  let ct_const_pos = trlwe_encrypt(key_tr, m_const_pos, sigma_trlwe, r)
-  let ct_const_neg = trlwe_encrypt(key_tr, m_const_neg, sigma_trlwe, r)
-  let ct_mono = trlwe_encrypt(key_tr, m_mono, sigma_trlwe, r)
-  let out_const_pos = external_product(g, ct_const_pos)
-  let out_const_neg = external_product(g, ct_const_neg)
-  let out_mono = external_product(g, ct_mono)
-  let _mu_const_pos = trlwe_decrypt_to_poly(key_tr, out_const_pos)
-  let _mu_const_neg = trlwe_decrypt_to_poly(key_tr, out_const_neg)
-  let _mu_mono = trlwe_decrypt_to_poly(key_tr, out_mono)
-  //////println("m_const_pos in  = \{m_const_pos}")
-  //////println("m_const_pos out = \{_mu_const_pos}")
-  //////println("m_const_neg out = \{_mu_const_neg}")
-  //////println("m_mono in       = \{m_mono}")
-  //////println("m_mono out      = \{_mu_mono}")
-}
-
-///|
-/// 小参数下“反解” external_product 对明文多项式的线性作用 L
-/// 这里我们取 n=8, base_log=2, level=3, sigma=0
-/// 对每个基底多项式 e_j(X)=μ·X^j，测出 L(e_j) 解密后的系数。
-test "trgsw-debug: learn_hidden_linear_kernel_tiny" {
-  let r = csprng_new(0x20251128)
-  let n = 8
-  let base_log = 2
-  let level = 3
-  let tr_params : TrlweParams = { n, }
-  let trgsw_params : TrgswParams = { base_log, level, n }
-
-  // 生成 TRLWE 秘钥，用于构造 TRGSW 和后续解密
-  let key_tr = trlwe_key_new(n, r)
-
-  // 生成 G = TRGSW_1(1)，这里 sigma_bsk 先设为 0，去掉随机高斯噪声
-  let sigma_trgsw : Float = 0.0
-  let g = trgsw_encrypt_bool(trgsw_params, key_tr, true, sigma_trgsw, r)
-
-  // μ = T32_QUARTER
-  let mu : Int = T32_QUARTER
-  // 因为你之前看到系数都是 μ 的 1/16 倍，这里取单位步长 = μ/16
-  let step : Int = mu >> 4
-
-  // mat[i][j] 代表：输入 e_j(X)=μ·X^j，解密输出 L(e_j) 的第 i 个系数，
-  // 再除以 step，得到一个小整数，方便肉眼看模式
-  let mat = Array::makei(n, fn(_i) { Array::makei(n, fn(_j) { 0 }) })
-  for j in 0..<n {
-    // 构造明文多项式 e_j(X) = μ · X^j
-    let m = Array::makei(n, fn(_i) { 0 })
-    m[j] = mu
-
-    // 构造“明文 TRLWE”：a=0, b=m（不经过 trlwe_encrypt）
-    let a0 = Array::makei(n, fn(_i) { 0 })
-    let v : TrlweCiphertext = { params: tr_params, a: a0, b: m }
-
-    // 做外积
-    let out = external_product(g, v)
-
-    // 用真正的 TRLWE 秘钥解密，得到 L(m)
-    let lm = trlwe_decrypt_to_poly(key_tr, out)
-
-    // 记录缩放后的小整数矩阵
-    for i in 0..<n {
-      let coeff = lm[i]
-      // 四舍五入到最近的 step 倍数：k ≈ coeff / step
-      let k = if step != 0 {
-        // 手搓“向 0 取整”的除法，这里你也可以直接用除法看一眼
-        coeff / step
-      } else {
-        0
-      }
-      mat[i][j] = k
-    }
-  }
-  ////println("=== hidden linear kernel L (单位 step = μ/16) ===")
-  for _i in 0..<n {
-    ////println("row \{i}: \{mat[i]}")
-  }
-
-  // 这里先不做 assert，只是把矩阵打印出来分析模式
 }

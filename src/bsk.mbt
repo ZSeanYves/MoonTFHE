@@ -16,20 +16,6 @@ pub struct BootstrappingKey {
   sigma_trlwe : Float // PBS 中使用的 TRLWE 噪声
 }
 
-/// 利用公开的 s_bits 直接计算 φ = b - <a, s>
-
-///|
-fn phase_from_bsk_public(bk : BootstrappingKey, ct : LweCiphertext) -> Int {
-  let n = bk.n_in
-  let mut dot = 0
-  for i in 0..<n {
-    if bk.s_bits[i] {
-      dot = t32_add(dot, ct.a[i])
-    }
-  }
-  t32_sub(ct.b, dot)
-}
-
 /// 生成 BootstrappingKey：
 /// 对每个 LWE 秘钥位 s[i] 生成一个 TRGSW(s[i])，存入 trgsw_data[i]
 /// 同时保存 s_bits、TRLWE 秘钥 key_trlwe 以及 PBS 用的 sigma
@@ -136,38 +122,23 @@ test "bsk: trgsw_data encodes lwe secret bit via external_product" {
 
   // 生成 key
   let s = Array::makei(n_in, fn(_) { false })
-  for i in 0..<n_in {
-    s[i] = (next_u64(r) & 1) == 1
-  }
+  s[0] = false
+  s[1] = true
   let key_lwe : LweKey = { s, }
   let key_tr = trlwe_key_new(n, r)
   let base_log = 2
   let level = 3
-  let sigma : Float = 3.0
+  let sigma : Float = 0.0
   let bk = bsk_generate(p, key_lwe, key_tr, base_log, level, sigma, r)
 
-  // 测一两个 index 就行
-  let idx = 0
-  let g = bk.trgsw_data[idx]
-  let trials = 32
-  let mut ok = 0
-  for _t in 0..<trials {
-    let bit_in = (next_u64(r) & 1) == 1
-    let m_poly = trlwe_encode_bit_const(n, bit_in)
-    let ct_msg = trlwe_encrypt(key_tr, m_poly, sigma, r)
-    let out = external_product(g, ct_msg)
-    let mu_out = trlwe_decrypt_to_poly(key_tr, out)
-    let bit_out = t32_decode_sign(mu_out[0])
-    // 这里不要求 bit_out == bit_in，只看 external_product 行为是否“乘上 s[idx]”
-    // s[idx] = false → out ≈ Enc(0)
-    // s[idx] = true  → out ≈ Enc(m)
-    if bk.s_bits[idx] {
-      if bit_out == bit_in {
-        ok = ok + 1
-      }
-    } else {
-      // s[idx] == 0: 期望输出接近 0，多数随机 bit_in 解出来都是 false（符号负）
-      // 这里只做个弱检查，不强制
-    }
+  let message = trlwe_encode_bit_const(n, true)
+  let ct_message = trlwe_encrypt(key_tr, message, sigma, r)
+  let zero_out = external_product(bk.trgsw_data[0], ct_message)
+  let one_out = external_product(bk.trgsw_data[1], ct_message)
+  let zero_phase = trlwe_decrypt_to_poly(key_tr, zero_out)
+  let one_phase = trlwe_decrypt_to_poly(key_tr, one_out)
+  for coefficient in zero_phase {
+    assert_eq(coefficient, 0)
   }
+  assert_eq(t32_decode_sign(one_phase[0]), true)
 }

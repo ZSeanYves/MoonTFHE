@@ -4,31 +4,15 @@ package "ZSeanYves/MoonTFHE/src"
 // Values
 pub fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, CsPrng) -> BootstrappingKey
 
+pub fn experimental_keygen(Int, Float, UInt64) -> ExperimentalClientKey
+
 pub fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
 
 pub fn ksk_generate(TfheParams, LweKey, LweKey, CsPrng) -> KeySwitchKey
 
-pub fn programmable_bootstrap(TfheParams, BootstrappingKey, LweCiphertext, Int, Int) -> LweCiphertext
-
-pub fn programmable_bootstrap_bin(TfheParams, BootstrappingKey, LweCiphertext, LutN) -> LweCiphertext
-
-pub fn tfhe_and(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
-
-pub fn tfhe_id(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
-
-pub fn tfhe_nand(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
-
-pub fn tfhe_not(TfheParams, BootstrappingKey, LweCiphertext) -> LweCiphertext
-
-pub fn tfhe_or(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
-
 pub fn tfhe_params_small_trlwe() -> TfheParams
 
 pub fn tfhe_params_tiny_trlwe() -> TfheParams
-
-pub fn tfhe_xnor(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
-
-pub fn tfhe_xor(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
 pub fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, CsPrng) -> TrgswCiphertext
 
@@ -55,6 +39,19 @@ pub struct CsPrng {
   mut state : UInt64
 }
 
+pub struct ExperimentalCiphertext {
+  inner : LweCiphertext
+}
+pub fn ExperimentalCiphertext::not(Self) -> Self
+
+pub struct ExperimentalClientKey {
+  key : LweKey
+  rng : CsPrng
+  sigma : Float
+}
+pub fn ExperimentalClientKey::decrypt(Self, ExperimentalCiphertext) -> Bool
+pub fn ExperimentalClientKey::encrypt(Self, Bool) -> ExperimentalCiphertext
+
 pub struct KeySwitchKey {
   params : KskParams
   n_in : Int
@@ -65,15 +62,6 @@ pub struct KeySwitchKey {
 pub struct KskParams {
   base_log : Int
   level : Int
-}
-
-pub struct Lut2 {
-  f0 : Int
-  f1 : Int
-}
-
-pub struct LutN {
-  table : Array[Int]
 }
 
 pub struct LweCiphertext {

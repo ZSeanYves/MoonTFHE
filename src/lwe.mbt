@@ -133,11 +133,11 @@ test "lwe: encrypt/decrypt roundtrip (n=512, 400 trials)" {
 }
 
 ///|
-test "sanity: LWE encryption noise matches sigma_lwe" {
+test "lwe: sampled noise is bounded and non-degenerate" {
   let p = {
     n_lwe_in: 128,
     n_lwe_out: 128,
-    sigma_lwe: 0.01, // 明显非 0 的噪声
+    sigma_lwe: 3.0,
     ks_base_log: 4,
     ks_level: 3,
     sigma_ks: 0.0,
@@ -149,6 +149,7 @@ test "sanity: LWE encryption noise matches sigma_lwe" {
   let rng = csprng_new(0xABCDEF)
   let key = lwe_key_new(p.n_lwe_in, rng)
   let trials = 50
+  let mut nonzero = 0
   for _i in 0..<trials {
     let m = (next_u64(rng) & 1) == 1
     let ct = lwe_encrypt(key, m, p.sigma_lwe, rng)
@@ -163,8 +164,11 @@ test "sanity: LWE encryption noise matches sigma_lwe" {
 
     // 期望相位 = encode(m)
     let mu = t32_encode_bit_pm(m, T32_QUARTER)
-    let _err = phi - mu // Torus32 下有模，但这里 sigma 小时足够安全
-    //println("LWE noise sample = \{err}")
+    let err = phi - mu
+    if err != 0 {
+      nonzero = nonzero + 1
+    }
+    assert_true(err >= -32 && err <= 32)
   }
-  assert_true(true) // 只是打印检查
+  assert_true(nonzero > 0)
 }
