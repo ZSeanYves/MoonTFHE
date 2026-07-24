@@ -59,7 +59,7 @@ fn lwe_encrypt_with_mu(
   for i in 0..<n {
     a[i] = next_u32(rng)
   }
-  let e = sample_discrete_gaussian_0sigma(rng, sigma)
+  let e = sample_discrete_gaussian_integer(rng, sigma)
 
   // 对称编码，留出安全边界
   let encoded = t32_encode_bit_pm(m, mu)

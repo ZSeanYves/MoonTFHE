@@ -1,0 +1,12 @@
+import {
+  "moonbitlang/core/math",
+}
+
+options(
+  "native-stub": [ "entropy_native.c" ],
+  targets: {
+    "entropy_native.mbt": [ "native" ],
+    "entropy_native_test.mbt": [ "native" ],
+    "entropy_portable.mbt": [ "wasm", "wasm-gc", "js" ],
+  },
+)

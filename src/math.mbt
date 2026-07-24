@@ -173,21 +173,10 @@ fn poly_rotate_negacyclic(a : Array[Int], k : Int) -> Array[Int] {
   out
 }
 
-// TODO:后续可将CLT 替换为CDT 离散高斯采样器
-
 ///|
-/// 从 N(0, sigma^2) 的离散高斯采样一个整数噪声
-fn sample_discrete_gaussian_0sigma(rng : CsPrng, sigma : Float) -> Int {
-  if sigma <= 0.0 {
-    return 0
-  }
-  // CLT 近似：z ≈ sum_{i=1..12} U(0,1) - 6 ~ N(0,1)
-  let mut s = 0.0
-  for _i in 0..<12 {
-    s = s + next_f64_01(rng).to_double()
-  }
-  let z = s - 6.0
-  (z * sigma.to_double()).round().to_int()
+/// Transitional integer-domain Gaussian backed by bounded rejection sampling.
+fn sample_discrete_gaussian_integer(rng : CsPrng, sigma : Float) -> Int {
+  rng.sample_discrete_gaussian(sigma.to_double()).unwrap()
 }
 
 // 占位版 NTT 接口
@@ -340,7 +329,7 @@ test "gaussian: mean ~ 0, variance ~ sigma^2 (coarse bounds)" {
   let mut sum = 0.0
   let mut sumsq = 0.0
   for _i in 0..<n {
-    let g = sample_discrete_gaussian_0sigma(r, Float::from_double(sigma))
+    let g = sample_discrete_gaussian_integer(r, Float::from_double(sigma))
     sum = sum + g.to_double()
     sumsq = sumsq + (g * g).to_double()
   }
@@ -350,7 +339,7 @@ test "gaussian: mean ~ 0, variance ~ sigma^2 (coarse bounds)" {
   // 均值接近 0
   assert_eq(abs_f(Float::from_double(mean)) < 0.2, true)
 
-  // 方差大致落在 [0.5*sigma^2, 1.5*sigma^2] 内（CLT 近似+离散化，放宽区间）
+  // 方差大致落在 [0.5*sigma^2, 1.5*sigma^2] 内（离散化后放宽区间）
   let target = sigma * sigma
   assert_eq(var_hat > 0.5 * target, true)
   assert_eq(var_hat < 1.5 * target, true)

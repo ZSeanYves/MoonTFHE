@@ -106,7 +106,7 @@ fn tlwe_encrypt(
   // e(X) ← 近似离散高斯
   let e = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
-    e[i] = sample_discrete_gaussian_0sigma(rng, sigma)
+    e[i] = sample_discrete_gaussian_integer(rng, sigma)
   }
   // b = a*s + e + m
   let s_poly = tlwe_key_to_poly(key)

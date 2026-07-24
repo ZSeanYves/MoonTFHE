@@ -2,11 +2,12 @@
 package "ZSeanYves/MoonTFHE/src"
 
 import {
+  "ZSeanYves/MoonTFHE/src/random",
   "moonbitlang/core/debug",
 }
 
 // Values
-pub fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, CsPrng) -> BootstrappingKey
+pub fn bsk_generate(TfheParams, LweKey, TrlweKey, Int, Int, Float, @random.RandomGenerator) -> BootstrappingKey
 
 pub fn experimental_boolean_keygen(UInt64) -> (ExperimentalBooleanClientKey, ExperimentalBooleanServerKey)
 
@@ -14,13 +15,13 @@ pub fn experimental_keygen(Int, Float, UInt64) -> ExperimentalClientKey
 
 pub fn ksk_apply(TfheParams, KeySwitchKey, LweCiphertext) -> LweCiphertext
 
-pub fn ksk_generate(TfheParams, LweKey, LweKey, CsPrng) -> KeySwitchKey
+pub fn ksk_generate(TfheParams, LweKey, LweKey, @random.RandomGenerator) -> KeySwitchKey
 
 pub fn programmable_bootstrap(TfheParams, BootstrappingKey, LweCiphertext, Int, Int) -> LweCiphertext
 
 pub fn secure_rng_new() -> Result[SecureRng, SecureRandomError]
 
-pub fn test_rng_new(UInt64) -> CsPrng
+pub fn test_rng_new(UInt64) -> @random.RandomGenerator
 
 pub fn tfhe_and(TfheParams, BootstrappingKey, LweCiphertext, LweCiphertext) -> LweCiphertext
 
@@ -44,7 +45,7 @@ pub fn tfhe_params_tiny_trlwe() -> TfheParams
 
 pub fn tfhe_params_validate(TfheParams) -> Result[Unit, ParameterError]
 
-pub fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, CsPrng) -> TrgswCiphertext
+pub fn trgsw_encrypt_bool(TrgswParams, TrlweKey, Bool, Float, @random.RandomGenerator) -> TrgswCiphertext
 
 // Errors
 pub suberror BooleanCiphertextError {
@@ -88,15 +89,10 @@ pub struct BskParams {
   level : Int
 }
 
-#alias(TestRng)
-pub struct CsPrng {
-  mut state : UInt64
-}
-
 pub struct ExperimentalBooleanClientKey {
   params : TfheParams
   lwe_key : LweKey
-  rng : CsPrng
+  rng : @random.RandomGenerator
   key_tag : Int
 }
 pub fn ExperimentalBooleanClientKey::decrypt(Self, BooleanCiphertext) -> Result[Bool, BooleanCiphertextError]
@@ -118,7 +114,7 @@ pub fn ExperimentalCiphertext::not(Self) -> Self
 
 pub struct ExperimentalClientKey {
   key : LweKey
-  rng : CsPrng
+  rng : @random.RandomGenerator
   sigma : Float
 }
 pub fn ExperimentalClientKey::decrypt(Self, ExperimentalCiphertext) -> Bool
@@ -216,6 +212,9 @@ pub struct TrlweParams {
 }
 
 // Type aliases
+pub using @random {type RandomGenerator as CsPrng}
+
+pub using @random {type RandomGenerator as TestRng}
 
 // Traits
 

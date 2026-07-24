@@ -100,7 +100,7 @@ fn trlwe_encrypt(
   // e(X) 
   let e = Array::makei(n, fn(_i) { 0 })
   for i in 0..<n {
-    e[i] = sample_discrete_gaussian_0sigma(r, sigma)
+    e[i] = sample_discrete_gaussian_integer(r, sigma)
   }
 
   // b = a*s + e + m  （negacyclic 卷积）

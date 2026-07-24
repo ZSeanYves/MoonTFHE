@@ -1,0 +1,37 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/random"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn secure_rng_new() -> Result[RandomGenerator, RandomError]
+
+pub fn test_rng_new(UInt64) -> RandomGenerator
+
+// Errors
+pub suberror RandomError {
+  UnsupportedBackend
+  EntropyUnavailable
+  InvalidDistribution
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct RandomGenerator {
+  key : Array[UInt]
+  mut counter : UInt
+  block : Array[UInt]
+  mut block_index : Int
+  secure_seeded : Bool
+}
+pub fn RandomGenerator::is_secure(Self) -> Bool
+pub fn RandomGenerator::next_u32(Self) -> UInt
+pub fn RandomGenerator::next_u64(Self) -> UInt64
+pub fn RandomGenerator::sample_discrete_gaussian(Self, Double) -> Result[Int, RandomError]
+pub fn RandomGenerator::uniform_01(Self) -> Double
+
+// Type aliases
+
+// Traits
+

@@ -77,7 +77,7 @@ fn lwe_encrypt_const_torus(
       acc = acc + a[i]
     }
   }
-  let e = sample_discrete_gaussian_0sigma(rng, sigma)
+  let e = sample_discrete_gaussian_integer(rng, sigma)
   let s = { a, b: acc + mu + e }
   s
 }

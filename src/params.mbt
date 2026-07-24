@@ -84,7 +84,7 @@ pub fn tfhe_params_metadata(p : TfheParams) -> TfheParameterMetadata {
       security_bits: 0,
       failure_exponent: 0.0,
       estimator: "not-estimated".to_string(),
-      noise_distribution: "legacy integer CLT".to_string(),
+      noise_distribution: "bounded integer Gaussian (experimental)".to_string(),
       test_only: true,
     }
   }
