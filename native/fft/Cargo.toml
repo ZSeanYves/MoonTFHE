@@ -1,0 +1,12 @@
+[package]
+name = "moontfhe-fft"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+rustfft = { git = "https://github.com/ejmahler/RustFFT", rev = "4758ab0dd6f256c50ac8987c75c9cb96152dc2ca" }

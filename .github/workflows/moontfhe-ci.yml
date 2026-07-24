@@ -71,3 +71,20 @@ jobs:
 
       - name: Native benchmark smoke
         run: moon bench --target native --release --no-parallelize
+
+  rust-ffi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust 1.82.0
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal
+          rustup default 1.82.0
+
+      - name: Test RustFFT C ABI backend
+        run: cargo test --manifest-path native/fft/Cargo.toml --locked
+
+      - name: Test AES-256-GCM C ABI backend
+        run: cargo test --manifest-path native/aead/Cargo.toml --locked
