@@ -36,7 +36,8 @@ The old root package and `MTFH`/`MBCT v1` formats were removed in C7.
 `BootstrappingKey` contains only encrypted GGSW data, dimensions, and an
 encrypted key-switching key; it is the typed evaluation object used by the
 current reference PBS path. `MBCT v2` is the only ciphertext format currently
-written; formal ServerKey/ClientKey import is delivered in C12.
+written. Authenticated ClientKey import is available; complete ServerKey import
+remains an RC blocker.
 
 ## Build and test
 

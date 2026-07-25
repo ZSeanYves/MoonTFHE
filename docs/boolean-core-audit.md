@@ -1,35 +1,34 @@
-# Boolean Core B7 审计
+# Boolean Core C13 审计
 
-审计日期：2026-07-25。审计对象：`6c84461` 及本次 C0-C3 补强。结论：**不允许发布 RC，也未达到 85% 硬门槛**。
+审计日期：2026-07-25。审计对象：`e1abd2d` 及 C7-C12 冲刺提交。结论：**研究版本提升到 72/100，但仍不允许发布 RC，也未达到 85% 硬门槛**。
 
 ## 硬门槛
 
 | 门槛 | 结果 | 证据与缺口 |
 |---|---:|---|
-| 生产路径不含 SplitMix64/CLT | 部分通过 | 新分层包通过 `tools/security-audit/check.sh`；生产 `generate_keys` 尚未接通，因此不能据此声称完整生产路径安全。 |
-| 110/128 参数有可复现 estimator 输入输出 | 未通过 | fixture 固定了 tfhe-rs commit 和参数 metadata，但 `estimator_status` 仍为 `metadata-only`，没有本地格密码 estimator 输出。 |
-| 标准参数 PBS/NAND/随机电路 | 未通过 | 带噪 toy typed PBS 和实验门真值表通过；110/128 参数不执行生产 keygen，也没有 1000+ 标准参数电路。 |
-| ServerKey/序列化不含秘密 | 通过当前边界 | typed `BootstrapKey` 和兼容 `BootstrappingKey` 均只含 GGSW/KSK；MBKS 序列化只遍历加密评估材料，client secret 仅能经显式 AES-GCM `SecretExport` 导出。 |
-| all-target/FFI/benchmark CI | 部分通过 | 四 MoonBit 后端、RustFFT/AES-GCM `cargo test`、native entropy、full-width FFT 差分和 benchmark smoke 均通过；标准 PBS/tfhe-rs 同机性能矩阵仍不存在。 |
+| 生产路径不含 legacy RNG/CLT | 通过现有代码边界 | root legacy 包、SplitMix/Float Gaussian/旧 PBS 已删除；`tools/security-audit/check.sh` 覆盖全部 maintained package。标准生产 keygen 尚不存在，因此这不是完整安全声明。 |
+| 110/128 参数有可复现 estimator 输入输出 | 未通过 | 输入、commit、noise fixture hash 和结构化输出已固定；OCI digest 仍为 sentinel，输出状态为 `not_run`，安全位数/失败率/noise margin 均为空。 |
+| 标准参数 PBS/NAND/随机电路 | 未通过 | typed reference PBS、完整 Boolean LUT 和 toy 门真值表通过；`generate_keys(110/128)` 仍明确返回 `UnsupportedBackend`，没有标准 1000+ 电路和连续 PBS 统计。 |
+| ServerKey/序列化不含秘密 | 部分通过 | `ServerKey` 只持有 typed `BootstrapKey`，inspection 不暴露 secret；ClientKey 的 MTSK export/import 使用 AES-GCM。MBKS payload 仍只是结构标记，尚不能完整反序列化恢复 BSK/KSK。 |
+| all-target/FFI/benchmark CI | 部分通过 | 四 MoonBit 后端、RustFFT/AES-GCM、native entropy、full-width convolution 和 batched external-product ABI 均通过；没有 Fourier BSK、标准 PBS 或 tfhe-rs 同机性能矩阵。 |
 
-硬门槛未全部通过，所以无论加权分数是多少，都不能发布 RC 或删除 compatibility API。
+硬门槛未全部通过，`tools/rc-gate/check.sh` 必须失败，版本必须保持 research release。
 
 ## 加权评分
 
 | 领域 | 得分 | 说明 |
 |---|---:|---|
-| 正确性 | 25/35 | reference arithmetic、sample extraction、typed GGSW/CMUX、typed blind rotation/PBS->KS 和实验布尔门真值表已覆盖；标准参数、完整任意 LUT、连续 PBS 和 1000+ 电路未覆盖。 |
-| 安全基础 | 15/25 | OS/WebCrypto/host entropy、RFC8439 ChaCha20、固定点 CDT、AES-256-GCM 和 secret-free server fields 已有；生产 keygen、标准分布证明、估计器和侧信道工作缺失。 |
-| Boolean API | 12/15 | 稳定 facade、结构化错误、完整门 API、版本化 ciphertext/server-key 和显式 SecretExport 已有；稳定 facade 仍委托 deprecated root，标准 PBS 尚未接入。 |
-| 性能 | 7/15 | RustFFT C ABI、caller-owned scratch、16-bit limb split、full-width differential 和 benchmark smoke 已有；无 Fourier BSK、标准 PBS 或 tfhe-rs 同机对比。 |
-| 测试/文档/维护性 | 9/10 | 四后端 CI、Rust FFI tests、fixture/security checks、malformed serialization 和安全警告已建立；缺少真实 estimator 和标准参数失败率测试。 |
-| 合计 | **68/100** | typed reference PBS、native providers 和稳定序列化提高了成熟度，但硬门槛仍失败；此分数不是发布成熟度。 |
+| 正确性 | 26/35 | typed LWE/GLWE/GGSW/KSK/PBS、sample extraction、任意 anti-periodic LUT 和完整 toy Boolean 真值表已覆盖；标准参数与失败率统计缺失。 |
+| 安全基础 | 17/25 | root legacy 已删除；OS/WebCrypto/host entropy、RFC8439 ChaCha20、固定点量化 CDT、AES-256-GCM、secret-free server fields 已有；生产 keygen、真实 estimator 和独立审计缺失。 |
+| Boolean API | 13/15 | 稳定 facade 已直接持有 typed core，旧 API/旧格式已删除；ClientKey import 完成。ServerKey import 和生产标准 keygen 仍缺失。 |
+| 性能 | 7/15 | RustFFT 固定版本、16-bit limb、batch external-product ABI 和差分测试已建立；没有 Fourier BSK/PBS 和 tfhe-rs 同机数据。 |
+| 测试/文档/维护性 | 9/10 | 四后端 CI、Rust FFI、fixture hash、estimator schema、安全检查和认证失败测试均存在；标准电路/性能回归矩阵缺失。 |
+| 合计 | **72/100** | 架构和安全边界已明显收敛，但四个发布阻断项仍然实质存在。 |
 
-## 对比 tfhe-rs 后的阻断项
+## RC 阻断项
 
-1. 把 `generate_keys` 接到安全 entropy、独立 mask/noise streams、标准 LWE/GLWE/GGSW/PBS 数据流；失败必须返回结构化错误。
-2. vendoring 固定版本的安全估计器，生成 MoonTFHE 自己的 110/128 security bits、failure probability 和 noise margin。
-3. 将 typed GGSW/PBS 从 toy reference 扩展为标准参数 gadget encryption/external product，支持完整固定 LUT，并在服务端完全不访问秘密；稳定 facade 仍需迁移到该路径。
-4. 把现有固定版本 RustFFT C ABI 接到 Fourier BSK/external product，并加入标准 PBS 与 tfhe-rs 同机 benchmark。
-5. 为现有 MBKS/SecretExport 增加反序列化/import、版本迁移和跨后端 fixture；继续保持 client secret 只能显式认证加密导出。
-6. 标准参数下执行 1000+ 随机布尔电路、多次连续 PBS、噪声预算及失败率统计，然后才重新评分。
+1. 实现 native 标准 110/128 `generate_keys`，使用独立 key/mask/noise/BSK streams 和对应 CDT/TUniform 分布。
+2. 完成标准 GGSW BSK、Fourier conversion、external product、blind rotation 和 PBS->KS，并使 NAND/所有门走该路径。
+3. 固定真实 Sage OCI digest，运行 lattice-estimator，提交非伪造的 security bits、failure probability 和 noise margin，随后才能取消 `reference_only`。
+4. 将 MBKS 从结构标记升级为完整公开评估材料格式，实现 `ServerKey::deserialize` 和 malformed/cross-parameter tests。
+5. 在 110/128 参数下运行每套 1000+ 随机电路、连续 PBS/失败率统计和与固定 tfhe-rs 的同机性能矩阵。
