@@ -525,24 +525,97 @@ fn boolean_crc32c(bytes : Bytes) -> UInt {
 /// Explicit AES-GCM export boundary. A missing host provider is an error,
 /// never a deterministic or plaintext fallback.
 pub fn ClientKey::export_secret(
-  _self : ClientKey,
+  self : ClientKey,
   key : SerializationKey,
 ) -> Result[Bytes, SerializationError] {
   if key.bytes.length() != 32 {
     return Err(InvalidKeyLength)
   }
-  // The current facade deliberately cannot access its opaque secret bytes.
-  // Refuse export until the core provides the full secret payload to the
-  // AES-GCM provider; never encrypt metadata or emit a fake envelope.
-  Err(UnsupportedBackend)
+  let payload_length = 9 + (self.parameters.dimension + 7) / 8
+  let header = Array::make(22, b'\x00')
+  header[0] = b'M'
+  header[1] = b'T'
+  header[2] = b'S'
+  header[3] = b'K'
+  header[4] = b'\x01'
+  header[5] = b'\x01'
+  boolean_write_u32(
+    header,
+    6,
+    boolean_parameter_code(self.parameters).reinterpret_as_uint(),
+  )
+  boolean_write_u32(header, 10, self.parameters.dimension.reinterpret_as_uint())
+  boolean_write_u32(header, 14, self.key_id.reinterpret_as_uint())
+  boolean_write_u32(header, 18, payload_length.reinterpret_as_uint())
+  let nonce_rng = match
+    @random.secure_rng_new_for(@random.serialization_nonce_domain()) {
+    Ok(value) => value
+    Err(_) => return Err(UnsupportedBackend)
+  }
+  let nonce = Array::make(12, b'\x00')
+  for word_index in 0..<3 {
+    let word = nonce_rng.next_u32()
+    for byte_index in 0..<4 {
+      nonce[word_index * 4 + byte_index] = (word >> (byte_index * 8)).to_byte()
+    }
+  }
+  let encrypted = match
+    self.inner.encrypt_secret_payload(
+      key.bytes,
+      Bytes::from_array(nonce),
+      Bytes::from_array(header),
+    ) {
+    Ok(value) => value
+    Err(@src.SecretExportError::UnsupportedBackend) =>
+      return Err(UnsupportedBackend)
+    Err(@src.SecretExportError::InvalidLength) => return Err(InvalidLength)
+    Err(@src.SecretExportError::ProviderFailure) =>
+      return Err(UnsupportedBackend)
+  }
+  if encrypted.length() != payload_length + 16 {
+    return Err(InvalidLength)
+  }
+  let output = Array::make(34 + encrypted.length(), b'\x00')
+  for index in 0..<22 {
+    output[index] = header[index]
+  }
+  for index in 0..<12 {
+    output[22 + index] = nonce[index]
+  }
+  for index in 0..<encrypted.length() {
+    output[34 + index] = encrypted[index]
+  }
+  Ok(Bytes::from_array(output))
 }
 
 ///|
-/// Server-key serialization is gated until the encrypted BSK/KSK payload
-/// encoder is connected. Returning an error prevents metadata-only keys from
-/// being mistaken for usable evaluation keys.
+/// Serialize the public evaluation material using the versioned MBKS format.
 pub fn ServerKey::serialize(
-  _self : ServerKey,
+  self : ServerKey,
 ) -> Result[Bytes, SerializationError] {
-  Err(UnsupportedBackend)
+  let payload = self.inner.serialize_payload()
+  let header_length = 39
+  let output = Array::make(header_length + payload.length(), b'\x00')
+  output[0] = b'M'
+  output[1] = b'B'
+  output[2] = b'K'
+  output[3] = b'S'
+  output[4] = b'\x01'
+  output[5] = b'\x01'
+  boolean_write_u32(
+    output,
+    7,
+    boolean_parameter_code(self.parameters).reinterpret_as_uint(),
+  )
+  boolean_write_u32(output, 11, self.parameters.dimension.reinterpret_as_uint())
+  boolean_write_u32(output, 15, self.key_id.reinterpret_as_uint())
+  boolean_write_u32(output, 19, 0U)
+  boolean_write_u32(output, 23, 0U)
+  boolean_write_u32(output, 27, if self.parameters.test_only { 0U } else { 1U })
+  boolean_write_u32(output, 31, payload.length().reinterpret_as_uint())
+  boolean_write_u32(output, 35, boolean_crc32c(payload))
+  for index in 0..<payload.length() {
+    output[header_length + index] = payload[index]
+  }
+  Ok(Bytes::from_array(output))
 }

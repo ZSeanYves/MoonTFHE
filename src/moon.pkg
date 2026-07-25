@@ -1,4 +1,5 @@
 import {
+  "ZSeanYves/MoonTFHE/src/native/provider",
   "ZSeanYves/MoonTFHE/src/random",
   "moonbitlang/core/bench",
   "moonbitlang/core/bytes",

@@ -1,6 +1,11 @@
 import {
   "ZSeanYves/MoonTFHE/src/params",
   "ZSeanYves/MoonTFHE/src",
+  "ZSeanYves/MoonTFHE/src/random",
   "moonbitlang/core/bytes",
   "moonbitlang/core/ref",
 }
+
+options(
+  targets: { "api_native_test.mbt": [ "native" ] },
+)

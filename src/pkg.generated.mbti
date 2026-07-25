@@ -65,6 +65,12 @@ pub suberror ParameterError {
   NegativeNoise
 } derive(Eq, @debug.Debug)
 
+pub suberror SecretExportError {
+  UnsupportedBackend
+  InvalidLength
+  ProviderFailure
+} derive(Eq, @debug.Debug)
+
 pub suberror SecureRandomError {
   UnsupportedBackend
   EntropyUnavailable
@@ -104,6 +110,7 @@ pub fn ExperimentalBooleanClientKey::decrypt(Self, BooleanCiphertext) -> Result[
 pub fn ExperimentalBooleanClientKey::deserialize_ciphertext(Self, Bytes) -> Result[BooleanCiphertext, BooleanCiphertextError]
 #deprecated
 pub fn ExperimentalBooleanClientKey::encrypt(Self, Bool) -> BooleanCiphertext
+pub fn ExperimentalBooleanClientKey::encrypt_secret_payload(Self, Bytes, Bytes, Bytes) -> Result[Bytes, SecretExportError]
 
 #deprecated
 pub struct ExperimentalBooleanServerKey {
@@ -115,6 +122,7 @@ pub struct ExperimentalBooleanServerKey {
 pub fn ExperimentalBooleanServerKey::nand(Self, BooleanCiphertext, BooleanCiphertext) -> Result[BooleanCiphertext, BooleanCiphertextError]
 #deprecated
 pub fn ExperimentalBooleanServerKey::not(Self, BooleanCiphertext) -> Result[BooleanCiphertext, BooleanCiphertextError]
+pub fn ExperimentalBooleanServerKey::serialize_payload(Self) -> Bytes
 
 #deprecated
 pub struct ExperimentalCiphertext {

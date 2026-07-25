@@ -169,6 +169,13 @@ pub fn secure_rng_new() -> Result[RandomGenerator, RandomError] {
 }
 
 ///|
+/// Return the domain reserved for serialization nonces without exposing enum
+/// constructor details to facade packages.
+pub fn serialization_nonce_domain() -> RandomDomain {
+  SerializationNonce
+}
+
+///|
 /// Create a production stream separated by a protocol-owned domain label.
 pub fn secure_rng_new_for(
   domain : RandomDomain,

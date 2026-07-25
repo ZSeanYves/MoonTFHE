@@ -47,7 +47,15 @@ test "stable Boolean facade: v2 CRC32C and secret export boundary" {
   assert_true(short_key is Err(InvalidLength))
   let key = serialization_key_from_bytes(Bytes::make(32, 0))
   let export_result = client.export_secret(key.unwrap())
-  assert_true(export_result is Err(UnsupportedBackend))
+  match export_result {
+    Ok(blob) => {
+      assert_true(blob.length() > 34)
+      assert_eq(blob[0], b'M')
+      assert_eq(blob[3], b'K')
+    }
+    Err(UnsupportedBackend) => assert_true(true)
+    Err(_) => assert_true(false)
+  }
 }
 
 ///|
@@ -85,7 +93,12 @@ test "stable Boolean facade: MBCT v1 remains read-only compatible" {
 test "stable Boolean facade: server key export never emits metadata-only key" {
   let parameters = boolean_test_parameters()
   let (_client, server) = generate_test_keys(parameters, 0x534B4559).unwrap()
-  assert_true(server.serialize() is Err(UnsupportedBackend))
+  let encoded = server.serialize().unwrap()
+  assert_eq(encoded[0], b'M')
+  assert_eq(encoded[1], b'B')
+  assert_eq(encoded[2], b'K')
+  assert_eq(encoded[3], b'S')
+  assert_true(encoded.length() > 39)
 }
 
 ///|

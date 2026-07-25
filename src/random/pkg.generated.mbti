@@ -16,6 +16,8 @@ pub fn secure_rng_new() -> Result[RandomGenerator, RandomError]
 
 pub fn secure_rng_new_for(RandomDomain) -> Result[RandomGenerator, RandomError]
 
+pub fn serialization_nonce_domain() -> RandomDomain
+
 pub fn test_rng_new(UInt64) -> RandomGenerator
 
 // Errors
