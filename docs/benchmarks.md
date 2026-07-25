@@ -38,6 +38,8 @@ These values are a local reference only; they are not a TFHE-rs performance clai
 The native provider now uses RustFFT 6.4.1 through a fixed C ABI. Torus32
 coefficients are split into 16-bit limbs, the plan owns reusable scratch, and
 full-width products are checked coefficient-by-coefficient against the MoonBit
-reference backend in native CI. This closes the polynomial-convolution
-correctness boundary; it does not yet provide a Fourier-domain BSK, optimized
-external product, standard-parameter PBS benchmark, or tfhe-rs comparison.
+reference backend in native CI. The R2 provider also stores BSK polynomials as
+negacyclic half spectra and applies indexed GGSW external products with a
+preallocated workspace. This closes the native Fourier-kernel boundary; it is
+not yet connected to standard-parameter PBS and therefore does not provide a
+standard PBS benchmark or tfhe-rs comparison.

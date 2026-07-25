@@ -12,6 +12,10 @@ pub fn aes256_gcm_encrypt(Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, NativePro
 
 pub fn fft_plan_new(Int) -> Result[FftPlan, NativeProviderError]
 
+pub fn fft_plan_new_with_capacity(Int, Int, Int) -> Result[FftPlan, NativeProviderError]
+
+pub fn fourier_bsk_new(FftPlan, FixedArray[UInt], Int, Int, Int) -> Result[FourierBootstrapKey, NativeProviderError]
+
 // Errors
 pub suberror NativeProviderError {
   UnsupportedBackend
@@ -25,10 +29,24 @@ pub suberror NativeProviderError {
 pub struct FftPlan {
   handle : NativeFftPlan
   size : Int
+  digit_capacity : Int
+  output_capacity : Int
 }
-pub fn FftPlan::negacyclic_mul_u32_le(Self, Bytes, Bytes) -> Result[Bytes, NativeProviderError]
+pub fn FftPlan::batched_glwe_convolution(Self, FixedArray[UInt], FixedArray[UInt], Int, FixedArray[UInt]) -> Result[Unit, NativeProviderError]
+pub fn FftPlan::negacyclic_mul_u32(Self, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
+
+pub struct FourierBootstrapKey {
+  handle : NativeFourierBootstrapKey
+  plan : FftPlan
+  ggsw_count : Int
+  digit_count : Int
+  output_count : Int
+}
+pub fn FourierBootstrapKey::external_product(Self, Int, FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
 
 type NativeFftPlan
+
+type NativeFourierBootstrapKey
 
 // Type aliases
 

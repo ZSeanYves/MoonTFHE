@@ -2,16 +2,54 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 typedef struct moontfhe_fft_plan moontfhe_fft_plan;
+typedef struct moontfhe_fft_scratch moontfhe_fft_scratch;
+typedef struct moontfhe_fourier_bsk moontfhe_fourier_bsk;
 
 extern moontfhe_fft_plan *fft_plan_new(uint32_t polynomial_size);
-extern size_t fft_plan_scratch_bytes(const moontfhe_fft_plan *plan);
+extern size_t fft_plan_scratch_bytes(const moontfhe_fft_plan *plan,
+                                     uint32_t digit_capacity,
+                                     uint32_t output_capacity);
+extern moontfhe_fft_scratch *fft_scratch_new(const moontfhe_fft_plan *plan,
+                                             uint32_t digit_capacity,
+                                             uint32_t output_capacity);
 extern int32_t negacyclic_mul_u32(const moontfhe_fft_plan *plan,
+                                  moontfhe_fft_scratch *scratch,
                                   const uint32_t *lhs,
+                                  size_t lhs_len,
                                   const uint32_t *rhs,
+                                  size_t rhs_len,
                                   uint32_t *output,
-                                  uint8_t *scratch);
+                                  size_t output_len);
+extern int32_t batched_glwe_convolution_u32(
+    const moontfhe_fft_plan *plan,
+    moontfhe_fft_scratch *scratch,
+    const uint32_t *lhs,
+    const uint32_t *rhs,
+    uint32_t term_count,
+    uint32_t *output);
+extern moontfhe_fourier_bsk *fourier_bsk_new(const moontfhe_fft_plan *plan,
+                                             uint32_t ggsw_count,
+                                             uint32_t digit_count,
+                                             uint32_t output_count);
+extern int32_t fourier_bsk_convert(const moontfhe_fft_plan *plan,
+                                   moontfhe_fourier_bsk *key,
+                                   moontfhe_fft_scratch *scratch,
+                                   const uint32_t *coefficients,
+                                   size_t coefficient_count);
+extern int32_t indexed_ggsw_external_product_u32(
+    const moontfhe_fft_plan *plan,
+    const moontfhe_fourier_bsk *key,
+    moontfhe_fft_scratch *scratch,
+    uint32_t ggsw_index,
+    const uint32_t *digits,
+    size_t digit_count,
+    uint32_t *output,
+    size_t output_count);
+extern void fourier_bsk_free(moontfhe_fourier_bsk *key);
+extern void fft_scratch_free(moontfhe_fft_scratch *scratch);
 extern void fft_plan_free(moontfhe_fft_plan *plan);
 
 extern int32_t aes256_gcm_encrypt(const uint8_t *key,
@@ -33,32 +71,38 @@ extern int32_t aes256_gcm_decrypt(const uint8_t *key,
 
 typedef struct {
   moontfhe_fft_plan *plan;
-  uint8_t *scratch;
-  size_t scratch_len;
+  moontfhe_fft_scratch *scratch;
   uint32_t polynomial_size;
+  uint32_t digit_capacity;
+  uint32_t output_capacity;
 } moonbit_tfhe_fft_plan;
+
+typedef struct {
+  moontfhe_fourier_bsk *key;
+  uint32_t ggsw_count;
+  uint32_t digit_count;
+  uint32_t output_count;
+  uint32_t polynomial_size;
+} moonbit_tfhe_fourier_bsk;
 
 static void moonbit_tfhe_fft_plan_finalize(void *payload) {
   moonbit_tfhe_fft_plan *self = (moonbit_tfhe_fft_plan *)payload;
   if (self->plan != NULL) {
+    if (self->scratch != NULL) {
+      fft_scratch_free(self->scratch);
+      self->scratch = NULL;
+    }
     fft_plan_free(self->plan);
     self->plan = NULL;
   }
-  free(self->scratch);
-  self->scratch = NULL;
-  self->scratch_len = 0;
 }
 
-static uint32_t load_u32_le(const uint8_t *bytes) {
-  return ((uint32_t)bytes[0]) | ((uint32_t)bytes[1] << 8) |
-         ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
-}
-
-static void store_u32_le(uint8_t *bytes, uint32_t value) {
-  bytes[0] = (uint8_t)value;
-  bytes[1] = (uint8_t)(value >> 8);
-  bytes[2] = (uint8_t)(value >> 16);
-  bytes[3] = (uint8_t)(value >> 24);
+static void moonbit_tfhe_fourier_bsk_finalize(void *payload) {
+  moonbit_tfhe_fourier_bsk *self = (moonbit_tfhe_fourier_bsk *)payload;
+  if (self->key != NULL) {
+    fourier_bsk_free(self->key);
+    self->key = NULL;
+  }
 }
 
 static moonbit_bytes_t status_bytes(int32_t status, int32_t payload_len) {
@@ -67,31 +111,49 @@ static moonbit_bytes_t status_bytes(int32_t status, int32_t payload_len) {
   return result;
 }
 
+static int checked_mul_size(size_t left, size_t right, size_t *output) {
+  if (right != 0 && left > SIZE_MAX / right) {
+    return 0;
+  }
+  *output = left * right;
+  return 1;
+}
+
 MOONBIT_FFI_EXPORT moonbit_tfhe_fft_plan *
-moonbit_tfhe_fft_plan_new(int32_t polynomial_size) {
+moonbit_tfhe_fft_plan_new(int32_t polynomial_size,
+                          int32_t digit_capacity,
+                          int32_t output_capacity) {
   moonbit_tfhe_fft_plan *self = (moonbit_tfhe_fft_plan *)
       moonbit_make_external_object(moonbit_tfhe_fft_plan_finalize,
                                    sizeof(moonbit_tfhe_fft_plan));
   self->plan = NULL;
   self->scratch = NULL;
-  self->scratch_len = 0;
   self->polynomial_size = 0;
-  if (polynomial_size <= 0) {
+  self->digit_capacity = 0;
+  self->output_capacity = 0;
+  if (polynomial_size <= 0 || digit_capacity <= 0 || output_capacity <= 0) {
     return self;
   }
   self->plan = fft_plan_new((uint32_t)polynomial_size);
   if (self->plan == NULL) {
     return self;
   }
-  self->scratch_len = fft_plan_scratch_bytes(self->plan);
-  self->scratch = (uint8_t *)malloc(self->scratch_len);
+  if (fft_plan_scratch_bytes(self->plan, (uint32_t)digit_capacity,
+                             (uint32_t)output_capacity) == 0) {
+    fft_plan_free(self->plan);
+    self->plan = NULL;
+    return self;
+  }
+  self->scratch = fft_scratch_new(self->plan, (uint32_t)digit_capacity,
+                                  (uint32_t)output_capacity);
   if (self->scratch == NULL) {
     fft_plan_free(self->plan);
     self->plan = NULL;
-    self->scratch_len = 0;
     return self;
   }
   self->polynomial_size = (uint32_t)polynomial_size;
+  self->digit_capacity = (uint32_t)digit_capacity;
+  self->output_capacity = (uint32_t)output_capacity;
   return self;
 }
 
@@ -100,45 +162,135 @@ moonbit_tfhe_fft_plan_valid(moonbit_tfhe_fft_plan *self) {
   return self != NULL && self->plan != NULL && self->scratch != NULL;
 }
 
-MOONBIT_FFI_EXPORT moonbit_bytes_t moonbit_tfhe_fft_plan_multiply(
+MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_fft_plan_multiply(
     moonbit_tfhe_fft_plan *self,
-    moonbit_bytes_t left,
-    moonbit_bytes_t right) {
-  if (self == NULL || self->plan == NULL || left == NULL || right == NULL) {
-    return status_bytes(1, 0);
+    int32_t *left,
+    int32_t *right,
+    int32_t *output) {
+  if (self == NULL || self->plan == NULL || self->scratch == NULL ||
+      left == NULL || right == NULL || output == NULL) {
+    return 1;
   }
   int32_t left_len = Moonbit_array_length(left);
   int32_t right_len = Moonbit_array_length(right);
-  if (left_len <= 0 || left_len != right_len || left_len % 4 != 0 ||
-      (uint32_t)(left_len / 4) != self->polynomial_size) {
-    return status_bytes(2, 0);
+  int32_t output_len = Moonbit_array_length(output);
+  if (left_len <= 0 || left_len != right_len || left_len != output_len ||
+      (uint32_t)left_len != self->polynomial_size) {
+    return 2;
   }
-  size_t count = self->polynomial_size;
-  uint32_t *lhs = (uint32_t *)malloc(count * sizeof(uint32_t));
-  uint32_t *rhs = (uint32_t *)malloc(count * sizeof(uint32_t));
-  uint32_t *output = (uint32_t *)malloc(count * sizeof(uint32_t));
-  if (lhs == NULL || rhs == NULL || output == NULL) {
-    free(lhs);
-    free(rhs);
-    free(output);
-    return status_bytes(3, 0);
+  return negacyclic_mul_u32(
+      self->plan, self->scratch, (const uint32_t *)left, (size_t)left_len,
+      (const uint32_t *)right, (size_t)right_len, (uint32_t *)output,
+      (size_t)output_len);
+}
+
+MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_fft_plan_batched_convolution(
+    moonbit_tfhe_fft_plan *self,
+    int32_t *left,
+    int32_t *right,
+    int32_t term_count,
+    int32_t *output) {
+  if (self == NULL || self->plan == NULL || self->scratch == NULL ||
+      left == NULL || right == NULL || output == NULL || term_count <= 0) {
+    return 1;
   }
-  for (size_t index = 0; index < count; ++index) {
-    lhs[index] = load_u32_le(left + 4 * index);
-    rhs[index] = load_u32_le(right + 4 * index);
+  size_t expected = 0;
+  if (!checked_mul_size((size_t)self->polynomial_size, (size_t)term_count,
+                        &expected) ||
+      expected > INT32_MAX ||
+      (size_t)Moonbit_array_length(left) != expected ||
+      (size_t)Moonbit_array_length(right) != expected ||
+      Moonbit_array_length(output) != (int32_t)self->polynomial_size) {
+    return 2;
   }
-  int32_t status = negacyclic_mul_u32(
-      self->plan, lhs, rhs, output, self->scratch);
-  moonbit_bytes_t result = status_bytes(status, status == 0 ? left_len : 0);
-  if (status == 0) {
-    for (size_t index = 0; index < count; ++index) {
-      store_u32_le(result + 1 + 4 * index, output[index]);
-    }
+  return batched_glwe_convolution_u32(
+      self->plan, self->scratch, (const uint32_t *)left,
+      (const uint32_t *)right, (uint32_t)term_count, (uint32_t *)output);
+}
+
+MOONBIT_FFI_EXPORT moonbit_tfhe_fourier_bsk *
+moonbit_tfhe_fourier_bsk_new(moonbit_tfhe_fft_plan *plan,
+                             int32_t *coefficients,
+                             int32_t ggsw_count,
+                             int32_t digit_count,
+                             int32_t output_count) {
+  moonbit_tfhe_fourier_bsk *self = (moonbit_tfhe_fourier_bsk *)
+      moonbit_make_external_object(moonbit_tfhe_fourier_bsk_finalize,
+                                   sizeof(moonbit_tfhe_fourier_bsk));
+  self->key = NULL;
+  self->ggsw_count = 0;
+  self->digit_count = 0;
+  self->output_count = 0;
+  self->polynomial_size = 0;
+  if (plan == NULL || plan->plan == NULL || plan->scratch == NULL ||
+      coefficients == NULL || ggsw_count <= 0 || digit_count <= 0 ||
+      output_count <= 0 || (uint32_t)digit_count > plan->digit_capacity ||
+      (uint32_t)output_count > plan->output_capacity) {
+    return self;
   }
-  free(lhs);
-  free(rhs);
-  free(output);
-  return result;
+  size_t expected = 0;
+  if (!checked_mul_size((size_t)ggsw_count, (size_t)digit_count, &expected) ||
+      !checked_mul_size(expected, (size_t)output_count, &expected) ||
+      !checked_mul_size(expected, (size_t)plan->polynomial_size, &expected) ||
+      expected > INT32_MAX) {
+    return self;
+  }
+  if ((size_t)Moonbit_array_length(coefficients) != expected) {
+    return self;
+  }
+  self->key = fourier_bsk_new(plan->plan, (uint32_t)ggsw_count,
+                              (uint32_t)digit_count, (uint32_t)output_count);
+  if (self->key == NULL) {
+    return self;
+  }
+  int32_t status = fourier_bsk_convert(
+      plan->plan, self->key, plan->scratch, (const uint32_t *)coefficients,
+      expected);
+  if (status != 0) {
+    fourier_bsk_free(self->key);
+    self->key = NULL;
+    return self;
+  }
+  self->ggsw_count = (uint32_t)ggsw_count;
+  self->digit_count = (uint32_t)digit_count;
+  self->output_count = (uint32_t)output_count;
+  self->polynomial_size = plan->polynomial_size;
+  return self;
+}
+
+MOONBIT_FFI_EXPORT int32_t
+moonbit_tfhe_fourier_bsk_valid(moonbit_tfhe_fourier_bsk *self) {
+  return self != NULL && self->key != NULL;
+}
+
+MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_fourier_bsk_external_product(
+    moonbit_tfhe_fft_plan *plan,
+    moonbit_tfhe_fourier_bsk *key,
+    int32_t ggsw_index,
+    int32_t *digits,
+    int32_t *output) {
+  if (plan == NULL || plan->plan == NULL || plan->scratch == NULL ||
+      key == NULL || key->key == NULL || digits == NULL || output == NULL ||
+      ggsw_index < 0 || (uint32_t)ggsw_index >= key->ggsw_count) {
+    return 1;
+  }
+  size_t expected_digits = 0;
+  size_t expected_output = 0;
+  if (!checked_mul_size((size_t)key->digit_count,
+                        (size_t)key->polynomial_size, &expected_digits) ||
+      !checked_mul_size((size_t)key->output_count,
+                        (size_t)key->polynomial_size, &expected_output) ||
+      expected_digits > INT32_MAX || expected_output > INT32_MAX) {
+    return 2;
+  }
+  if ((size_t)Moonbit_array_length(digits) != expected_digits ||
+      (size_t)Moonbit_array_length(output) != expected_output) {
+    return 2;
+  }
+  return indexed_ggsw_external_product_u32(
+      plan->plan, key->key, plan->scratch, (uint32_t)ggsw_index,
+      (const uint32_t *)digits, expected_digits, (uint32_t *)output,
+      expected_output);
 }
 
 MOONBIT_FFI_EXPORT moonbit_bytes_t moonbit_tfhe_aes256_gcm_encrypt(
@@ -152,6 +304,9 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t moonbit_tfhe_aes256_gcm_encrypt(
   }
   int32_t aad_len = Moonbit_array_length(aad);
   int32_t plaintext_len = Moonbit_array_length(plaintext);
+  if (plaintext_len > INT32_MAX - 16) {
+    return status_bytes(1, 0);
+  }
   moonbit_bytes_t result = status_bytes(0, plaintext_len + 16);
   int32_t status = aes256_gcm_encrypt(
       key, nonce, aad, (size_t)aad_len, plaintext, (size_t)plaintext_len,

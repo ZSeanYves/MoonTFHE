@@ -23,7 +23,8 @@ The following remain explicitly experimental or incomplete:
 
 - production-grade standard parameter key generation and a complete security
   estimate;
-- Fourier-domain BSK/PBS and native performance parity;
+- integration of the native Fourier BSK into standard-parameter PBS and native
+  performance parity;
 - any claim of 110-bit or 128-bit security;
 - resistance to side-channel attacks.
 

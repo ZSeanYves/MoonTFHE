@@ -35,22 +35,39 @@ test "native provider: AES-256-GCM NIST vector and authentication failure" {
 ///|
 test "native provider: full-width FFT matches negacyclic fixture" {
   let plan = fft_plan_new(4).unwrap()
-  let left = Bytes::from_array([
-    0x01, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x80, 0x07, 0x00, 0x00, 0x00, 0x78,
-    0x56, 0x34, 0x12,
-  ])
-  let right = Bytes::from_array([
-    0xff, 0xff, 0x01, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x80, 0x0b,
-    0x00, 0x00, 0x00,
-  ])
-  let first = plan.negacyclic_mul_u32_le(left, right).unwrap()
-  let second = plan.negacyclic_mul_u32_le(left, right).unwrap()
+  let left : FixedArray[UInt] = [0xffff0001, 0x80000000, 7, 0x12345678]
+  let right : FixedArray[UInt] = [0x0001ffff, 3, 0x80000001, 11]
+  let first = FixedArray::make(4, 0U)
+  let second = FixedArray::make(4, 0U)
+  plan.negacyclic_mul_u32(left, right, first).unwrap()
+  plan.negacyclic_mul_u32(left, right, second).unwrap()
   assert_eq(first, second)
-  assert_eq(first.length(), 16)
+  assert_eq(first.length(), 4)
   assert_true(
-    plan.negacyclic_mul_u32_le(left[:12].to_owned(), right[:12].to_owned())
+    plan.negacyclic_mul_u32(
+      FixedArray::make(3, 0U),
+      FixedArray::make(3, 0U),
+      FixedArray::make(3, 0U),
+    )
     is Err(InvalidLength),
   )
+}
+
+///|
+test "native provider: Fourier BSK indexed external product is reusable" {
+  let n = 4
+  let plan = fft_plan_new_with_capacity(n, 2, 2).unwrap()
+  let coefficients = FixedArray::makei(2 * 2 * 2 * n, fn(index) {
+    (index.to_uint() * 0x9e3779b9U) ^ 0xf0000001U
+  })
+  let key = fourier_bsk_new(plan, coefficients, 2, 2, 2).unwrap()
+  let digits : FixedArray[UInt] = [1, 0xffffffff, 2, 0, 3, 0xfffffffe, 1, 0]
+  let first = FixedArray::make(2 * n, 0U)
+  let second = FixedArray::make(2 * n, 0U)
+  key.external_product(1, digits, first).unwrap()
+  key.external_product(1, digits, second).unwrap()
+  assert_eq(first, second)
+  assert_true(key.external_product(2, digits, second) is Err(InvalidLength))
 }
 
 ///|

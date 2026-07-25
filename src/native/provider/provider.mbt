@@ -13,20 +13,35 @@ pub suberror NativeProviderError {
 type NativeFftPlan
 
 ///|
-/// Reusable FFT plan with its validated polynomial size retained in MoonBit.
+/// Native Fourier bootstrap key. Its Rust allocation is released by the
+/// external-object finalizer.
+type NativeFourierBootstrapKey
+
+///|
+/// Reusable FFT plan and workspace with validated capacities retained in
+/// MoonBit.
 pub struct FftPlan {
   handle : NativeFftPlan
   size : Int
+  digit_capacity : Int
+  output_capacity : Int
 }
 
 ///|
-fn decode_fft_result(raw : Bytes) -> Result[Bytes, NativeProviderError] {
-  if raw.length() < 1 {
-    return Err(ProviderFailure(status=-1))
-  }
-  let status = raw[0].to_int()
+/// Coefficient BSK converted to the provider's half-spectrum representation.
+/// Retaining `plan` keeps its Rust plan and workspace alive for every call.
+pub struct FourierBootstrapKey {
+  handle : NativeFourierBootstrapKey
+  plan : FftPlan
+  ggsw_count : Int
+  digit_count : Int
+  output_count : Int
+}
+
+///|
+fn decode_fft_status(status : Int) -> Result[Unit, NativeProviderError] {
   if status == 0 {
-    Ok(raw[1:].to_owned())
+    Ok(())
   } else if status == 2 {
     Err(InvalidLength)
   } else {
