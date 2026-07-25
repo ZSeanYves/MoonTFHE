@@ -1,3 +1,7 @@
 import {
   "ZSeanYves/MoonTFHE/src/core/glwe",
+  "ZSeanYves/MoonTFHE/src/core/keyswitch",
+  "ZSeanYves/MoonTFHE/src/params",
+  "ZSeanYves/MoonTFHE/src/random",
+  "ZSeanYves/MoonTFHE/src/torus",
 }

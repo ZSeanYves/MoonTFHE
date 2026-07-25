@@ -1,5 +1,15 @@
 import {
   "moonbitlang/core/bench",
   "moonbitlang/core/math",
+  "ZSeanYves/MoonTFHE/src/native/provider",
   "ZSeanYves/MoonTFHE/src/torus",
 }
+
+options(
+  link: {
+    "native": {
+      "cc-link-flags": "native/fft/target/release/libmoontfhe_fft.a native/aead/target/release/libmoontfhe_aead.a -lm",
+    },
+  },
+  targets: { "native_provider_test.mbt": [ "native" ] },
+)

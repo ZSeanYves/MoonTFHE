@@ -13,6 +13,7 @@ pub suberror GlweError {
   NoiseFailure
   InvalidSampleIndex
   InvalidSampleDimension
+  InvalidComponent
 } derive(Debug, Eq)
 
 ///|
@@ -55,6 +56,43 @@ pub fn GlweParameters::polynomial_size(self : GlweParameters) -> Int {
 ///|
 pub fn GlweCiphertext::parameters(self : GlweCiphertext) -> GlweParameters {
   self.parameters
+}
+
+///|
+pub fn GlweSecretKey::parameters(self : GlweSecretKey) -> GlweParameters {
+  self.parameters
+}
+
+///|
+pub fn GlweCiphertext::component(
+  self : GlweCiphertext,
+  index : Int,
+) -> Result[Array[@torus.Torus32], GlweError] {
+  if index < 0 || index > self.parameters.glwe_dimension {
+    return Err(InvalidComponent)
+  }
+  if index == self.parameters.glwe_dimension {
+    Ok(self.b)
+  } else {
+    Ok(self.a[index])
+  }
+}
+
+///|
+pub fn glwe_trivial(
+  parameters : GlweParameters,
+  message : Array[@torus.Torus32],
+) -> Result[GlweCiphertext, GlweError] {
+  if message.length() != parameters.polynomial_size {
+    return Err(MessageLengthMismatch)
+  }
+  Ok({
+    parameters,
+    a: Array::makei(parameters.glwe_dimension, fn(_) {
+      Array::make(parameters.polynomial_size, @torus.Torus32::zero())
+    }),
+    b: message,
+  })
 }
 
 ///|
@@ -218,6 +256,42 @@ pub fn GlweCiphertext::sub(
     Array::makei(self.a[i].length(), fn(j) { self.a[i][j].sub(other.a[i][j]) })
   })
   let b = Array::makei(self.b.length(), fn(i) { self.b[i].sub(other.b[i]) })
+  Ok({ parameters: self.parameters, a, b })
+}
+
+///|
+/// Add one constant gadget polynomial to a selected GLWE component.
+pub fn GlweCiphertext::add_gadget_to_component(
+  self : GlweCiphertext,
+  component : Int,
+  gadget : @torus.Torus32,
+) -> Result[GlweCiphertext, GlweError] {
+  if component < 0 || component > self.parameters.glwe_dimension {
+    return Err(InvalidComponent)
+  }
+  let a = self.a.map(fn(poly) { poly.copy() })
+  let b = self.b.copy()
+  if component == self.parameters.glwe_dimension {
+    b[0] = b[0].add(gadget)
+  } else {
+    a[component][0] = a[component][0].add(gadget)
+  }
+  Ok({ parameters: self.parameters, a, b })
+}
+
+///|
+/// Multiply every GLWE component by a public polynomial in Z/(2^32)[X]/(X^N+1).
+pub fn GlweCiphertext::mul_plain_poly(
+  self : GlweCiphertext,
+  polynomial : Array[@torus.Torus32],
+) -> Result[GlweCiphertext, GlweError] {
+  if polynomial.length() != self.parameters.polynomial_size {
+    return Err(MessageLengthMismatch)
+  }
+  let a = Array::makei(self.a.length(), fn(index) {
+    @polynomial.negacyclic_mul_reference(self.a[index], polynomial).unwrap()
+  })
+  let b = @polynomial.negacyclic_mul_reference(self.b, polynomial).unwrap()
   Ok({ parameters: self.parameters, a, b })
 }
 

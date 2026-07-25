@@ -9,6 +9,8 @@ import {
 // Values
 pub fn negacyclic_mul_fft(Array[@torus.Torus32], Array[@torus.Torus32]) -> Result[Array[@torus.Torus32], PolynomialError]
 
+pub fn negacyclic_mul_native_u32(Array[@torus.Torus32], Array[@torus.Torus32]) -> Result[Array[@torus.Torus32], PolynomialError]
+
 pub fn negacyclic_mul_reference(Array[@torus.Torus32], Array[@torus.Torus32]) -> Result[Array[@torus.Torus32], PolynomialError]
 
 pub fn negacyclic_rotate_reference(Array[@torus.Torus32], Int) -> Result[Array[@torus.Torus32], PolynomialError]
@@ -18,6 +20,8 @@ pub suberror PolynomialError {
   LengthMismatch
   EmptyPolynomial
   NonPowerOfTwo
+  UnsupportedBackend
+  ProviderFailure
 } derive(Eq, @debug.Debug)
 
 // Types and methods

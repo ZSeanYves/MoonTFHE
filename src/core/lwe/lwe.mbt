@@ -135,7 +135,8 @@ pub fn LweSecretKey::encrypt_secret_gadget_row(
   }
   let result : Array[LweCiphertext] = []
   for level_index in 0..<level {
-    let gadget = 1U << (level_index * base_log)
+    let shift = 32 - base_log * (level_index + 1)
+    let gadget = 1U << shift
     let plaintext = if self.bits[index] {
       @torus.Torus32::from_uint(gadget)
     } else {

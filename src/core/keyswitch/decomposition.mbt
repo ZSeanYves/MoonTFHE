@@ -47,6 +47,50 @@ pub fn signed_decompose_exact(
 }
 
 ///|
+/// Decompose the rounded most-significant gadget bits using balanced digits.
+/// Digits are ordered from the largest gadget weight to the smallest.
+pub fn signed_gadget_decompose(
+  value : @torus.Torus32,
+  parameters : @params.DecompositionParameters,
+) -> Result[Array[Int], DecompositionError] {
+  let base_log = parameters.base_log()
+  let level = parameters.level()
+  let total_bits = base_log * level
+  if base_log <= 0 || base_log >= 31 || level <= 0 || total_bits > 32 {
+    return Err(InvalidParameters)
+  }
+  let discarded_bits = 32 - total_bits
+  let rounded = if discarded_bits == 0 {
+    value.to_uint()
+  } else {
+    value.to_uint() + (1U << (discarded_bits - 1))
+  }
+  let state = if discarded_bits == 0 {
+    rounded
+  } else {
+    rounded >> discarded_bits
+  }
+  let base = 1 << base_log
+  let half = base / 2
+  let mask = (base - 1).reinterpret_as_uint()
+  let digits = Array::make(level, 0)
+  let mut carry = 0
+  for offset in 0..<level {
+    let index = level - 1 - offset
+    let shift = (level - 1 - index) * base_log
+    let unsigned_digit = ((state >> shift) & mask).reinterpret_as_int() + carry
+    if unsigned_digit >= half {
+      digits[index] = unsigned_digit - base
+      carry = 1
+    } else {
+      digits[index] = unsigned_digit
+      carry = 0
+    }
+  }
+  Ok(digits)
+}
+
+///|
 pub struct KeySwitchKey {
   input_parameters : @params.LweDimension
   output_parameters : @params.LweDimension
@@ -103,7 +147,8 @@ pub fn KeySwitchKey::apply(
   let mut result = @lwe.lwe_trivial(self.output_parameters, ciphertext.b())
   let mask = ciphertext.a()
   for index in 0..<mask.length() {
-    let digits = match signed_decompose(mask[index], self.decomposition) {
+    let digits = match
+      signed_gadget_decompose(mask[index], self.decomposition) {
       Ok(value) => value
       Err(_) => return Err(InvalidDecomposition)
     }
@@ -181,6 +226,26 @@ test "keyswitch: signed decomposition reconstructs full-width torus" {
       parameters,
     ).unwrap()
     let reconstructed = signed_recompose(digits, parameters).unwrap()
+    assert_eq(reconstructed.to_uint(), value)
+  }
+}
+
+///|
+test "keyswitch: signed gadget decomposition reconstructs full-width torus" {
+  let parameters = @params.decomposition_parameters(4, 8).unwrap()
+  let values = [0U, 1U, 0x7FFF_FFFFU, 0x8000_0000U, 0xFFFF_FFFFU]
+  for value in values {
+    let digits = signed_gadget_decompose(
+      @torus.Torus32::from_uint(value),
+      parameters,
+    ).unwrap()
+    let mut reconstructed = @torus.Torus32::zero()
+    for level_index in 0..<digits.length() {
+      let shift = 32 - parameters.base_log() * (level_index + 1)
+      reconstructed = reconstructed.add(
+        @torus.Torus32::from_uint(1U << shift).scale(digits[level_index]),
+      )
+    }
     assert_eq(reconstructed.to_uint(), value)
   }
 }

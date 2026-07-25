@@ -3,10 +3,13 @@ package "ZSeanYves/MoonTFHE/src/core/ggsw"
 
 import {
   "ZSeanYves/MoonTFHE/src/core/glwe",
+  "ZSeanYves/MoonTFHE/src/random",
   "moonbitlang/core/debug",
 }
 
 // Values
+pub fn ggsw_encrypt_boolean(GgswParameters, @glwe.GlweSecretKey, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GgswCiphertext, GgswError]
+
 pub fn ggsw_parameters(@glwe.GlweParameters, Int, Int) -> Result[GgswParameters, GgswError]
 
 pub fn ggsw_zero(GgswParameters) -> GgswCiphertext
@@ -15,13 +18,18 @@ pub fn ggsw_zero(GgswParameters) -> GgswCiphertext
 pub suberror GgswError {
   InvalidDecomposition
   ShapeMismatch
+  ParameterMismatch
+  EncryptionFailure
+  ExternalProductFailure
 } derive(Eq, @debug.Debug)
 
 // Types and methods
 pub struct GgswCiphertext {
   parameters : GgswParameters
-  rows : Array[Array[@glwe.GlweCiphertext]]
+  rows : Array[@glwe.GlweCiphertext]
 }
+pub fn GgswCiphertext::cmux(Self, @glwe.GlweCiphertext, @glwe.GlweCiphertext) -> Result[@glwe.GlweCiphertext, GgswError]
+pub fn GgswCiphertext::external_product(Self, @glwe.GlweCiphertext) -> Result[@glwe.GlweCiphertext, GgswError]
 pub fn GgswCiphertext::validate(Self) -> Result[Unit, GgswError]
 
 pub struct GgswParameters {

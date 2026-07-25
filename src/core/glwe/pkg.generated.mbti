@@ -13,6 +13,8 @@ pub fn glwe_keygen(GlweParameters, @random.RandomGenerator) -> GlweSecretKey
 
 pub fn glwe_parameters(Int, Int) -> Result[GlweParameters, GlweError]
 
+pub fn glwe_trivial(GlweParameters, Array[@torus.Torus32]) -> Result[GlweCiphertext, GlweError]
+
 pub fn glwe_zero_ciphertext(GlweParameters) -> GlweCiphertext
 
 // Errors
@@ -24,6 +26,7 @@ pub suberror GlweError {
   NoiseFailure
   InvalidSampleIndex
   InvalidSampleDimension
+  InvalidComponent
 } derive(Eq, @debug.Debug)
 
 // Types and methods
@@ -33,6 +36,9 @@ pub struct GlweCiphertext {
   b : Array[@torus.Torus32]
 }
 pub fn GlweCiphertext::add(Self, Self) -> Result[Self, GlweError]
+pub fn GlweCiphertext::add_gadget_to_component(Self, Int, @torus.Torus32) -> Result[Self, GlweError]
+pub fn GlweCiphertext::component(Self, Int) -> Result[Array[@torus.Torus32], GlweError]
+pub fn GlweCiphertext::mul_plain_poly(Self, Array[@torus.Torus32]) -> Result[Self, GlweError]
 pub fn GlweCiphertext::parameters(Self) -> GlweParameters
 pub fn GlweCiphertext::sample_extract(Self, Int) -> Result[@lwe.LweCiphertext, GlweError]
 pub fn GlweCiphertext::sub(Self, Self) -> Result[Self, GlweError]
@@ -50,6 +56,7 @@ pub struct GlweSecretKey {
 }
 pub fn GlweSecretKey::decrypt(Self, GlweCiphertext) -> Result[Array[@torus.Torus32], GlweError]
 pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]
+pub fn GlweSecretKey::parameters(Self) -> GlweParameters
 
 // Type aliases
 
