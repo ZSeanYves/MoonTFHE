@@ -44,8 +44,7 @@ jobs:
           push: true
           tags: ${{ steps.image.outputs.name }}:lattice-3e48ef4-sage10.9
           build-args: |
-            SAGE_IMAGE=sagemath/sagemath
-            SAGE_DIGEST=${{ steps.image.outputs.base_digest }}
+            SAGE_BASE=sagemath/sagemath@${{ steps.image.outputs.base_digest }}
             LATTICE_ESTIMATOR_COMMIT=3e48ef421ec256afddb3e7d2249a77eab6e9ba12
 
       - name: Record immutable image coordinates
