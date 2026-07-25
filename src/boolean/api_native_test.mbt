@@ -40,3 +40,13 @@ test "stable Boolean facade: native 110-bit keygen closes encrypt and NAND" {
   let result = server.nand(client.encrypt(true), client.encrypt(true)).unwrap()
   assert_eq(client.decrypt(result), Ok(false))
 }
+
+///|
+test "stable Boolean facade: native 128-bit path reuses standard PBS" {
+  let parameters = boolean_128_parameters()
+  let (client, server) = generate_keys(parameters).unwrap()
+  assert_eq(client.decrypt(client.encrypt(false)), Ok(false))
+  assert_eq(client.decrypt(client.encrypt(true)), Ok(true))
+  let result = server.nand(client.encrypt(true), client.encrypt(false)).unwrap()
+  assert_eq(client.decrypt(result), Ok(true))
+}

@@ -9,9 +9,9 @@ test "stable Boolean facade: test keygen and NAND" {
 }
 
 ///|
-test "stable Boolean facade: production keygen refuses incomplete backend" {
-  let result = generate_keys(boolean_128_parameters())
-  assert_true(result is Err(UnsupportedBackend))
+test "stable Boolean facade: production keygen rejects test parameters" {
+  let result = generate_keys(boolean_test_parameters())
+  assert_true(result is Err(InvalidParameters))
 }
 
 ///|

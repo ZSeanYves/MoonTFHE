@@ -9,8 +9,8 @@ repository is being rebuilt from an unmaintained teaching prototype into a
 testable library with explicit client/server key boundaries.
 
 > Security status: **research release; not suitable for production or
-> sensitive data**. Native 110-bit key generation and Fourier PBS are now
-> connected, but 128-bit validation and the estimator remain RC gates.
+> sensitive data**. Native 110/128-bit key generation and Fourier PBS are now
+> connected, but circuit statistics and the estimator remain RC gates.
 
 ## Current status
 
@@ -21,7 +21,7 @@ through the stable facade.
 
 The following remain explicitly experimental or incomplete:
 
-- 128-bit standard parameter key generation and a complete security estimate;
+- a complete security estimate and scheduled portable standard smoke;
 - standard-circuit failure-rate evidence and native performance parity;
 - any claim of 110-bit or 128-bit security;
 - resistance to side-channel attacks.
@@ -29,8 +29,8 @@ The following remain explicitly experimental or incomplete:
 The maintained `src/boolean` facade exposes opaque `ClientKey`, `ServerKey`,
 and `Ciphertext` types, versioned `MBCT` ciphertext envelopes, and the Boolean
 gate surface. Production `generate_keys` supports the native 110-bit reference
-record; the 128-bit record and unsupported portable standard backends return
-`UnsupportedBackend` until their phase gates close.
+records. Portable standard construction returns `UnsupportedBackend` until the
+host-enabled reference keygen gate closes.
 
 The old root package and `MTFH`/`MBCT v1` formats were removed in C7.
 `BootstrappingKey` contains only encrypted GGSW data, dimensions, and an

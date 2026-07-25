@@ -2,7 +2,8 @@
 fn generate_standard_keys_impl(
   parameters : BooleanParameters,
 ) -> Result[(ClientKey, ServerKey), KeyGenerationError] {
-  if parameters.security.target_security_bits() != 110 {
+  let security_bits = parameters.security.target_security_bits()
+  if security_bits != 110 && security_bits != 128 {
     return Err(UnsupportedBackend)
   }
   let key_rng = match
@@ -48,8 +49,16 @@ fn generate_standard_keys_impl(
     Ok(value) => value
     Err(_) => return Err(InvalidParameters)
   }
-  let lwe_noise = @random.gaussian_boolean_110_lwe_fixture()
-  let glwe_noise = @random.gaussian_boolean_110_glwe_fixture()
+  let lwe_noise = if security_bits == 110 {
+    @random.gaussian_boolean_110_lwe_fixture()
+  } else {
+    @random.gaussian_boolean_128_lwe_fixture()
+  }
+  let glwe_noise = if security_bits == 110 {
+    @random.gaussian_boolean_110_glwe_fixture()
+  } else {
+    @random.gaussian_boolean_128_glwe_fixture()
+  }
   let key_switch = match
     @keyswitch.keyswitch_keygen(
       extracted_key,

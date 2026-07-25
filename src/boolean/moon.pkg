@@ -20,6 +20,7 @@ options(
   },
   targets: {
     "api_native_test.mbt": [ "native" ],
+    "api_portable_test.mbt": [ "wasm", "wasm-gc" ],
     "standard_keygen_native.mbt": [ "native" ],
     "standard_keygen_portable.mbt": [ "wasm", "wasm-gc", "js" ],
   },

@@ -1,6 +1,6 @@
 ///|
 fn generate_standard_keys_impl(
-  _parameters : BooleanParameters,
+  parameters : BooleanParameters,
 ) -> Result[(ClientKey, ServerKey), KeyGenerationError] {
-  Err(UnsupportedBackend)
+  generate_standard_reference_keys(parameters)
 }
