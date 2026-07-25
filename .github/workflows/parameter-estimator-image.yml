@@ -41,6 +41,8 @@ jobs:
           file: tools/parameter_estimator/Dockerfile
           platforms: linux/amd64
           push: true
+          provenance: false
+          sbom: false
           tags: ${{ steps.image.outputs.name }}:lattice-3e48ef4-sage10.9
           build-args: |
             SAGE_BASE=sagemath/sagemath@${{ steps.image.outputs.base_digest }}

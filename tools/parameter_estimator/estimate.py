@@ -5,16 +5,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import sys
 from pathlib import Path
 
 from estimator import LWE, ND
-from sage.all import log, oo
+from sage.all import RealField, log, oo
 
 
 ESTIMATOR_COMMIT = "3e48ef421ec256afddb3e7d2249a77eab6e9ba12"
-MODEL = "lattice-estimator-rough-adps16-core-svp"
+MODEL = "lattice-estimator-default-all-attacks"
 
 
 def canonical_sha256(value: dict) -> str:
@@ -22,7 +21,8 @@ def canonical_sha256(value: dict) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def estimate_lwe(name: str, dimension: int, sigma: int) -> dict:
+def estimate_lwe(name: str, dimension: int, sigma_q32: int) -> dict:
+    sigma = RealField(128)(sigma_q32) / (2**32)
     parameters = LWE.Parameters(
         n=dimension,
         q=2**32,
@@ -31,7 +31,7 @@ def estimate_lwe(name: str, dimension: int, sigma: int) -> dict:
         m=oo,
         tag=name,
     )
-    attacks = LWE.estimate.rough(parameters, jobs=1, quiet=True)
+    attacks = LWE.estimate(parameters, jobs=1, quiet=True)
     costs = {
         attack: round(float(log(result["rop"], 2)), 6)
         for attack, result in attacks.items()
@@ -43,7 +43,8 @@ def estimate_lwe(name: str, dimension: int, sigma: int) -> dict:
         "dimension": dimension,
         "modulus": "2^32",
         "samples": "unlimited",
-        "noise_stddev_torus_integer": sigma,
+        "noise_sigma_q32": sigma_q32,
+        "noise_stddev_torus_integer": round(float(sigma), 12),
         "attacks_log2_rop": dict(sorted(costs.items())),
         "security_bits": min(costs.values()),
     }
@@ -58,18 +59,20 @@ def main() -> int:
         raise ValueError("input estimator commit mismatch")
     if data["modulus"] != "2^32" or data["secret_distribution"] != "binary":
         raise ValueError("unsupported modulus or secret distribution")
-    lwe_sigma = int(data["lwe_noise"]["sigma_q32"]) // 2**32
-    glwe_sigma = int(data["glwe_noise"]["sigma_q32"]) // 2**32
-    if lwe_sigma <= 0 or glwe_sigma <= 0:
+    lwe_sigma_q32 = int(data["lwe_noise"]["sigma_q32"])
+    glwe_sigma_q32 = int(data["glwe_noise"]["sigma_q32"])
+    if lwe_sigma_q32 <= 0 or glwe_sigma_q32 <= 0:
         raise ValueError("quantized Gaussian sigma must be positive")
-    lwe = estimate_lwe("MoonTFHE LWE", int(data["lwe_dimension"]), lwe_sigma)
+    lwe = estimate_lwe(
+        "MoonTFHE LWE", int(data["lwe_dimension"]), lwe_sigma_q32
+    )
     flattened_glwe_dimension = int(data["glwe_dimension"]) * int(
         data["polynomial_size"]
     )
     glwe = estimate_lwe(
         "MoonTFHE GLWE flattened as LWE",
         flattened_glwe_dimension,
-        glwe_sigma,
+        glwe_sigma_q32,
     )
     result = {
         "status": "lattice_verified_noise_pending",
