@@ -1,0 +1,47 @@
+{
+  "distribution": "discrete_gaussian_absolute_cdt_u64",
+  "fixtures": [
+    {
+      "entries": 3148,
+      "generator_version": "moontfhe-cdt-v1",
+      "magnitude_step": 64,
+      "name": "boolean_110_lwe",
+      "parameter_id": "tfhe-rs-boolean-110-reference",
+      "sigma_q32": "108127244401837",
+      "table_hash": "sha256:a201920a31d48e213960d1d5764b0e72b54043b5b340ec0de1b7b854fd98f68e",
+      "tail_bound": 201403
+    },
+    {
+      "entries": 34,
+      "generator_version": "moontfhe-cdt-v1",
+      "magnitude_step": 1,
+      "name": "boolean_110_glwe",
+      "parameter_id": "tfhe-rs-boolean-110-reference",
+      "sigma_q32": "17183644010",
+      "table_hash": "sha256:8cfa36c5e9de3ea09a2105903498105aa7af0f771dfb3e180a8db81f7cb1164b",
+      "tail_bound": 33
+    },
+    {
+      "entries": 1813,
+      "generator_version": "moontfhe-cdt-v1",
+      "magnitude_step": 64,
+      "name": "boolean_128_lwe",
+      "parameter_id": "tfhe-rs-boolean-128-reference",
+      "sigma_q32": "62252492428718",
+      "table_hash": "sha256:8ac551a218647e0752d0d876c9e57209ea8a3b1e91f02dc97e09ceaa11733d00",
+      "tail_bound": 115955
+    },
+    {
+      "entries": 33,
+      "generator_version": "moontfhe-cdt-v1",
+      "magnitude_step": 1,
+      "name": "boolean_128_glwe",
+      "parameter_id": "tfhe-rs-boolean-128-reference",
+      "sigma_q32": "17179869184",
+      "table_hash": "sha256:3d66e6b7acd2e90e22515c77b239418c45ad0188ab40acbb9db5fa11e1b380e3",
+      "tail_bound": 32
+    }
+  ],
+  "generator_version": "moontfhe-cdt-v1",
+  "tail_sigma": 8
+}

@@ -235,6 +235,7 @@ pub fn RandomGenerator::next_u64(self : RandomGenerator) -> UInt64 {
 pub struct DiscreteGaussian {
   sigma_q32 : UInt64
   tail_bound : Int
+  magnitude_step : Int
   cdt : Array[UInt64]
   fixture_hash : String
 }
@@ -246,6 +247,7 @@ pub fn gaussian_sigma_3_fixture() -> DiscreteGaussian {
   {
     sigma_q32: 3UL << 32,
     tail_bound: 24,
+    magnitude_step: 1,
     cdt: [
       0x220B06EFC59DC000UL, 0x627326E31B016000UL, 0x98F80C58C41FC000UL, 0xC243E9165D940800UL,
       0xDE419EB854B03800UL, 0xEF3BD7AEDFB2A800UL, 0xF872BE6BD7C64800UL, 0xFCEC65493DA1D000UL,
@@ -266,6 +268,7 @@ pub fn test_zero_noise_fixture() -> DiscreteGaussian {
   {
     sigma_q32: 0UL,
     tail_bound: 0,
+    magnitude_step: 1,
     cdt: [0xFFFFFFFFFFFFFFFFUL],
     fixture_hash: "test-only:zero-noise".to_string(),
   }
@@ -291,17 +294,24 @@ pub fn RandomGenerator::sample_discrete_gaussian_fixed(
   self : RandomGenerator,
   distribution : DiscreteGaussian,
 ) -> Result[Int, RandomError] {
-  if distribution.cdt.length() != distribution.tail_bound + 1 ||
-    distribution.cdt.length() == 0 {
+  if distribution.cdt.length() == 0 || distribution.magnitude_step <= 0 {
     return Err(InvalidDistribution)
   }
   let draw = self.next_u64()
-  let mut magnitude = distribution.tail_bound
-  for index in 0..<distribution.cdt.length() {
-    if draw <= distribution.cdt[index] {
-      magnitude = index
-      break
+  let mut low = 0
+  let mut high = distribution.cdt.length() - 1
+  while low < high {
+    let middle = (low + high) / 2
+    if draw <= distribution.cdt[middle] {
+      high = middle
+    } else {
+      low = middle + 1
     }
+  }
+  let magnitude = if low == distribution.cdt.length() - 1 {
+    distribution.tail_bound
+  } else {
+    low * distribution.magnitude_step
   }
   if magnitude == 0 || (self.next_u32() & 1U) == 0U {
     Ok(magnitude)
@@ -377,6 +387,23 @@ test "random: fixed-point CDT known vector" {
   ]
   for value in expected {
     assert_eq(rng.sample_discrete_gaussian_fixed(distribution), Ok(value))
+  }
+}
+
+///|
+test "random: standard Boolean CDT fixtures are bounded and reproducible" {
+  let low = gaussian_boolean_110_glwe_fixture()
+  let high = gaussian_boolean_128_lwe_fixture()
+  assert_eq(low.tail_bound(), 33)
+  assert_eq(high.tail_bound(), 115955)
+  assert_true(low.fixture_hash().has_prefix("sha256:"))
+  assert_true(high.fixture_hash().has_prefix("sha256:"))
+  let rng = test_rng_new(0x5354414E44415244)
+  for _ in 0..<128 {
+    let low_sample = rng.sample_discrete_gaussian_fixed(low).unwrap()
+    assert_true(low_sample >= -33 && low_sample <= 33)
+    let high_sample = rng.sample_discrete_gaussian_fixed(high).unwrap()
+    assert_true(high_sample >= -115955 && high_sample <= 115955)
   }
 }
 

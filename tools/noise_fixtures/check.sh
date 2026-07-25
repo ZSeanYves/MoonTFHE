@@ -12,3 +12,6 @@ if [ "$actual" != "$expected" ]; then
 fi
 
 echo "noise fixture verified: $actual"
+
+python3 "$root_dir/tools/noise_fixtures/generate_standard_cdt.py" --check
+echo "standard Boolean CDT fixtures verified"

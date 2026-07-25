@@ -8,6 +8,14 @@ import {
 // Values
 pub fn clear_entropy_provider() -> Unit
 
+pub fn gaussian_boolean_110_glwe_fixture() -> DiscreteGaussian
+
+pub fn gaussian_boolean_110_lwe_fixture() -> DiscreteGaussian
+
+pub fn gaussian_boolean_128_glwe_fixture() -> DiscreteGaussian
+
+pub fn gaussian_boolean_128_lwe_fixture() -> DiscreteGaussian
+
 pub fn gaussian_sigma_3_fixture() -> DiscreteGaussian
 
 pub fn install_entropy_provider((Int) -> Bytes?) -> Unit
@@ -34,6 +42,7 @@ pub suberror RandomError {
 pub struct DiscreteGaussian {
   sigma_q32 : UInt64
   tail_bound : Int
+  magnitude_step : Int
   cdt : Array[UInt64]
   fixture_hash : String
 }

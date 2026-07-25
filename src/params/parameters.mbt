@@ -118,6 +118,20 @@ fn parameter_set(
   lwe_sigma_q64 : UInt64,
   glwe_sigma_q64 : UInt64,
 ) -> ParameterSet {
+  let lwe_fixture_hash = if lwe_sigma_q64 == 0x625755FE3CADUL {
+    "sha256:d2f74890066c5c72916b8e909d4989ed09e2e9ba73853967c60ef22abb28b4a6"
+  } else if lwe_sigma_q64 == 0x389E49B295AEUL {
+    "sha256:c3ebc32d93f7793230e7ddf99e2177ad550bb1d9c6b4be89bf0a44a918dda149"
+  } else {
+    "unavailable:reference-only"
+  }
+  let glwe_fixture_hash = if glwe_sigma_q64 == 0x40039996AUL {
+    "sha256:8cfa36c5e9de3ea09a2105903498105aa7af0f771dfb3e180a8db81f7cb1164b"
+  } else if glwe_sigma_q64 == 0x400000000UL {
+    "sha256:3d66e6b7acd2e90e22515c77b239418c45ad0188ab40acbb9db5fa11e1b380e3"
+  } else {
+    "unavailable:reference-only"
+  }
   {
     id,
     target_security_bits,
@@ -131,12 +145,12 @@ fn parameter_set(
     lwe_noise: Gaussian({
       sigma_q64: lwe_sigma_q64,
       tail_sigma: 8,
-      fixture_hash: "unavailable:reference-only".to_string(),
+      fixture_hash: lwe_fixture_hash.to_string(),
     }),
     glwe_noise: Gaussian({
       sigma_q64: glwe_sigma_q64,
       tail_sigma: 8,
-      fixture_hash: "unavailable:reference-only".to_string(),
+      fixture_hash: glwe_fixture_hash.to_string(),
     }),
     estimator_commit: "tfhe-rs-1.7.0:640911e".to_string(),
     reference_only: true,
