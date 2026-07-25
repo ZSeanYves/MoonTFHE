@@ -1,0 +1,36 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/native/provider"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn aes256_gcm_decrypt(Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, NativeProviderError]
+
+pub fn aes256_gcm_encrypt(Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, NativeProviderError]
+
+pub fn fft_plan_new(Int) -> Result[FftPlan, NativeProviderError]
+
+// Errors
+pub suberror NativeProviderError {
+  UnsupportedBackend
+  InvalidLength
+  InvalidPolynomialSize
+  AuthenticationFailed
+  ProviderFailure(status~ : Int)
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct FftPlan {
+  handle : NativeFftPlan
+  size : Int
+}
+pub fn FftPlan::negacyclic_mul_u32_le(Self, Bytes, Bytes) -> Result[Bytes, NativeProviderError]
+
+type NativeFftPlan
+
+// Type aliases
+
+// Traits
+

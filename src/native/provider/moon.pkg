@@ -1,0 +1,19 @@
+import {
+  "moonbitlang/core/bytes",
+}
+
+options(
+  "native-stub": [ "provider_native.c" ],
+  link: {
+    "native": {
+      "cc-link-flags": "native/fft/target/release/libmoontfhe_fft.a native/aead/target/release/libmoontfhe_aead.a",
+    },
+  },
+  targets: {
+    "ffi_native.mbt": [ "native" ],
+    "provider_native.mbt": [ "native" ],
+    "provider_portable.mbt": [ "wasm", "wasm-gc", "js" ],
+    "provider_native_test.mbt": [ "native" ],
+    "provider_portable_test.mbt": [ "wasm", "wasm-gc", "js" ],
+  },
+)

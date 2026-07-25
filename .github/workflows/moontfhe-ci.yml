@@ -55,6 +55,16 @@ jobs:
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
 
+      - name: Install Rust 1.82.0 for native providers
+        if: matrix.target == 'native'
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal
+          rustup default 1.82.0
+
+      - name: Build native providers
+        if: matrix.target == 'native'
+        run: sh tools/native-providers/build.sh
+
       - name: Test ${{ matrix.target }}
         run: moon test --target "${{ matrix.target }}"
 
@@ -68,6 +78,14 @@ jobs:
         run: |
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Install Rust 1.82.0
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal
+          rustup default 1.82.0
+
+      - name: Build native providers
+        run: sh tools/native-providers/build.sh
 
       - name: Native benchmark smoke
         run: moon bench --target native --release --no-parallelize
