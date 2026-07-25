@@ -40,6 +40,7 @@ pub fn GlweCiphertext::add_gadget_to_component(Self, Int, @torus.Torus32) -> Res
 pub fn GlweCiphertext::component(Self, Int) -> Result[Array[@torus.Torus32], GlweError]
 pub fn GlweCiphertext::mul_plain_poly(Self, Array[@torus.Torus32]) -> Result[Self, GlweError]
 pub fn GlweCiphertext::parameters(Self) -> GlweParameters
+pub fn GlweCiphertext::rotate_negacyclic(Self, Int) -> Self
 pub fn GlweCiphertext::sample_extract(Self, Int) -> Result[@lwe.LweCiphertext, GlweError]
 pub fn GlweCiphertext::sub(Self, Self) -> Result[Self, GlweError]
 
@@ -57,6 +58,7 @@ pub struct GlweSecretKey {
 pub fn GlweSecretKey::decrypt(Self, GlweCiphertext) -> Result[Array[@torus.Torus32], GlweError]
 pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]
 pub fn GlweSecretKey::parameters(Self) -> GlweParameters
+pub fn GlweSecretKey::to_extracted_lwe_key(Self) -> Result[@lwe.LweSecretKey, GlweError]
 
 // Type aliases
 

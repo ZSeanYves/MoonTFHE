@@ -41,6 +41,8 @@ pub struct KeySwitchKey {
   rows : Array[Array[@lwe.LweCiphertext]]
 }
 pub fn KeySwitchKey::apply(Self, @lwe.LweCiphertext) -> Result[@lwe.LweCiphertext, KeySwitchError]
+pub fn KeySwitchKey::input_dimension(Self) -> @params.LweDimension
+pub fn KeySwitchKey::output_dimension(Self) -> @params.LweDimension
 
 // Type aliases
 

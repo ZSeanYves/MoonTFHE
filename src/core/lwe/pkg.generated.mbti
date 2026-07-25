@@ -11,6 +11,8 @@ import {
 // Values
 pub fn lwe_ciphertext_from_parts(@params.LweDimension, Array[@torus.Torus32], @torus.Torus32) -> Result[LweCiphertext, LweError]
 
+pub fn lwe_key_from_binary_secret(@params.LweDimension, Array[Bool]) -> Result[LweSecretKey, LweError]
+
 pub fn lwe_keygen(@params.LweDimension, @random.RandomGenerator) -> LweSecretKey
 
 pub fn lwe_trivial(@params.LweDimension, @torus.Torus32) -> LweCiphertext

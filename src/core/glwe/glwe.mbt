@@ -153,6 +153,31 @@ pub fn glwe_keygen(
 }
 
 ///|
+/// Return the LWE key induced by coefficient-wise GLWE sample extraction.
+/// The binary secret never crosses the public representation boundary.
+pub fn GlweSecretKey::to_extracted_lwe_key(
+  self : GlweSecretKey,
+) -> Result[@lwe.LweSecretKey, GlweError] {
+  let dimension = match
+    @params.lwe_dimension(
+      self.parameters.glwe_dimension * self.parameters.polynomial_size,
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidSampleDimension)
+  }
+  let bits : Array[Bool] = []
+  for component in self.data {
+    for bit in component {
+      bits.push(bit)
+    }
+  }
+  match @lwe.lwe_key_from_binary_secret(dimension, bits) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(InvalidSampleDimension)
+  }
+}
+
+///|
 fn poly_add(
   left : Array[@torus.Torus32],
   right : Array[@torus.Torus32],
@@ -260,6 +285,36 @@ pub fn GlweCiphertext::sub(
 }
 
 ///|
+/// Multiply every component by X^rotation in Z[X]/(X^N + 1).
+pub fn GlweCiphertext::rotate_negacyclic(
+  self : GlweCiphertext,
+  rotation : Int,
+) -> GlweCiphertext {
+  let n = self.parameters.polynomial_size
+  let period = 2 * n
+  let normalized = (rotation % period + period) % period
+  fn rotate(polynomial : Array[@torus.Torus32]) -> Array[@torus.Torus32] {
+    let result = Array::make(n, @torus.Torus32::zero())
+    for source in 0..<n {
+      let exponent = source + normalized
+      let wraps = exponent / n
+      let destination = exponent % n
+      result[destination] = if (wraps & 1) == 0 {
+        polynomial[source]
+      } else {
+        polynomial[source].neg()
+      }
+    }
+    result
+  }
+  {
+    parameters: self.parameters,
+    a: self.a.map(fn(component) { rotate(component) }),
+    b: rotate(self.b),
+  }
+}
+
+///|
 /// Add one constant gadget polynomial to a selected GLWE component.
 pub fn GlweCiphertext::add_gadget_to_component(
   self : GlweCiphertext,
@@ -288,10 +343,17 @@ pub fn GlweCiphertext::mul_plain_poly(
   if polynomial.length() != self.parameters.polynomial_size {
     return Err(MessageLengthMismatch)
   }
-  let a = Array::makei(self.a.length(), fn(index) {
-    @polynomial.negacyclic_mul_reference(self.a[index], polynomial).unwrap()
-  })
-  let b = @polynomial.negacyclic_mul_reference(self.b, polynomial).unwrap()
+  let a : Array[Array[@torus.Torus32]] = []
+  for component in self.a {
+    match @polynomial.negacyclic_mul_reference(component, polynomial) {
+      Ok(value) => a.push(value)
+      Err(_) => return Err(MessageLengthMismatch)
+    }
+  }
+  let b = match @polynomial.negacyclic_mul_reference(self.b, polynomial) {
+    Ok(value) => value
+    Err(_) => return Err(MessageLengthMismatch)
+  }
   Ok({ parameters: self.parameters, a, b })
 }
 

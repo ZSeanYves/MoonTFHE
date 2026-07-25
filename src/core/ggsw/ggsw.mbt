@@ -150,9 +150,17 @@ pub fn GgswCiphertext::external_product(
       Ok(value) => value
       Err(_) => return Err(ExternalProductFailure)
     }
-    let decomposed = Array::makei(n, fn(index) {
-      @keyswitch.signed_gadget_decompose(input_component[index], decomposition).unwrap()
-    })
+    let decomposed : Array[Array[Int]] = []
+    for index in 0..<n {
+      match
+        @keyswitch.signed_gadget_decompose(
+          input_component[index],
+          decomposition,
+        ) {
+        Ok(value) => decomposed.push(value)
+        Err(_) => return Err(InvalidDecomposition)
+      }
+    }
     for level_index in 0..<self.parameters.level {
       let digit_polynomial = Array::makei(n, fn(index) {
         @torus.Torus32::from_int(decomposed[index][level_index])

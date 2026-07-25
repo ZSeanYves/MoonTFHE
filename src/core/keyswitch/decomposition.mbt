@@ -99,6 +99,20 @@ pub struct KeySwitchKey {
 }
 
 ///|
+pub fn KeySwitchKey::input_dimension(
+  self : KeySwitchKey,
+) -> @params.LweDimension {
+  self.input_parameters
+}
+
+///|
+pub fn KeySwitchKey::output_dimension(
+  self : KeySwitchKey,
+) -> @params.LweDimension {
+  self.output_parameters
+}
+
+///|
 pub suberror KeySwitchError {
   InvalidInputDimension
   InvalidOutputDimension

@@ -2,6 +2,11 @@
 package "ZSeanYves/MoonTFHE/src/core/pbs"
 
 import {
+  "ZSeanYves/MoonTFHE/src/core/ggsw",
+  "ZSeanYves/MoonTFHE/src/core/glwe",
+  "ZSeanYves/MoonTFHE/src/core/keyswitch",
+  "ZSeanYves/MoonTFHE/src/core/lwe",
+  "ZSeanYves/MoonTFHE/src/params",
   "ZSeanYves/MoonTFHE/src/torus",
   "moonbitlang/core/debug",
 }
@@ -9,9 +14,18 @@ import {
 // Values
 pub fn boolean_lut(@torus.Torus32, @torus.Torus32) -> BooleanLut
 
+pub fn bootstrap_key_from_encrypted_parts(@params.LweDimension, @glwe.GlweParameters, Array[@ggsw.GgswCiphertext], @keyswitch.KeySwitchKey, PbsOrder) -> Result[BootstrapKey, PbsError]
+
 // Errors
 pub suberror PbsError {
   InvalidLut
+  InvalidPolynomialSize
+  InputDimensionMismatch
+  BootstrapKeyShapeMismatch
+  BlindRotationFailure
+  SampleExtractionFailure
+  KeyswitchFailure
+  UnsupportedOrder
 } derive(Eq, @debug.Debug)
 
 // Types and methods
@@ -22,6 +36,16 @@ pub struct BooleanLut {
 pub fn BooleanLut::evaluate_reference(Self, Bool) -> @torus.Torus32
 pub fn BooleanLut::false_value(Self) -> @torus.Torus32
 pub fn BooleanLut::true_value(Self) -> @torus.Torus32
+
+pub struct BootstrapKey {
+  input_dimension : @params.LweDimension
+  glwe_parameters : @glwe.GlweParameters
+  controls : Array[@ggsw.GgswCiphertext]
+  key_switch : @keyswitch.KeySwitchKey
+  order : PbsOrder
+}
+pub fn BootstrapKey::blind_rotate(Self, @glwe.GlweCiphertext, @lwe.LweCiphertext) -> Result[@glwe.GlweCiphertext, PbsError]
+pub fn BootstrapKey::programmable_bootstrap(Self, @lwe.LweCiphertext, BooleanLut) -> Result[@lwe.LweCiphertext, PbsError]
 
 pub enum PbsOrder {
   KeyswitchBootstrap

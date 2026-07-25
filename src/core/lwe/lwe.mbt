@@ -30,6 +30,20 @@ pub fn lwe_keygen(
 }
 
 ///|
+/// Construct a low-level LWE key from caller-owned binary key material.
+/// High-level key generation keeps the input array local and never exposes it
+/// through `LweSecretKey` accessors.
+pub fn lwe_key_from_binary_secret(
+  parameters : @params.LweDimension,
+  bits : Array[Bool],
+) -> Result[LweSecretKey, LweError] {
+  if bits.length() != parameters.value() {
+    return Err(InvalidDimension)
+  }
+  Ok({ parameters, bits: bits.copy() })
+}
+
+///|
 /// Construct a ciphertext from a validated sample-extraction layout.
 pub fn lwe_ciphertext_from_parts(
   parameters : @params.LweDimension,
