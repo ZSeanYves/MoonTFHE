@@ -23,9 +23,11 @@ Production entropy failures remain explicit and never fall back to test seeds.
 
 Standard Boolean Gaussian sampling uses a complete 128-bit absolute-value CDT.
 There is one threshold for every magnitude from zero through the eight-sigma
-tail bound. Thresholds are split into generated chunks of at most 4096 entries;
-each entry is stored as `(high, low)` unsigned 64-bit words. No magnitude
-subsampling or floating-point arithmetic occurs in the runtime sampler.
+tail bound. Thresholds are split into generated chunks of at most 4096 entries.
+Each chunk is a compiler-friendly hexadecimal payload decoded once into
+`(high, low)` unsigned 64-bit words when the fixture is constructed. No
+magnitude subsampling or floating-point arithmetic occurs in the runtime
+sampler.
 
 The canonical metadata is in
 `tools/noise_fixtures/standard-cdt.json`. It records the Q32 sigma, tail bound,

@@ -347,6 +347,40 @@ fn DiscreteGaussian::cdt_threshold(
 }
 
 ///|
+/// Decode a generated hexadecimal CDT chunk. Whitespace is ignored so each
+/// chunk remains a single compiler constant instead of thousands of AST nodes.
+fn cdt_chunk_from_hex(encoded : String) -> FixedArray[UInt64] {
+  let words : Array[UInt64] = []
+  let mut value = 0UL
+  let mut digits = 0
+  for character in encoded {
+    let code = character.to_int()
+    let nibble = if code >= '0'.to_int() && code <= '9'.to_int() {
+      code - '0'.to_int()
+    } else if code >= 'A'.to_int() && code <= 'F'.to_int() {
+      code - 'A'.to_int() + 10
+    } else if code >= 'a'.to_int() && code <= 'f'.to_int() {
+      code - 'a'.to_int() + 10
+    } else {
+      -1
+    }
+    if nibble >= 0 {
+      value = (value << 4) | nibble.to_uint64()
+      digits = digits + 1
+      if digits == 16 {
+        words.push(value)
+        value = 0UL
+        digits = 0
+      }
+    }
+  }
+  if digits != 0 || words.length() == 0 || words.length() % 2 != 0 {
+    abort("invalid generated CDT chunk")
+  }
+  FixedArray::from_array(words)
+}
+
+///|
 pub fn RandomGenerator::sample_tuniform(
   self : RandomGenerator,
   bound : Int,
