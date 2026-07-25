@@ -678,6 +678,101 @@ pub fn ClientKey::export_secret(
 }
 
 ///|
+/// Import an explicitly encrypted `MTSK v1` client key. The caller supplies
+/// both the expected parameter set and the 256-bit serialization key; neither
+/// is inferred from passwords, timestamps, or KeyId metadata.
+pub fn ClientKey::import_secret(
+  parameters : BooleanParameters,
+  key : SerializationKey,
+  bytes : Bytes,
+) -> Result[ClientKey, SerializationError] {
+  let header_length = 22
+  let nonce_length = 12
+  let tag_length = 16
+  if key.bytes.length() != 32 {
+    return Err(InvalidKeyLength)
+  }
+  if bytes.length() < header_length + nonce_length + tag_length {
+    return Err(InvalidLength)
+  }
+  if bytes[0] != b'M' ||
+    bytes[1] != b'T' ||
+    bytes[2] != b'S' ||
+    bytes[3] != b'K' {
+    return Err(InvalidMagic)
+  }
+  if bytes[4] != b'\x01' {
+    return Err(UnsupportedVersion)
+  }
+  if bytes[5] != b'\x01' {
+    return Err(InvalidCiphertext)
+  }
+  let parameter_code = boolean_read_u32(bytes, 6).reinterpret_as_int()
+  let dimension = boolean_read_u32(bytes, 10).reinterpret_as_int()
+  let key_id = @params.key_id_from_int(
+    boolean_read_u32(bytes, 14).reinterpret_as_int(),
+  )
+  let payload_length = boolean_read_u32(bytes, 18).reinterpret_as_int()
+  if payload_length < 9 ||
+    bytes.length() != header_length + nonce_length + payload_length + tag_length {
+    return Err(InvalidLength)
+  }
+  if parameter_code != boolean_parameter_code(parameters) ||
+    dimension != parameters.dimension {
+    return Err(ParameterMismatch)
+  }
+  let aad = bytes[:header_length].to_owned()
+  let nonce = bytes[header_length:header_length + nonce_length].to_owned()
+  let encrypted = bytes[header_length + nonce_length:].to_owned()
+  let payload = match
+    @provider.aes256_gcm_decrypt(key.bytes, nonce, aad, encrypted) {
+    Ok(value) => value
+    Err(@provider.NativeProviderError::AuthenticationFailed) =>
+      return Err(AuthenticationFailed)
+    Err(@provider.NativeProviderError::InvalidLength) =>
+      return Err(InvalidLength)
+    Err(@provider.NativeProviderError::InvalidPolynomialSize) =>
+      return Err(InvalidLength)
+    Err(@provider.NativeProviderError::UnsupportedBackend) =>
+      return Err(UnsupportedBackend)
+    Err(@provider.NativeProviderError::ProviderFailure(status~)) => {
+      let _ = status
+      return Err(UnsupportedBackend)
+    }
+  }
+  if payload.length() != payload_length ||
+    payload[0] != b'M' ||
+    payload[1] != b'S' ||
+    payload[2] != b'C' ||
+    payload[3] != b'R' ||
+    payload[4] != b'\x01' {
+    return Err(InvalidCiphertext)
+  }
+  let secret_dimension = boolean_read_u32(payload, 5).reinterpret_as_int()
+  if secret_dimension != dimension ||
+    payload.length() != 9 + (secret_dimension + 7) / 8 {
+    return Err(ParameterMismatch)
+  }
+  let bits = Array::makei(secret_dimension, fn(index) {
+    let value = payload[9 + index / 8].to_uint()
+    ((value >> (index % 8)) & 1U) == 1U
+  })
+  let lwe_dimension = match @params.lwe_dimension(secret_dimension) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidCiphertext)
+  }
+  let secret = match @lwe.lwe_key_from_binary_secret(lwe_dimension, bits) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidCiphertext)
+  }
+  let rng = match @random.secure_rng_new() {
+    Ok(value) => value
+    Err(_) => return Err(UnsupportedBackend)
+  }
+  Ok({ inner: secret, rng, parameters, key_id })
+}
+
+///|
 /// Serialize the public evaluation material using the versioned MBKS format.
 pub fn ServerKey::serialize(
   self : ServerKey,

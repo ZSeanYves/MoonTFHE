@@ -103,6 +103,7 @@ pub fn ClientKey::decrypt(Self, Ciphertext) -> Result[Bool, DecryptionError]
 pub fn ClientKey::deserialize(Self, Bytes) -> Result[Ciphertext, SerializationError]
 pub fn ClientKey::encrypt(Self, Bool) -> Ciphertext
 pub fn ClientKey::export_secret(Self, SerializationKey) -> Result[Bytes, SerializationError]
+pub fn ClientKey::import_secret(BooleanParameters, SerializationKey, Bytes) -> Result[Self, SerializationError]
 
 pub struct SerializationKey {
   bytes : Bytes
