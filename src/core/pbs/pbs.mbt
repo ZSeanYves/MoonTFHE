@@ -216,29 +216,50 @@ pub fn BootstrapKey::blind_rotate(
 }
 
 ///|
+fn BootstrapKey::bootstrap_without_keyswitch(
+  self : BootstrapKey,
+  accumulator : @glwe.GlweCiphertext,
+  input : @lwe.LweCiphertext,
+) -> Result[@lwe.LweCiphertext, PbsError] {
+  let rotated = match self.blind_rotate(accumulator, input) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  match rotated.sample_extract(0) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(SampleExtractionFailure)
+  }
+}
+
+///|
 pub fn BootstrapKey::programmable_bootstrap(
   self : BootstrapKey,
   input : @lwe.LweCiphertext,
   lut : BooleanLut,
 ) -> Result[@lwe.LweCiphertext, PbsError] {
-  if self.order is KeyswitchBootstrap {
-    return Err(UnsupportedOrder)
-  }
   let accumulator = match lut.accumulator(self.glwe_parameters) {
     Ok(value) => value
     Err(error) => return Err(error)
   }
-  let rotated = match self.blind_rotate(accumulator, input) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  let extracted = match rotated.sample_extract(0) {
-    Ok(value) => value
-    Err(_) => return Err(SampleExtractionFailure)
-  }
-  match self.key_switch.apply(extracted) {
-    Ok(value) => Ok(value)
-    Err(_) => Err(KeyswitchFailure)
+  match self.order {
+    BootstrapKeyswitch => {
+      let extracted = match
+        self.bootstrap_without_keyswitch(accumulator, input) {
+        Ok(value) => value
+        Err(error) => return Err(error)
+      }
+      match self.key_switch.apply(extracted) {
+        Ok(value) => Ok(value)
+        Err(_) => Err(KeyswitchFailure)
+      }
+    }
+    KeyswitchBootstrap => {
+      let switched = match self.key_switch.apply(input) {
+        Ok(value) => value
+        Err(_) => return Err(KeyswitchFailure)
+      }
+      self.bootstrap_without_keyswitch(accumulator, switched)
+    }
   }
 }
 
@@ -251,9 +272,6 @@ pub fn BootstrapKey::programmable_bootstrap_table(
   input : @lwe.LweCiphertext,
   table : Array[@torus.Torus32],
 ) -> Result[@lwe.LweCiphertext, PbsError] {
-  if self.order is KeyswitchBootstrap {
-    return Err(UnsupportedOrder)
-  }
   if table.length() != self.glwe_parameters.polynomial_size() {
     return Err(InvalidTableLength)
   }
@@ -261,17 +279,25 @@ pub fn BootstrapKey::programmable_bootstrap_table(
     Ok(value) => value
     Err(_) => return Err(InvalidLut)
   }
-  let rotated = match self.blind_rotate(accumulator, input) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  let extracted = match rotated.sample_extract(0) {
-    Ok(value) => value
-    Err(_) => return Err(SampleExtractionFailure)
-  }
-  match self.key_switch.apply(extracted) {
-    Ok(value) => Ok(value)
-    Err(_) => Err(KeyswitchFailure)
+  match self.order {
+    BootstrapKeyswitch => {
+      let extracted = match
+        self.bootstrap_without_keyswitch(accumulator, input) {
+        Ok(value) => value
+        Err(error) => return Err(error)
+      }
+      match self.key_switch.apply(extracted) {
+        Ok(value) => Ok(value)
+        Err(_) => Err(KeyswitchFailure)
+      }
+    }
+    KeyswitchBootstrap => {
+      let switched = match self.key_switch.apply(input) {
+        Ok(value) => value
+        Err(_) => return Err(KeyswitchFailure)
+      }
+      self.bootstrap_without_keyswitch(accumulator, switched)
+    }
   }
 }
 
@@ -358,7 +384,7 @@ test "pbs: typed blind rotation evaluates ID and NOT without a secret key" {
 }
 
 ///|
-test "pbs: key shape and order failures are explicit" {
+test "pbs: key shape failures are explicit and KS-PBS changes key domains" {
   let input_dimension = @params.lwe_dimension(1).unwrap()
   let glwe_parameters = @glwe.glwe_parameters(1, 8).unwrap()
   let decomposition = @params.decomposition_parameters(4, 8).unwrap()
@@ -400,21 +426,22 @@ test "pbs: key shape and order failures are explicit" {
     key_switch,
     KeyswitchBootstrap,
   ).unwrap()
-  let ciphertext = input_key
+  let ciphertext = extracted_key
     .lwe_encrypt_binary(
       true,
       @random.gaussian_sigma_3_fixture(),
       @random.test_rng_new(0x5042534F52444552),
     )
     .unwrap()
-  assert_true(
-    bootstrap_key.programmable_bootstrap(
+  let output = bootstrap_key
+    .programmable_bootstrap(
       ciphertext,
       boolean_lut(
         @torus.Torus32::from_int(-0x2000_0000),
         @torus.Torus32::from_int(0x2000_0000),
       ),
     )
-    is Err(UnsupportedOrder),
-  )
+    .unwrap()
+  assert_eq(output.parameters(), extracted_key.parameters())
+  assert_eq(extracted_key.lwe_decrypt_binary(output), Ok(true))
 }
