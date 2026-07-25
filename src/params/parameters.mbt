@@ -4,6 +4,33 @@ pub struct LweDimension {
 } derive(Debug, Eq)
 
 ///|
+/// Stable identity attached to a key/ciphertext family. It is an identifier,
+/// not a secret and never derives encryption keys.
+pub struct KeyId {
+  value : Int
+} derive(Debug, Eq)
+
+///|
+pub fn key_id_from_int(value : Int) -> KeyId {
+  { value, }
+}
+
+///|
+pub fn KeyId::to_int(self : KeyId) -> Int {
+  self.value
+}
+
+///|
+/// Security metadata is descriptive until a fixed estimator has validated the
+/// complete MoonTFHE sampling and decomposition assumptions.
+pub struct SecurityMetadata {
+  target_security_bits : Int
+  failure_log2_milli : Int
+  estimator_commit : String
+  reference_only : Bool
+} derive(Debug, Eq)
+
+///|
 pub struct GlweDimension {
   value : Int
 } derive(Debug, Eq)
@@ -250,6 +277,36 @@ pub fn ParameterSet::id(self : ParameterSet) -> String {
 }
 
 ///|
+pub fn ParameterSet::security_metadata(self : ParameterSet) -> SecurityMetadata {
+  {
+    target_security_bits: self.target_security_bits,
+    failure_log2_milli: self.failure_probability.log2_milli,
+    estimator_commit: self.estimator_commit,
+    reference_only: self.reference_only,
+  }
+}
+
+///|
+pub fn SecurityMetadata::target_security_bits(self : SecurityMetadata) -> Int {
+  self.target_security_bits
+}
+
+///|
+pub fn SecurityMetadata::failure_log2_milli(self : SecurityMetadata) -> Int {
+  self.failure_log2_milli
+}
+
+///|
+pub fn SecurityMetadata::estimator_commit(self : SecurityMetadata) -> String {
+  self.estimator_commit
+}
+
+///|
+pub fn SecurityMetadata::is_reference_only(self : SecurityMetadata) -> Bool {
+  self.reference_only
+}
+
+///|
 pub fn ParameterSet::target_security_bits(self : ParameterSet) -> Int {
   self.target_security_bits
 }
@@ -334,6 +391,12 @@ test "params: reference records are structurally valid" {
   assert_eq(high.target_security_bits(), 128)
   assert_true(low.is_reference_only())
   assert_true(high.is_reference_only())
+  let metadata = high.security_metadata()
+  assert_eq(metadata.target_security_bits(), 128)
+  assert_eq(metadata.failure_log2_milli(), high.failure_log2_milli())
+  assert_eq(metadata.estimator_commit(), high.estimator_commit())
+  assert_true(metadata.is_reference_only())
+  assert_eq(key_id_from_int(-1).to_int(), -1)
 }
 
 ///|

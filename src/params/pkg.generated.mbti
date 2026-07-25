@@ -16,6 +16,8 @@ pub fn decomposition_parameters(Int, Int) -> Result[DecompositionParameters, Par
 
 pub fn glwe_dimension(Int) -> Result[GlweDimension, ParameterValidationError]
 
+pub fn key_id_from_int(Int) -> KeyId
+
 pub fn lwe_dimension(Int) -> Result[LweDimension, ParameterValidationError]
 
 pub fn polynomial_size(Int) -> Result[PolynomialSize, ParameterValidationError]
@@ -45,6 +47,11 @@ pub struct GlweDimension {
   value : Int
 } derive(Eq, @debug.Debug)
 pub fn GlweDimension::value(Self) -> Int
+
+pub struct KeyId {
+  value : Int
+} derive(Eq, @debug.Debug)
+pub fn KeyId::to_int(Self) -> Int
 
 pub struct LweDimension {
   value : Int
@@ -77,6 +84,7 @@ pub fn ParameterSet::glwe_noise(Self) -> NoiseDistribution
 pub fn ParameterSet::id(Self) -> String
 pub fn ParameterSet::is_reference_only(Self) -> Bool
 pub fn ParameterSet::lwe_noise(Self) -> NoiseDistribution
+pub fn ParameterSet::security_metadata(Self) -> SecurityMetadata
 pub fn ParameterSet::target_security_bits(Self) -> Int
 pub fn ParameterSet::upstream_security_bits(Self) -> Int
 pub fn ParameterSet::validate(Self) -> Result[Unit, ParameterValidationError]
@@ -94,6 +102,17 @@ pub struct QuantizedGaussian {
 pub fn QuantizedGaussian::fixture_hash(Self) -> String
 pub fn QuantizedGaussian::sigma_q64(Self) -> UInt64
 pub fn QuantizedGaussian::tail_sigma(Self) -> Int
+
+pub struct SecurityMetadata {
+  target_security_bits : Int
+  failure_log2_milli : Int
+  estimator_commit : String
+  reference_only : Bool
+} derive(Eq, @debug.Debug)
+pub fn SecurityMetadata::estimator_commit(Self) -> String
+pub fn SecurityMetadata::failure_log2_milli(Self) -> Int
+pub fn SecurityMetadata::is_reference_only(Self) -> Bool
+pub fn SecurityMetadata::target_security_bits(Self) -> Int
 
 // Type aliases
 

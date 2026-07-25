@@ -75,7 +75,7 @@ pub fn Backend::name(Self) -> String
 
 pub struct BooleanParameters {
   id : String
-  security_bits : Int
+  security : @params.SecurityMetadata
   test_only : Bool
   dimension : Int
   record : @params.ParameterSet
@@ -86,7 +86,7 @@ pub fn BooleanParameters::security_bits(Self) -> Int
 
 pub struct Ciphertext {
   inner : @src.BooleanCiphertext
-  key_id : Int
+  key_id : @params.KeyId
   parameters : BooleanParameters
 }
 pub fn Ciphertext::serialize(Self) -> Bytes
@@ -94,7 +94,7 @@ pub fn Ciphertext::serialize(Self) -> Bytes
 pub struct ClientKey {
   inner : @src.ExperimentalBooleanClientKey
   parameters : BooleanParameters
-  key_id : Int
+  key_id : @params.KeyId
 }
 pub fn ClientKey::decrypt(Self, Ciphertext) -> Result[Bool, DecryptionError]
 pub fn ClientKey::deserialize(Self, Bytes) -> Result[Ciphertext, SerializationError]
@@ -108,7 +108,7 @@ pub struct SerializationKey {
 pub struct ServerKey {
   inner : @src.ExperimentalBooleanServerKey
   parameters : BooleanParameters
-  key_id : Int
+  key_id : @params.KeyId
 }
 pub fn ServerKey::and_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::apply_lut(Self, Ciphertext, Array[Bool]) -> Result[Ciphertext, EvaluationError]

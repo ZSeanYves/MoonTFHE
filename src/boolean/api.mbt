@@ -2,7 +2,7 @@
 /// Parameter metadata owned by the stable Boolean facade.
 pub struct BooleanParameters {
   id : String
-  security_bits : Int
+  security : @params.SecurityMetadata
   test_only : Bool
   dimension : Int
   record : @params.ParameterSet
@@ -45,7 +45,7 @@ pub suberror SerializationError {
 /// Opaque Boolean ciphertext.
 pub struct Ciphertext {
   inner : @src.BooleanCiphertext
-  key_id : Int
+  key_id : @params.KeyId
   parameters : BooleanParameters
 }
 
@@ -55,7 +55,7 @@ pub struct Ciphertext {
 pub struct ClientKey {
   inner : @src.ExperimentalBooleanClientKey
   parameters : BooleanParameters
-  key_id : Int
+  key_id : @params.KeyId
 }
 
 ///|
@@ -63,7 +63,7 @@ pub struct ClientKey {
 pub struct ServerKey {
   inner : @src.ExperimentalBooleanServerKey
   parameters : BooleanParameters
-  key_id : Int
+  key_id : @params.KeyId
 }
 
 ///|
@@ -71,7 +71,7 @@ pub fn boolean_110_parameters() -> BooleanParameters {
   let record = @params.boolean_110_reference()
   {
     id: "tfhe-rs-boolean-110-reference".to_string(),
-    security_bits: 110,
+    security: record.security_metadata(),
     test_only: false,
     dimension: 805,
     record,
@@ -83,7 +83,7 @@ pub fn boolean_128_parameters() -> BooleanParameters {
   let record = @params.boolean_128_reference()
   {
     id: "tfhe-rs-boolean-128-reference".to_string(),
-    security_bits: 128,
+    security: record.security_metadata(),
     test_only: false,
     dimension: 837,
     record,
@@ -96,7 +96,7 @@ pub fn boolean_test_parameters() -> BooleanParameters {
   let record = @params.boolean_test_record()
   {
     id: "moontfhe-boolean-test".to_string(),
-    security_bits: 0,
+    security: record.security_metadata(),
     test_only: true,
     dimension: 4,
     record,
@@ -110,7 +110,7 @@ pub fn BooleanParameters::id(self : BooleanParameters) -> String {
 
 ///|
 pub fn BooleanParameters::security_bits(self : BooleanParameters) -> Int {
-  self.security_bits
+  self.security.target_security_bits()
 }
 
 ///|
@@ -149,7 +149,7 @@ pub fn generate_test_keys(
   let (client, server) = @src.experimental_boolean_keygen(seed)
   // The current experimental implementation derives the tag internally. The
   // facade uses the deterministic seed as its compatibility identity.
-  let key_id = seed.to_int()
+  let key_id = @params.key_id_from_int(seed.to_int())
   let client_key : ClientKey = { inner: client, parameters, key_id }
   let server_key : ServerKey = { inner: server, parameters, key_id }
   Ok((client_key, server_key))
@@ -181,7 +181,7 @@ pub fn ClientKey::decrypt(
 ///|
 fn evaluate_check(
   parameters : BooleanParameters,
-  key_id : Int,
+  key_id : @params.KeyId,
   ciphertext : Ciphertext,
 ) -> Result[Unit, EvaluationError] {
   if ciphertext.key_id != key_id {
@@ -378,7 +378,7 @@ pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes {
     boolean_parameter_code(self.parameters).reinterpret_as_uint(),
   )
   boolean_write_u32(output, 11, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_u32(output, 15, self.key_id.reinterpret_as_uint())
+  boolean_write_u32(output, 15, self.key_id.to_int().reinterpret_as_uint())
   // Torus32 uses modulus 2^32, represented by zero modulo 2^32.
   boolean_write_u32(output, 19, 0U)
   // The compatibility facade has no production decomposition yet.
@@ -410,14 +410,14 @@ pub fn ClientKey::deserialize(
   let mut header_length = 25
   let mut parameter_code = 0
   let mut dimension = 0
-  let mut key_id = 0
+  let mut key_id = @params.key_id_from_int(0)
   let mut payload_length = 0
   let mut payload = Bytes::make(0, 0)
   let mut checksum_ok = false
   if version == b'\x01' {
     parameter_code = boolean_read_i32(bytes, 5)
     dimension = boolean_read_i32(bytes, 9)
-    key_id = boolean_read_i32(bytes, 13)
+    key_id = @params.key_id_from_int(boolean_read_i32(bytes, 13))
     payload_length = boolean_read_i32(bytes, 17)
     if payload_length < 0 || bytes.length() != 25 + payload_length {
       return Err(InvalidLength)
@@ -431,7 +431,9 @@ pub fn ClientKey::deserialize(
     }
     parameter_code = boolean_read_u32(bytes, 7).reinterpret_as_int()
     dimension = boolean_read_u32(bytes, 11).reinterpret_as_int()
-    key_id = boolean_read_u32(bytes, 15).reinterpret_as_int()
+    key_id = @params.key_id_from_int(
+      boolean_read_u32(bytes, 15).reinterpret_as_int(),
+    )
     if boolean_read_u32(bytes, 19) != 0U || boolean_read_u32(bytes, 23) != 0U {
       return Err(InvalidCiphertext)
     }
@@ -467,7 +469,7 @@ pub fn ClientKey::deserialize(
 fn boolean_parameter_code(parameters : BooleanParameters) -> Int {
   if parameters.test_only {
     0
-  } else if parameters.security_bits == 110 {
+  } else if parameters.security.target_security_bits() == 110 {
     110
   } else {
     128
@@ -545,7 +547,7 @@ pub fn ClientKey::export_secret(
     boolean_parameter_code(self.parameters).reinterpret_as_uint(),
   )
   boolean_write_u32(header, 10, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_u32(header, 14, self.key_id.reinterpret_as_uint())
+  boolean_write_u32(header, 14, self.key_id.to_int().reinterpret_as_uint())
   boolean_write_u32(header, 18, payload_length.reinterpret_as_uint())
   let nonce_rng = match
     @random.secure_rng_new_for(@random.serialization_nonce_domain()) {
@@ -608,7 +610,7 @@ pub fn ServerKey::serialize(
     boolean_parameter_code(self.parameters).reinterpret_as_uint(),
   )
   boolean_write_u32(output, 11, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_u32(output, 15, self.key_id.reinterpret_as_uint())
+  boolean_write_u32(output, 15, self.key_id.to_int().reinterpret_as_uint())
   boolean_write_u32(output, 19, 0U)
   boolean_write_u32(output, 23, 0U)
   boolean_write_u32(output, 27, if self.parameters.test_only { 0U } else { 1U })
