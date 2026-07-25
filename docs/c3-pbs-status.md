@@ -1,17 +1,23 @@
 # C3 PBS status
 
-C3 now has the typed key-switching data flow and the complete two-point
-Boolean LUT family:
+C3 now has the typed key-switching data flow and a secret-free reference PBS
+pipeline for the maintained core:
 
 - KSK rows are encrypted gadget powers and `KeySwitchKey::apply` performs
   signed decomposition without reading a secret key;
-- Boolean `apply_lut` evaluates identity, NOT, false, and true tables through
-  the existing gate facade;
-- `PbsOrder` and `BooleanLut` establish the order/table contract for the
-  upcoming standard BSK implementation.
+- `BootstrapKey` accepts only encrypted GGSW controls and an encrypted KSK;
+  it performs blind rotation, CMUX, sample extraction, and PBS->KS without
+  retaining or reading a secret key;
+- the reference backend evaluates identity and NOT LUTs with fixed-point
+  Gaussian noise on toy parameters, and rejects the unsupported reverse order
+  explicitly;
+- Boolean `apply_lut` still evaluates the complete two-point family through the
+  compatibility facade; the typed accumulator is the foundation for arbitrary
+  programmable LUTs.
 
-The 110-bit and 128-bit records remain `reference_only`. `generate_keys` still
-returns `UnsupportedBackend` for those records until standard Gaussian tables,
-GLWE/GGSW encryption, blind rotation, and PBS-to-KS are connected. This is an
-intentional hard gate: a deterministic or zero-noise substitute is not promoted
-to the production API.
+The 110-bit and 128-bit records remain `reference_only`. Stable
+`generate_keys` still returns `UnsupportedBackend` for those records until the
+standard Gaussian tables, production BSK generation, native FFT path, and
+parameter estimator are connected. The typed PBS test uses only the sigma=3
+fixture and toy dimensions; it is not a security claim and is not promoted to
+the production API.

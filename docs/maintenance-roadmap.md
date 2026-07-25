@@ -8,6 +8,12 @@
 
 当前按 Boolean Core 补强计划执行。B0-B6 已逐阶段提交、推送并通过远端 CI；B7 审计结论为 55/100，因硬门槛失败而禁止 RC。阶段提交和 CI 记录以 Git 历史及 GitHub Actions 为准。
 
+2026-07-25 的 C 阶段补强已经接入 OS/WebCrypto/host entropy、RFC8439
+ChaCha20、固定点 CDT、RustFFT/AES-GCM C ABI、版本化 key envelopes，以及
+typed GGSW/CMUX/blind-rotation/PBS->KS reference pipeline。重新审计为 68/100；
+110/128 estimator、标准参数 BSK/PBS、Fourier BSK 和 1000+ 标准电路仍是硬
+阻断，因此 `generate_keys` 继续安全失败，不能发布 RC。
+
 本轮新增的稳定 facade 是 `src/boolean`，但它目前只对
 `boolean_test_parameters()` 提供确定性测试 keygen。110/128 命名参数已经有固定
 metadata fixture，不能被解释为 MoonTFHE 已证明的安全参数。`generate_keys` 对生产参数

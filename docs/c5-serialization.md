@@ -10,10 +10,11 @@ The parser checks every length and metadata field before passing the payload to
 the opaque ciphertext decoder. A changed payload returns `ChecksumMismatch`;
 cross-key and cross-parameter values return `ParameterMismatch`.
 
-`SerializationKey` accepts exactly 32 bytes. `ClientKey::export_secret` and
-`ServerKey::serialize` are intentionally present as explicit API boundaries but
-return `UnsupportedBackend` until the core exposes the complete secret payload
-and encrypted BSK/KSK payload respectively. No metadata-only server key or
-partial client secret is emitted. The Rust AES-256-GCM provider in C4 is tested
-through its stable C ABI; wiring it to the opaque MoonBit key representation is
-the remaining C5 integration work.
+`SerializationKey` accepts exactly 32 bytes. `ClientKey::export_secret` builds
+an authenticated `MTSK` envelope with a fresh entropy-backed nonce and delegates
+AES-256-GCM to the native provider; portable backends return
+`UnsupportedBackend` unless a trusted provider is available. `ServerKey`
+serializes the encrypted GGSW/KSK payload in `MBKS` with CRC32C. The client
+secret is never emitted as plaintext and the server payload traversal does not
+read secret fields. Import/deserialization of key envelopes remains a release
+blocker.

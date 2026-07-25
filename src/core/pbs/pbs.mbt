@@ -308,3 +308,65 @@ test "pbs: typed blind rotation evaluates ID and NOT without a secret key" {
     assert_eq(input_key.lwe_decrypt_binary(negated), Ok(!message))
   }
 }
+
+///|
+test "pbs: key shape and order failures are explicit" {
+  let input_dimension = @params.lwe_dimension(1).unwrap()
+  let glwe_parameters = @glwe.glwe_parameters(1, 8).unwrap()
+  let decomposition = @params.decomposition_parameters(4, 8).unwrap()
+  let input_key = @lwe.lwe_key_from_binary_secret(input_dimension, [true]).unwrap()
+  let glwe_key = @glwe.glwe_keygen(
+    glwe_parameters,
+    @random.test_rng_new(0x5042535348415045),
+  )
+  let extracted_key = glwe_key.to_extracted_lwe_key().unwrap()
+  let key_switch = @keyswitch.keyswitch_keygen(
+    extracted_key,
+    input_key,
+    decomposition,
+    @random.gaussian_sigma_3_fixture(),
+    @random.test_rng_new(0x5042534B534B32),
+  ).unwrap()
+  let parameters = @ggsw.ggsw_parameters(glwe_parameters, 4, 8).unwrap()
+  let control = @ggsw.ggsw_encrypt_boolean(
+    parameters,
+    glwe_key,
+    true,
+    @random.gaussian_sigma_3_fixture(),
+    @random.test_rng_new(0x50425342534B32),
+  ).unwrap()
+  assert_true(
+    bootstrap_key_from_encrypted_parts(
+      input_dimension,
+      glwe_parameters,
+      [],
+      key_switch,
+      BootstrapKeyswitch,
+    )
+    is Err(BootstrapKeyShapeMismatch),
+  )
+  let bootstrap_key = bootstrap_key_from_encrypted_parts(
+    input_dimension,
+    glwe_parameters,
+    [control],
+    key_switch,
+    KeyswitchBootstrap,
+  ).unwrap()
+  let ciphertext = input_key
+    .lwe_encrypt_binary(
+      true,
+      @random.gaussian_sigma_3_fixture(),
+      @random.test_rng_new(0x5042534F52444552),
+    )
+    .unwrap()
+  assert_true(
+    bootstrap_key.programmable_bootstrap(
+      ciphertext,
+      boolean_lut(
+        @torus.Torus32::from_int(-0x2000_0000),
+        @torus.Torus32::from_int(0x2000_0000),
+      ),
+    )
+    is Err(UnsupportedOrder),
+  )
+}
