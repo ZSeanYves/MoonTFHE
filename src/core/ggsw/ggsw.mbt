@@ -61,6 +61,27 @@ pub fn GgswParameters::glwe(self : GgswParameters) -> @glwe.GlweParameters {
 }
 
 ///|
+pub fn GgswCiphertext::parameters(self : GgswCiphertext) -> GgswParameters {
+  self.parameters
+}
+
+///|
+pub fn GgswCiphertext::row_count(self : GgswCiphertext) -> Int {
+  self.rows.length()
+}
+
+///|
+pub fn GgswCiphertext::row(
+  self : GgswCiphertext,
+  index : Int,
+) -> Result[@glwe.GlweCiphertext, GgswError] {
+  if index < 0 || index >= self.rows.length() {
+    return Err(ShapeMismatch)
+  }
+  Ok(self.rows[index])
+}
+
+///|
 /// Construct a zero matrix with the exact standard GGSW shape. Encryption and
 /// gadget filling are intentionally separate operations so shape validation is
 /// independent from the cryptographic implementation.

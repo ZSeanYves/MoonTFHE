@@ -48,6 +48,12 @@ pub struct BootstrapKey {
   order : PbsOrder
 }
 pub fn BootstrapKey::blind_rotate(Self, @glwe.GlweCiphertext, @lwe.LweCiphertext) -> Result[@glwe.GlweCiphertext, PbsError]
+pub fn BootstrapKey::control_count(Self) -> Int
+pub fn BootstrapKey::glwe_parameters(Self) -> @glwe.GlweParameters
+pub fn BootstrapKey::input_dimension(Self) -> @params.LweDimension
+pub fn BootstrapKey::key_switch_input_dimension(Self) -> @params.LweDimension
+pub fn BootstrapKey::key_switch_output_dimension(Self) -> @params.LweDimension
+pub fn BootstrapKey::order(Self) -> PbsOrder
 pub fn BootstrapKey::programmable_bootstrap(Self, @lwe.LweCiphertext, BooleanLut) -> Result[@lwe.LweCiphertext, PbsError]
 pub fn BootstrapKey::programmable_bootstrap_table(Self, @lwe.LweCiphertext, Array[@torus.Torus32]) -> Result[@lwe.LweCiphertext, PbsError]
 

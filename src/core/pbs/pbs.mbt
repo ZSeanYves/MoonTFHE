@@ -102,6 +102,44 @@ pub fn bootstrap_key_from_encrypted_parts(
 }
 
 ///|
+pub fn BootstrapKey::input_dimension(
+  self : BootstrapKey,
+) -> @params.LweDimension {
+  self.input_dimension
+}
+
+///|
+pub fn BootstrapKey::glwe_parameters(
+  self : BootstrapKey,
+) -> @glwe.GlweParameters {
+  self.glwe_parameters
+}
+
+///|
+pub fn BootstrapKey::control_count(self : BootstrapKey) -> Int {
+  self.controls.length()
+}
+
+///|
+pub fn BootstrapKey::key_switch_input_dimension(
+  self : BootstrapKey,
+) -> @params.LweDimension {
+  self.key_switch.input_dimension()
+}
+
+///|
+pub fn BootstrapKey::key_switch_output_dimension(
+  self : BootstrapKey,
+) -> @params.LweDimension {
+  self.key_switch.output_dimension()
+}
+
+///|
+pub fn BootstrapKey::order(self : BootstrapKey) -> PbsOrder {
+  self.order
+}
+
+///|
 fn polynomial_log_modulus(size : Int) -> Result[Int, PbsError] {
   if size <= 0 || (size & (size - 1)) != 0 || size > 32768 {
     return Err(InvalidPolynomialSize)

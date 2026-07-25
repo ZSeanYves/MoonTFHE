@@ -113,6 +113,18 @@ pub fn KeySwitchKey::output_dimension(
 }
 
 ///|
+pub fn KeySwitchKey::decomposition(
+  self : KeySwitchKey,
+) -> @params.DecompositionParameters {
+  self.decomposition
+}
+
+///|
+pub fn KeySwitchKey::row_count(self : KeySwitchKey) -> Int {
+  self.rows.length()
+}
+
+///|
 pub suberror KeySwitchError {
   InvalidInputDimension
   InvalidOutputDimension
