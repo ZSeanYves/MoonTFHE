@@ -5,13 +5,13 @@ test "stable Boolean facade: native SecretExport uses fresh AES-GCM nonces" {
   let key = serialization_key_from_bytes(Bytes::make(32, 0xA5)).unwrap()
   let first = client.export_secret(key).unwrap()
   let second = client.export_secret(key).unwrap()
-  assert_eq(first.length(), 72)
-  assert_eq(second.length(), 72)
+  assert_eq(first.length(), 104)
+  assert_eq(second.length(), 104)
   assert_eq(first[0], b'M')
   assert_eq(first[1], b'T')
   assert_eq(first[2], b'S')
   assert_eq(first[3], b'K')
-  assert_true(first[34:46].to_owned() != second[34:46].to_owned())
+  assert_true(first[66:78].to_owned() != second[66:78].to_owned())
   assert_true(first != second)
 }
 
@@ -28,6 +28,17 @@ test "stable Boolean facade: native SecretExport import authenticates key" {
   assert_true(
     ClientKey::import_secret(parameters, wrong_key, exported)
     is Err(AuthenticationFailed),
+  )
+  let wrong_tag = exported.to_array()
+  let last = wrong_tag.length() - 1
+  wrong_tag[last] = wrong_tag[last] ^ b'\x01'
+  assert_true(
+    ClientKey::import_secret(parameters, key, Bytes::from_array(wrong_tag))
+    is Err(AuthenticationFailed),
+  )
+  assert_true(
+    ClientKey::import_secret(boolean_110_parameters(), key, exported)
+    is Err(ParameterMismatch),
   )
 }
 
@@ -49,4 +60,26 @@ test "stable Boolean facade: native 128-bit path reuses standard PBS" {
   assert_eq(client.decrypt(client.encrypt(true)), Ok(true))
   let result = server.nand(client.encrypt(true), client.encrypt(false)).unwrap()
   assert_eq(client.decrypt(result), Ok(true))
+}
+
+///|
+test "stable Boolean facade: native 110-bit MBKS import rebuilds Fourier PBS" {
+  let parameters = boolean_110_parameters()
+  let (client, server) = generate_keys(parameters).unwrap()
+  let restored = ServerKey::deserialize(server.serialize().unwrap()).unwrap()
+  let result = restored
+    .nand(client.encrypt(true), client.encrypt(false))
+    .unwrap()
+  assert_eq(client.decrypt(result), Ok(true))
+}
+
+///|
+test "stable Boolean facade: native 128-bit MBKS import rebuilds Fourier PBS" {
+  let parameters = boolean_128_parameters()
+  let (client, server) = generate_keys(parameters).unwrap()
+  let restored = ServerKey::deserialize(server.serialize().unwrap()).unwrap()
+  let result = restored
+    .nand(client.encrypt(true), client.encrypt(true))
+    .unwrap()
+  assert_eq(client.decrypt(result), Ok(false))
 }

@@ -21,6 +21,8 @@ pub fn bootstrap_key_from_flat_encrypted_parts(@params.LweDimension, @glwe.GlweP
 
 pub fn bootstrap_keyswitch_order() -> PbsOrder
 
+pub fn keyswitch_bootstrap_order() -> PbsOrder
+
 // Errors
 pub suberror PbsError {
   InvalidLut
@@ -55,8 +57,11 @@ pub struct BootstrapKey {
 pub fn BootstrapKey::blind_rotate(Self, @glwe.GlweCiphertext, @lwe.LweCiphertext) -> Result[@glwe.GlweCiphertext, PbsError]
 pub fn BootstrapKey::coefficient_bsk_copy(Self) -> FixedArray[UInt]
 pub fn BootstrapKey::control_count(Self) -> Int
+pub fn BootstrapKey::ggsw_parameters(Self) -> @ggsw.GgswParameters
 pub fn BootstrapKey::glwe_parameters(Self) -> @glwe.GlweParameters
 pub fn BootstrapKey::input_dimension(Self) -> @params.LweDimension
+pub fn BootstrapKey::key_switch_decomposition(Self) -> @params.DecompositionParameters
+pub fn BootstrapKey::key_switch_flat_copy(Self) -> FixedArray[UInt]
 pub fn BootstrapKey::key_switch_input_dimension(Self) -> @params.LweDimension
 pub fn BootstrapKey::key_switch_output_dimension(Self) -> @params.LweDimension
 pub fn BootstrapKey::order(Self) -> PbsOrder

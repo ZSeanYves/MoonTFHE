@@ -30,7 +30,7 @@ test "stable Boolean facade: serialization checksum rejects tampering" {
   let (client, _server) = generate_test_keys(parameters, 0x43484B).unwrap()
   let encoded = client.encrypt(true).serialize()
   let tampered = encoded.to_array()
-  tampered[51] = tampered[51] ^ 1U.to_byte()
+  tampered[70] = tampered[70] ^ 1U.to_byte()
   assert_true(
     client.deserialize(Bytes::from_array(tampered)) is Err(ChecksumMismatch),
   )
@@ -59,15 +59,47 @@ test "stable Boolean facade: v2 CRC32C and secret export boundary" {
 }
 
 ///|
-test "stable Boolean facade: server key export never emits metadata-only key" {
+test "stable Boolean facade: server key roundtrip restores evaluation material" {
   let parameters = boolean_test_parameters()
-  let (_client, server) = generate_test_keys(parameters, 0x534B4559).unwrap()
+  let (client, server) = generate_test_keys(parameters, 0x534B4559).unwrap()
   let encoded = server.serialize().unwrap()
   assert_eq(encoded[0], b'M')
   assert_eq(encoded[1], b'B')
   assert_eq(encoded[2], b'K')
   assert_eq(encoded[3], b'S')
-  assert_true(encoded.length() > 39)
+  assert_true(encoded.length() > 90)
+  let restored = ServerKey::deserialize(encoded).unwrap()
+  let result = restored
+    .nand(client.encrypt(true), client.encrypt(true))
+    .unwrap()
+  assert_eq(client.decrypt(result), Ok(false))
+}
+
+///|
+test "stable Boolean facade: malformed server key is rejected before import" {
+  let parameters = boolean_test_parameters()
+  let (_client, server) = generate_test_keys(parameters, 0x4D424B53).unwrap()
+  let encoded = server.serialize().unwrap()
+  assert_true(
+    ServerKey::deserialize(encoded[:89].to_owned()) is Err(InvalidLength),
+  )
+  let bad_crc = encoded.to_array()
+  bad_crc[90] = bad_crc[90] ^ b'\x01'
+  assert_true(
+    ServerKey::deserialize(Bytes::from_array(bad_crc)) is Err(ChecksumMismatch),
+  )
+  let bad_shape = encoded.to_array()
+  bad_shape[74] = bad_shape[74] + b'\x01'
+  assert_true(
+    ServerKey::deserialize(Bytes::from_array(bad_shape))
+    is Err(InvalidServerKey),
+  )
+  let cross_parameter = encoded.to_array()
+  cross_parameter[6] = 110U.to_byte()
+  assert_true(
+    ServerKey::deserialize(Bytes::from_array(cross_parameter))
+    is Err(ParameterMismatch),
+  )
 }
 
 ///|

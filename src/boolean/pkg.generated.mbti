@@ -57,6 +57,7 @@ pub suberror SerializationError {
   ParameterMismatch
   ChecksumMismatch
   InvalidCiphertext
+  InvalidServerKey
   InvalidKeyLength
   AuthenticationFailed
   UnsupportedBackend
@@ -119,6 +120,7 @@ pub struct ServerKey {
 }
 pub fn ServerKey::and_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::apply_lut(Self, Ciphertext, Array[Bool]) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::deserialize(Bytes) -> Result[Self, SerializationError]
 pub fn ServerKey::mux(Self, Ciphertext, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::nand(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::not(Self, Ciphertext) -> Result[Ciphertext, EvaluationError]

@@ -9,7 +9,7 @@
 | 生产路径不含 legacy RNG/CLT | 通过现有代码边界 | root legacy 包、SplitMix/Float Gaussian/旧 PBS 已删除；`tools/security-audit/check.sh` 覆盖全部 maintained package。标准生产 keygen 尚不存在，因此这不是完整安全声明。 |
 | 110/128 参数有可复现 estimator 输入输出 | 未通过 | 输入、commit、noise fixture hash 和结构化输出已固定；OCI digest 仍为 sentinel，输出状态为 `not_run`，安全位数/失败率/noise margin 均为空。 |
 | 标准参数 PBS/NAND/随机电路 | 未通过 | typed reference PBS、完整 Boolean LUT 和 toy 门真值表通过；`generate_keys(110/128)` 仍明确返回 `UnsupportedBackend`，没有标准 1000+ 电路和连续 PBS 统计。 |
-| ServerKey/序列化不含秘密 | 部分通过 | `ServerKey` 只持有 typed `BootstrapKey`，inspection 不暴露 secret；ClientKey 的 MTSK export/import 使用 AES-GCM。MBKS payload 仍只是结构标记，尚不能完整反序列化恢复 BSK/KSK。 |
+| ServerKey/序列化不含秘密 | 通过 | `ServerKey` 只持有 typed `BootstrapKey`；MBKS v1 保存 coefficient BSK/KSK 并可完整导入，Fourier cache 按 backend 重建；ClientKey 只通过 AES-GCM MTSK export/import。 |
 | all-target/FFI/benchmark CI | 部分通过 | 四 MoonBit 后端、RustFFT/AES-GCM、native entropy、full-width convolution、Fourier BSK 和零分配 external-product ABI 均已建立；没有标准 PBS 或 tfhe-rs 同机性能矩阵。 |
 
 硬门槛未全部通过，`tools/rc-gate/check.sh` 必须失败，版本必须保持 research release。
@@ -30,5 +30,5 @@
 1. 实现 native 标准 110/128 `generate_keys`，使用独立 key/mask/noise/BSK streams 和对应 CDT/TUniform 分布。
 2. 完成标准 GGSW BSK、Fourier conversion、external product、blind rotation 和 PBS->KS，并使 NAND/所有门走该路径。
 3. 固定真实 Sage OCI digest，运行 lattice-estimator，提交非伪造的 security bits、failure probability 和 noise margin，随后才能取消 `reference_only`。
-4. 将 MBKS 从结构标记升级为完整公开评估材料格式，实现 `ServerKey::deserialize` 和 malformed/cross-parameter tests。
+4. 扩展标准参数 MBKS roundtrip 的 nightly 失败率与峰值内存证据。
 5. 在 110/128 参数下运行每套 1000+ 随机电路、连续 PBS/失败率统计和与固定 tfhe-rs 的同机性能矩阵。

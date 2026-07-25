@@ -10,6 +10,11 @@ pub fn bootstrap_keyswitch_order() -> PbsOrder {
 }
 
 ///|
+pub fn keyswitch_bootstrap_order() -> PbsOrder {
+  KeyswitchBootstrap
+}
+
+///|
 /// A fixed two-point Boolean programmable LUT. The full arbitrary torus LUT
 /// representation is added with the Fourier BSK backend in C4.
 pub struct BooleanLut {
@@ -164,6 +169,13 @@ pub fn BootstrapKey::glwe_parameters(
 }
 
 ///|
+pub fn BootstrapKey::ggsw_parameters(
+  self : BootstrapKey,
+) -> @ggsw.GgswParameters {
+  self.ggsw_parameters
+}
+
+///|
 pub fn BootstrapKey::control_count(self : BootstrapKey) -> Int {
   self.input_dimension.value()
 }
@@ -187,6 +199,20 @@ pub fn BootstrapKey::key_switch_output_dimension(
   self : BootstrapKey,
 ) -> @params.LweDimension {
   self.key_switch.output_dimension()
+}
+
+///|
+pub fn BootstrapKey::key_switch_decomposition(
+  self : BootstrapKey,
+) -> @params.DecompositionParameters {
+  self.key_switch.decomposition()
+}
+
+///|
+pub fn BootstrapKey::key_switch_flat_copy(
+  self : BootstrapKey,
+) -> FixedArray[UInt] {
+  self.key_switch.flat_u32_copy()
 }
 
 ///|

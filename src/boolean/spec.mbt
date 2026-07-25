@@ -120,6 +120,18 @@ declare pub fn ClientKey::export_secret(
 ) -> Result[Bytes, SerializationError]
 
 ///|
+declare pub fn ClientKey::import_secret(
+  parameters : BooleanParameters,
+  key : SerializationKey,
+  bytes : Bytes,
+) -> Result[ClientKey, SerializationError]
+
+///|
 declare pub fn ServerKey::serialize(
   self : ServerKey,
 ) -> Result[Bytes, SerializationError]
+
+///|
+declare pub fn ServerKey::deserialize(
+  bytes : Bytes,
+) -> Result[ServerKey, SerializationError]

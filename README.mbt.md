@@ -27,10 +27,10 @@ The following remain explicitly experimental or incomplete:
 - resistance to side-channel attacks.
 
 The maintained `src/boolean` facade exposes opaque `ClientKey`, `ServerKey`,
-and `Ciphertext` types, versioned `MBCT` ciphertext envelopes, and the Boolean
-gate surface. Production `generate_keys` supports the native 110-bit reference
-records. Portable standard construction returns `UnsupportedBackend` until the
-host-enabled reference keygen gate closes.
+and `Ciphertext` types, versioned `MBCT` ciphertext envelopes, complete `MBKS`
+server-key import/export, authenticated `MTSK` secret import/export, and the
+Boolean gate surface. Production `generate_keys` supports the native 110/128-bit
+reference records. Portable standard construction requires trusted host entropy.
 
 The old root package and `MTFH`/`MBCT v1` formats were removed in C7.
 `BootstrappingKey` contains only encrypted GGSW data, dimensions, and an

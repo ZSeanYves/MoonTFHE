@@ -36,6 +36,7 @@ pub suberror SerializationError {
   ParameterMismatch
   ChecksumMismatch
   InvalidCiphertext
+  InvalidServerKey
   InvalidKeyLength
   AuthenticationFailed
   UnsupportedBackend
@@ -600,7 +601,7 @@ pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes {
   }
   boolean_write_u32(payload, dimension * 4, self.inner.b().to_uint())
   let payload = Bytes::from_array(payload)
-  let header_length = 51
+  let header_length = 70
   let output = Array::make(header_length + payload.length(), b'\x00')
   output[0] = b'M'
   output[1] = b'B'
@@ -608,23 +609,17 @@ pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes {
   output[3] = b'T'
   output[4] = b'\x02'
   output[5] = b'\x01'
-  boolean_write_u32(
-    output,
-    7,
-    boolean_parameter_code(self.parameters).reinterpret_as_uint(),
-  )
-  boolean_write_u32(output, 11, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_key_id(output, 15, self.key_id)
-  // Torus32 uses modulus 2^32, represented by zero modulo 2^32.
-  boolean_write_u32(output, 31, 0U)
-  // The compatibility facade has no production decomposition yet.
-  boolean_write_u32(output, 35, 0U)
-  boolean_write_u32(output, 39, if self.parameters.test_only { 0U } else { 1U })
-  boolean_write_u32(output, 43, payload.length().reinterpret_as_uint())
-  boolean_write_u32(output, 47, boolean_crc32c(payload))
+  boolean_write_parameter_fields(output, self.parameters)
+  boolean_write_key_id(output, 46, self.key_id)
+  boolean_write_u32(output, 62, payload.length().reinterpret_as_uint())
   for i in 0..<payload.length() {
     output[header_length + i] = payload[i]
   }
+  boolean_write_u32(
+    output,
+    66,
+    boolean_crc32c_envelope_array(output, 66, header_length, payload.length()),
+  )
   Bytes::from_array(output)
 }
 
@@ -643,7 +638,7 @@ pub fn ClientKey::deserialize(
     return Err(InvalidMagic)
   }
   let version = bytes[4]
-  let header_length = 51
+  let header_length = 70
   let mut parameter_code = 0
   let mut dimension = 0
   let mut key_id = @params.key_id_from_words(0UL, 0UL)
@@ -653,22 +648,23 @@ pub fn ClientKey::deserialize(
   if version != b'\x02' || bytes.length() < header_length || bytes[5] != b'\x01' {
     return Err(UnsupportedVersion)
   }
-  parameter_code = boolean_read_u32(bytes, 7).reinterpret_as_int()
-  dimension = boolean_read_u32(bytes, 11).reinterpret_as_int()
-  key_id = boolean_read_key_id(bytes, 15)
-  if boolean_read_u32(bytes, 31) != 0U || boolean_read_u32(bytes, 35) != 0U {
-    return Err(InvalidCiphertext)
-  }
-  let distribution = if self.parameters.test_only { 0U } else { 1U }
-  if boolean_read_u32(bytes, 39) != distribution {
+  parameter_code = boolean_read_u32(bytes, 6).reinterpret_as_int()
+  dimension = boolean_read_u32(bytes, 10).reinterpret_as_int()
+  key_id = boolean_read_key_id(bytes, 46)
+  if !boolean_validate_parameter_fields(bytes, self.parameters) {
     return Err(ParameterMismatch)
   }
-  payload_length = boolean_read_u32(bytes, 43).reinterpret_as_int()
-  if payload_length < 0 || bytes.length() != header_length + payload_length {
+  payload_length = boolean_read_u32(bytes, 62).reinterpret_as_int()
+  let expected_payload_length = 4 * (self.parameters.dimension + 1)
+  if payload_length != expected_payload_length ||
+    bytes.length() != header_length + expected_payload_length {
     return Err(InvalidLength)
   }
   payload = bytes[header_length:].to_owned()
-  checksum_ok = boolean_crc32c(payload) == boolean_read_u32(bytes, 47)
+  checksum_ok = boolean_crc32c_envelope(
+      bytes, 66, header_length, payload_length,
+    ) ==
+    boolean_read_u32(bytes, 66)
   if parameter_code != boolean_parameter_code(self.parameters) ||
     dimension != self.parameters.dimension ||
     key_id != self.key_id {
@@ -717,6 +713,123 @@ fn boolean_parameter_code(parameters : BooleanParameters) -> Int {
     110
   } else {
     128
+  }
+}
+
+///|
+fn boolean_parameters_from_code(
+  code : Int,
+) -> Result[BooleanParameters, SerializationError] {
+  if code == 0 {
+    Ok(boolean_test_parameters())
+  } else if code == 110 {
+    Ok(boolean_110_parameters())
+  } else if code == 128 {
+    Ok(boolean_128_parameters())
+  } else {
+    Err(ParameterMismatch)
+  }
+}
+
+///|
+fn boolean_distribution_code(parameters : BooleanParameters) -> UInt {
+  if parameters.test_only {
+    0U
+  } else {
+    1U
+  }
+}
+
+///|
+fn boolean_write_parameter_fields(
+  output : Array[Byte],
+  parameters : BooleanParameters,
+) -> Unit {
+  boolean_write_u32(
+    output,
+    6,
+    boolean_parameter_code(parameters).reinterpret_as_uint(),
+  )
+  boolean_write_u32(
+    output,
+    10,
+    parameters.record.lwe_dimension().value().reinterpret_as_uint(),
+  )
+  boolean_write_u32(
+    output,
+    14,
+    parameters.record.glwe_dimension().value().reinterpret_as_uint(),
+  )
+  boolean_write_u32(
+    output,
+    18,
+    parameters.record.polynomial_size().value().reinterpret_as_uint(),
+  )
+  boolean_write_u32(
+    output,
+    22,
+    parameters.record.pbs_decomposition().base_log().reinterpret_as_uint(),
+  )
+  boolean_write_u32(
+    output,
+    26,
+    parameters.record.pbs_decomposition().level().reinterpret_as_uint(),
+  )
+  boolean_write_u32(
+    output,
+    30,
+    parameters.record.ks_decomposition().base_log().reinterpret_as_uint(),
+  )
+  boolean_write_u32(
+    output,
+    34,
+    parameters.record.ks_decomposition().level().reinterpret_as_uint(),
+  )
+  // Torus32 uses modulus 2^32, encoded as zero modulo 2^32.
+  boolean_write_u32(output, 38, 0U)
+  boolean_write_u32(output, 42, boolean_distribution_code(parameters))
+}
+
+///|
+fn boolean_validate_parameter_fields(
+  input : Bytes,
+  parameters : BooleanParameters,
+) -> Bool {
+  boolean_read_u32(input, 6).reinterpret_as_int() ==
+  boolean_parameter_code(parameters) &&
+  boolean_read_u32(input, 10).reinterpret_as_int() ==
+  parameters.record.lwe_dimension().value() &&
+  boolean_read_u32(input, 14).reinterpret_as_int() ==
+  parameters.record.glwe_dimension().value() &&
+  boolean_read_u32(input, 18).reinterpret_as_int() ==
+  parameters.record.polynomial_size().value() &&
+  boolean_read_u32(input, 22).reinterpret_as_int() ==
+  parameters.record.pbs_decomposition().base_log() &&
+  boolean_read_u32(input, 26).reinterpret_as_int() ==
+  parameters.record.pbs_decomposition().level() &&
+  boolean_read_u32(input, 30).reinterpret_as_int() ==
+  parameters.record.ks_decomposition().base_log() &&
+  boolean_read_u32(input, 34).reinterpret_as_int() ==
+  parameters.record.ks_decomposition().level() &&
+  boolean_read_u32(input, 38) == 0U &&
+  boolean_read_u32(input, 42) == boolean_distribution_code(parameters)
+}
+
+///|
+fn boolean_checked_add(left : Int, right : Int, limit : Int) -> Int? {
+  if left < 0 || right < 0 || left > limit - right {
+    None
+  } else {
+    Some(left + right)
+  }
+}
+
+///|
+fn boolean_checked_mul(left : Int, right : Int, limit : Int) -> Int? {
+  if left < 0 || right < 0 || (right != 0 && left > limit / right) {
+    None
+  } else {
+    Some(left * right)
   }
 }
 
@@ -771,11 +884,48 @@ fn boolean_read_key_id(input : Bytes, offset : Int) -> @params.KeyId {
 }
 
 ///|
-/// Castagnoli CRC32C, used by the v2 binary format.
-fn boolean_crc32c(bytes : Bytes) -> UInt {
+/// Castagnoli CRC32C over immutable envelope metadata and payload.
+fn boolean_crc32c_envelope(
+  bytes : Bytes,
+  checksum_offset : Int,
+  payload_offset : Int,
+  payload_length : Int,
+) -> UInt {
   let mut crc = 0xFFFFFFFFU
-  for byte in bytes {
-    crc = crc ^ byte.to_uint()
+  for index in 0..<checksum_offset {
+    crc = crc ^ bytes[index].to_uint()
+    for _ in 0..<8 {
+      let mask = 0U - (crc & 1U)
+      crc = (crc >> 1) ^ (0x82F63B78U & mask)
+    }
+  }
+  for index in payload_offset..<(payload_offset + payload_length) {
+    crc = crc ^ bytes[index].to_uint()
+    for _ in 0..<8 {
+      let mask = 0U - (crc & 1U)
+      crc = (crc >> 1) ^ (0x82F63B78U & mask)
+    }
+  }
+  crc ^ 0xFFFFFFFFU
+}
+
+///|
+fn boolean_crc32c_envelope_array(
+  bytes : Array[Byte],
+  checksum_offset : Int,
+  payload_offset : Int,
+  payload_length : Int,
+) -> UInt {
+  let mut crc = 0xFFFFFFFFU
+  for index in 0..<checksum_offset {
+    crc = crc ^ bytes[index].to_uint()
+    for _ in 0..<8 {
+      let mask = 0U - (crc & 1U)
+      crc = (crc >> 1) ^ (0x82F63B78U & mask)
+    }
+  }
+  for index in payload_offset..<(payload_offset + payload_length) {
+    crc = crc ^ bytes[index].to_uint()
     for _ in 0..<8 {
       let mask = 0U - (crc & 1U)
       crc = (crc >> 1) ^ (0x82F63B78U & mask)
@@ -795,21 +945,17 @@ pub fn ClientKey::export_secret(
     return Err(InvalidKeyLength)
   }
   let payload_length = 9 + (self.parameters.dimension + 7) / 8
-  let header = Array::make(34, b'\x00')
+  let header_length = 66
+  let header = Array::make(header_length, b'\x00')
   header[0] = b'M'
   header[1] = b'T'
   header[2] = b'S'
   header[3] = b'K'
   header[4] = b'\x01'
   header[5] = b'\x01'
-  boolean_write_u32(
-    header,
-    6,
-    boolean_parameter_code(self.parameters).reinterpret_as_uint(),
-  )
-  boolean_write_u32(header, 10, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_key_id(header, 14, self.key_id)
-  boolean_write_u32(header, 30, payload_length.reinterpret_as_uint())
+  boolean_write_parameter_fields(header, self.parameters)
+  boolean_write_key_id(header, 46, self.key_id)
+  boolean_write_u32(header, 62, payload_length.reinterpret_as_uint())
   let nonce = Array::make(12, b'\x00')
   for word_index in 0..<3 {
     let word = self.serialization_rng.next_u32()
@@ -840,15 +986,15 @@ pub fn ClientKey::export_secret(
   if encrypted.length() != payload_length + 16 {
     return Err(InvalidLength)
   }
-  let output = Array::make(46 + encrypted.length(), b'\x00')
-  for index in 0..<34 {
+  let output = Array::make(header_length + 12 + encrypted.length(), b'\x00')
+  for index in 0..<header_length {
     output[index] = header[index]
   }
   for index in 0..<12 {
-    output[34 + index] = nonce[index]
+    output[header_length + index] = nonce[index]
   }
   for index in 0..<encrypted.length() {
-    output[46 + index] = encrypted[index]
+    output[header_length + 12 + index] = encrypted[index]
   }
   Ok(Bytes::from_array(output))
 }
@@ -862,7 +1008,7 @@ pub fn ClientKey::import_secret(
   key : SerializationKey,
   bytes : Bytes,
 ) -> Result[ClientKey, SerializationError] {
-  let header_length = 34
+  let header_length = 66
   let nonce_length = 12
   let tag_length = 16
   if key.bytes.length() != 32 {
@@ -883,15 +1029,15 @@ pub fn ClientKey::import_secret(
   if bytes[5] != b'\x01' {
     return Err(InvalidCiphertext)
   }
-  let parameter_code = boolean_read_u32(bytes, 6).reinterpret_as_int()
   let dimension = boolean_read_u32(bytes, 10).reinterpret_as_int()
-  let key_id = boolean_read_key_id(bytes, 14)
-  let payload_length = boolean_read_u32(bytes, 30).reinterpret_as_int()
-  if payload_length < 9 ||
+  let key_id = boolean_read_key_id(bytes, 46)
+  let payload_length = boolean_read_u32(bytes, 62).reinterpret_as_int()
+  let expected_payload_length = 9 + (parameters.dimension + 7) / 8
+  if payload_length != expected_payload_length ||
     bytes.length() != header_length + nonce_length + payload_length + tag_length {
     return Err(InvalidLength)
   }
-  if parameter_code != boolean_parameter_code(parameters) ||
+  if !boolean_validate_parameter_fields(bytes, parameters) ||
     dimension != parameters.dimension {
     return Err(ParameterMismatch)
   }
@@ -975,38 +1121,211 @@ pub fn ClientKey::import_secret(
 pub fn ServerKey::serialize(
   self : ServerKey,
 ) -> Result[Bytes, SerializationError] {
-  // The formal public format is completed in C12. During C7 the payload is a
-  // typed, secret-free structural marker rather than a legacy root snapshot.
-  let payload = Bytes::from_array([
-    b'M',
-    b'K',
-    b'S',
-    b'P',
-    b'\x01',
-    self.parameters.dimension.to_byte(),
-  ])
-  let header_length = 51
-  let output = Array::make(header_length + payload.length(), b'\x00')
+  let bsk = self.inner.coefficient_bsk_copy()
+  let ksk = self.inner.key_switch_flat_copy()
+  let word_count = match
+    boolean_checked_add(bsk.length(), ksk.length(), 96 * 1024 * 1024) {
+    Some(value) => value
+    None => return Err(InvalidLength)
+  }
+  let payload_length = match
+    boolean_checked_mul(word_count, 4, 384 * 1024 * 1024) {
+    Some(value) => value
+    None => return Err(InvalidLength)
+  }
+  let header_length = 90
+  let total_length = match
+    boolean_checked_add(header_length, payload_length, 384 * 1024 * 1024) {
+    Some(value) => value
+    None => return Err(InvalidLength)
+  }
+  let output = Array::make(total_length, b'\x00')
   output[0] = b'M'
   output[1] = b'B'
   output[2] = b'K'
   output[3] = b'S'
   output[4] = b'\x01'
   output[5] = b'\x01'
+  boolean_write_parameter_fields(output, self.parameters)
+  boolean_write_key_id(output, 46, self.key_id)
   boolean_write_u32(
     output,
-    7,
-    boolean_parameter_code(self.parameters).reinterpret_as_uint(),
+    62,
+    match self.inner.order() {
+      @pbs.KeyswitchBootstrap => 0U
+      @pbs.BootstrapKeyswitch => 1U
+    },
   )
-  boolean_write_u32(output, 11, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_key_id(output, 15, self.key_id)
-  boolean_write_u32(output, 31, 0U)
-  boolean_write_u32(output, 35, 0U)
-  boolean_write_u32(output, 39, if self.parameters.test_only { 0U } else { 1U })
-  boolean_write_u32(output, 43, payload.length().reinterpret_as_uint())
-  boolean_write_u32(output, 47, boolean_crc32c(payload))
-  for index in 0..<payload.length() {
-    output[header_length + index] = payload[index]
+  boolean_write_u32(
+    output,
+    66,
+    self.inner.key_switch_input_dimension().value().reinterpret_as_uint(),
+  )
+  boolean_write_u32(
+    output,
+    70,
+    self.inner.key_switch_output_dimension().value().reinterpret_as_uint(),
+  )
+  boolean_write_u32(output, 74, bsk.length().reinterpret_as_uint())
+  boolean_write_u32(output, 78, ksk.length().reinterpret_as_uint())
+  boolean_write_u32(output, 82, payload_length.reinterpret_as_uint())
+  for index in 0..<bsk.length() {
+    boolean_write_u32(output, header_length + index * 4, bsk[index])
   }
+  let ksk_offset = header_length + bsk.length() * 4
+  for index in 0..<ksk.length() {
+    boolean_write_u32(output, ksk_offset + index * 4, ksk[index])
+  }
+  boolean_write_u32(
+    output,
+    86,
+    boolean_crc32c_envelope_array(output, 86, header_length, payload_length),
+  )
   Ok(Bytes::from_array(output))
+}
+
+///|
+/// Deserialize complete, public MBKS v1 evaluation material. Fourier state is
+/// intentionally absent from the format and rebuilt by the active backend.
+pub fn ServerKey::deserialize(
+  bytes : Bytes,
+) -> Result[ServerKey, SerializationError] {
+  let header_length = 90
+  if bytes.length() < header_length {
+    return Err(InvalidLength)
+  }
+  if bytes[0] != b'M' ||
+    bytes[1] != b'B' ||
+    bytes[2] != b'K' ||
+    bytes[3] != b'S' {
+    return Err(InvalidMagic)
+  }
+  if bytes[4] != b'\x01' {
+    return Err(UnsupportedVersion)
+  }
+  if bytes[5] != b'\x01' {
+    return Err(InvalidServerKey)
+  }
+  let parameters = match
+    boolean_parameters_from_code(
+      boolean_read_u32(bytes, 6).reinterpret_as_int(),
+    ) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  if !boolean_validate_parameter_fields(bytes, parameters) {
+    return Err(ParameterMismatch)
+  }
+  let order = match boolean_read_u32(bytes, 62) {
+    0U => @pbs.keyswitch_bootstrap_order()
+    1U => @pbs.bootstrap_keyswitch_order()
+    _ => return Err(InvalidServerKey)
+  }
+  let input_dimension = parameters.record.lwe_dimension()
+  let glwe = match
+    @glwe.glwe_parameters(
+      parameters.record.glwe_dimension().value(),
+      parameters.record.polynomial_size().value(),
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidServerKey)
+  }
+  let ggsw = match
+    @ggsw.ggsw_parameters(
+      glwe,
+      parameters.record.pbs_decomposition().base_log(),
+      parameters.record.pbs_decomposition().level(),
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidServerKey)
+  }
+  let extracted_dimension = match
+    @params.lwe_dimension(glwe.glwe_dimension() * glwe.polynomial_size()) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidServerKey)
+  }
+  if boolean_read_u32(bytes, 66).reinterpret_as_int() !=
+    extracted_dimension.value() ||
+    boolean_read_u32(bytes, 70).reinterpret_as_int() != input_dimension.value() {
+    return Err(ParameterMismatch)
+  }
+  let expected_bsk_words = match
+    boolean_checked_mul(
+      input_dimension.value(),
+      ggsw.flat_size(),
+      96 * 1024 * 1024,
+    ) {
+    Some(value) => value
+    None => return Err(InvalidServerKey)
+  }
+  let expected_ksk_rows = match
+    boolean_checked_mul(
+      extracted_dimension.value(),
+      parameters.record.ks_decomposition().level(),
+      96 * 1024 * 1024,
+    ) {
+    Some(value) => value
+    None => return Err(InvalidServerKey)
+  }
+  let expected_ksk_words = match
+    boolean_checked_mul(
+      expected_ksk_rows,
+      input_dimension.value() + 1,
+      96 * 1024 * 1024,
+    ) {
+    Some(value) => value
+    None => return Err(InvalidServerKey)
+  }
+  let bsk_words = boolean_read_u32(bytes, 74).reinterpret_as_int()
+  let ksk_words = boolean_read_u32(bytes, 78).reinterpret_as_int()
+  if bsk_words != expected_bsk_words || ksk_words != expected_ksk_words {
+    return Err(InvalidServerKey)
+  }
+  let word_count = match
+    boolean_checked_add(bsk_words, ksk_words, 96 * 1024 * 1024) {
+    Some(value) => value
+    None => return Err(InvalidLength)
+  }
+  let payload_length = match
+    boolean_checked_mul(word_count, 4, 384 * 1024 * 1024) {
+    Some(value) => value
+    None => return Err(InvalidLength)
+  }
+  if boolean_read_u32(bytes, 82).reinterpret_as_int() != payload_length ||
+    bytes.length() != header_length + payload_length {
+    return Err(InvalidLength)
+  }
+  if boolean_crc32c_envelope(bytes, 86, header_length, payload_length) !=
+    boolean_read_u32(bytes, 86) {
+    return Err(ChecksumMismatch)
+  }
+  let coefficient_bsk = FixedArray::makei(bsk_words, fn(index) {
+    boolean_read_u32(bytes, header_length + index * 4)
+  })
+  let ksk_offset = header_length + bsk_words * 4
+  let key_switch_data = FixedArray::makei(ksk_words, fn(index) {
+    boolean_read_u32(bytes, ksk_offset + index * 4)
+  })
+  let key_switch = match
+    @keyswitch.keyswitch_key_from_flat_u32(
+      extracted_dimension,
+      input_dimension,
+      parameters.record.ks_decomposition(),
+      key_switch_data,
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidServerKey)
+  }
+  let fourier = match rebuild_fourier_cache(parameters, ggsw, coefficient_bsk) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let bootstrap = match
+    @pbs.bootstrap_key_from_flat_encrypted_parts(
+      input_dimension, glwe, ggsw, coefficient_bsk, key_switch, order, fourier,
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidServerKey)
+  }
+  Ok({ inner: bootstrap, parameters, key_id: boolean_read_key_id(bytes, 46) })
 }
