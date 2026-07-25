@@ -18,5 +18,9 @@ options(
       "cc-link-flags": "native/fft/target/release/libmoontfhe_fft.a native/aead/target/release/libmoontfhe_aead.a -lm",
     },
   },
-  targets: { "api_native_test.mbt": [ "native" ] },
+  targets: {
+    "api_native_test.mbt": [ "native" ],
+    "standard_keygen_native.mbt": [ "native" ],
+    "standard_keygen_portable.mbt": [ "wasm", "wasm-gc", "js" ],
+  },
 )

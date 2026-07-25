@@ -41,7 +41,7 @@ pub struct FourierBootstrapKey {
     ggsw_count: usize,
     digit_count: usize,
     output_count: usize,
-    // [ggsw][digit][output][limb][N/2]
+    // [ggsw][digit][output][N/2], using centered Torus32 coefficients.
     spectra: Vec<Complex<f64>>,
 }
 
@@ -163,16 +163,14 @@ impl FftPlan {
         }
     }
 
-    fn polynomial_limb_to_half(
+    fn polynomial_centered_to_half(
         &self,
         coefficients: &[u32],
-        limb: Limb,
         scratch: &mut FftScratch,
         output: &mut [Complex<f64>],
     ) {
         for index in 0..self.polynomial_size {
-            scratch.left[index] =
-                self.forward_twist[index] * Self::limb(coefficients[index], limb);
+            scratch.left[index] = self.forward_twist[index] * (coefficients[index] as i32 as f64);
         }
         self.forward
             .process_with_scratch(&mut scratch.left, &mut scratch.fft_scratch);
@@ -224,7 +222,7 @@ impl FourierBootstrapKey {
         let polynomial_count = ggsw_count
             .checked_mul(digit_count)?
             .checked_mul(output_count)?;
-        let spectrum_count = polynomial_count.checked_mul(2)?.checked_mul(plan.half_size)?;
+        let spectrum_count = polynomial_count.checked_mul(plan.half_size)?;
         Some(Self {
             polynomial_size: plan.polynomial_size,
             ggsw_count,
@@ -234,8 +232,8 @@ impl FourierBootstrapKey {
         })
     }
 
-    fn spectrum_offset(&self, ggsw: usize, digit: usize, output: usize, limb: usize) -> usize {
-        (((ggsw * self.digit_count + digit) * self.output_count + output) * 2 + limb)
+    fn spectrum_offset(&self, ggsw: usize, digit: usize, output: usize) -> usize {
+        ((ggsw * self.digit_count + digit) * self.output_count + output)
             * (self.polynomial_size / 2)
     }
 
@@ -259,19 +257,11 @@ impl FourierBootstrapKey {
                         + output)
                         * self.polynomial_size;
                     let coefficients = &coefficients[polynomial..polynomial + self.polynomial_size];
-                    let low_offset = self.spectrum_offset(ggsw, digit, output, 0);
-                    let high_offset = self.spectrum_offset(ggsw, digit, output, 1);
-                    plan.polynomial_limb_to_half(
+                    let spectrum_offset = self.spectrum_offset(ggsw, digit, output);
+                    plan.polynomial_centered_to_half(
                         coefficients,
-                        Limb::Low,
                         scratch,
-                        &mut self.spectra[low_offset..low_offset + half],
-                    );
-                    plan.polynomial_limb_to_half(
-                        coefficients,
-                        Limb::High,
-                        scratch,
-                        &mut self.spectra[high_offset..high_offset + half],
+                        &mut self.spectra[spectrum_offset..spectrum_offset + half],
                     );
                 }
             }
@@ -309,7 +299,7 @@ impl FourierBootstrapKey {
             scratch.half_accumulator.fill(Complex::new(0.0, 0.0));
             for digit in 0..self.digit_count {
                 let digit_offset = digit * half;
-                let key_offset = self.spectrum_offset(ggsw_index, digit, output_index, 0);
+                let key_offset = self.spectrum_offset(ggsw_index, digit, output_index);
                 for frequency in 0..half {
                     scratch.half_accumulator[frequency] += scratch.digit_fourier
                         [digit_offset + frequency]
@@ -317,23 +307,9 @@ impl FourierBootstrapKey {
                 }
             }
             plan.inverse_half_accumulator(scratch, 0);
-
-            scratch.half_accumulator.fill(Complex::new(0.0, 0.0));
-            for digit in 0..self.digit_count {
-                let digit_offset = digit * half;
-                let key_offset = self.spectrum_offset(ggsw_index, digit, output_index, 1);
-                for frequency in 0..half {
-                    scratch.half_accumulator[frequency] += scratch.digit_fourier
-                        [digit_offset + frequency]
-                        * self.spectra[key_offset + frequency];
-                }
-            }
-            plan.inverse_half_accumulator(scratch, 1);
             let output_start = output_index * self.polynomial_size;
             for coefficient in 0..self.polynomial_size {
-                let value = scratch.convolution_0[coefficient] as i128
-                    + ((scratch.convolution_1[coefficient] as i128) << 16);
-                output[output_start + coefficient] = value as u32;
+                output[output_start + coefficient] = scratch.convolution_0[coefficient] as u32;
             }
         }
         true
@@ -677,6 +653,10 @@ mod tests {
         let plan = FftPlan::new(n).unwrap();
         let mut scratch = plan.new_scratch(digit_count, output_count).unwrap();
         let mut key = FourierBootstrapKey::new(&plan, ggsw_count, digit_count, output_count).unwrap();
+        assert_eq!(
+            key.spectra.len(),
+            ggsw_count * digit_count * output_count * (n / 2)
+        );
         let coefficients: Vec<u32> = (0..ggsw_count * digit_count * output_count * n)
             .map(|index| (index as u32).wrapping_mul(0x9E37_79B9) ^ 0xF000_0001)
             .collect();

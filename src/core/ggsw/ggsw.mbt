@@ -61,6 +61,11 @@ pub fn GgswParameters::glwe(self : GgswParameters) -> @glwe.GlweParameters {
 }
 
 ///|
+pub fn GgswParameters::flat_size(self : GgswParameters) -> Int {
+  self.rows() * self.columns() * self.glwe.polynomial_size()
+}
+
+///|
 pub fn GgswCiphertext::parameters(self : GgswCiphertext) -> GgswParameters {
   self.parameters
 }
@@ -161,6 +166,50 @@ pub fn ggsw_encrypt_boolean(
     let gadget = @torus.Torus32::from_uint(1U << shift)
     for component in 0..<parameters.columns() {
       let row = match key.encrypt(zero, noise, rng) {
+        Ok(value) => value
+        Err(_) => return Err(EncryptionFailure)
+      }
+      let row = if message {
+        match row.add_gadget_to_component(component, gadget) {
+          Ok(value) => value
+          Err(_) => return Err(EncryptionFailure)
+        }
+      } else {
+        row
+      }
+      let flat = row.flat_u32_copy()
+      for offset in 0..<row_size {
+        data[row_index * row_size + offset] = flat[offset]
+      }
+      row_index = row_index + 1
+    }
+  }
+  Ok({ parameters, data })
+}
+
+///|
+/// Native key-generation variant using a caller-owned reusable FFT plan.
+pub fn ggsw_encrypt_boolean_with_fft(
+  parameters : GgswParameters,
+  key : @glwe.GlweSecretKey,
+  message : Bool,
+  noise : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+  plan : @provider.FftPlan,
+) -> Result[GgswCiphertext, GgswError] {
+  if key.parameters() != parameters.glwe {
+    return Err(ParameterMismatch)
+  }
+  let n = parameters.glwe.polynomial_size()
+  let zero = Array::make(n, @torus.Torus32::zero())
+  let row_size = parameters.columns() * n
+  let data = FixedArray::make(parameters.rows() * row_size, 0U)
+  let mut row_index = 0
+  for level_index in 0..<parameters.level {
+    let shift = 32 - parameters.base_log * (level_index + 1)
+    let gadget = @torus.Torus32::from_uint(1U << shift)
+    for component in 0..<parameters.columns() {
+      let row = match key.encrypt_with_fft(zero, noise, rng, plan) {
         Ok(value) => value
         Err(_) => return Err(EncryptionFailure)
       }

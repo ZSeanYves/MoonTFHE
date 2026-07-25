@@ -36,9 +36,11 @@ pub suberror PbsError {
 pub struct BootstrapKey {
   input_dimension : @params.LweDimension
   glwe_parameters : @glwe.GlweParameters
-  controls : Array[@ggsw.GgswCiphertext]
+  ggsw_parameters : @ggsw.GgswParameters
+  coefficient_bsk : FixedArray[UInt]
   key_switch : @keyswitch.KeySwitchKey
   order : PbsOrder
+  fourier : @provider.FourierBootstrapKey?
 }
 
 ///|
@@ -82,6 +84,49 @@ pub fn bootstrap_key_from_encrypted_parts(
   if controls.length() != input_dimension.value() {
     return Err(BootstrapKeyShapeMismatch)
   }
+  if controls.length() == 0 {
+    return Err(BootstrapKeyShapeMismatch)
+  }
+  let ggsw_parameters = controls[0].parameters()
+  let flat_size = ggsw_parameters.flat_size()
+  let coefficient_bsk = FixedArray::make(controls.length() * flat_size, 0U)
+  for index in 0..<controls.length() {
+    if controls[index].parameters() != ggsw_parameters ||
+      controls[index].validate() is Err(_) {
+      return Err(BootstrapKeyShapeMismatch)
+    }
+    let flat = controls[index].flat_u32_copy()
+    for offset in 0..<flat_size {
+      coefficient_bsk[index * flat_size + offset] = flat[offset]
+    }
+  }
+  bootstrap_key_from_flat_encrypted_parts(
+    input_dimension,
+    glwe_parameters,
+    ggsw_parameters,
+    coefficient_bsk,
+    key_switch,
+    order,
+    None,
+  )
+}
+
+///|
+/// Construct a BSK from its canonical contiguous coefficient representation.
+pub fn bootstrap_key_from_flat_encrypted_parts(
+  input_dimension : @params.LweDimension,
+  glwe_parameters : @glwe.GlweParameters,
+  ggsw_parameters : @ggsw.GgswParameters,
+  coefficient_bsk : FixedArray[UInt],
+  key_switch : @keyswitch.KeySwitchKey,
+  order : PbsOrder,
+  fourier : @provider.FourierBootstrapKey?,
+) -> Result[BootstrapKey, PbsError] {
+  if ggsw_parameters.glwe() != glwe_parameters ||
+    coefficient_bsk.length() !=
+    input_dimension.value() * ggsw_parameters.flat_size() {
+    return Err(BootstrapKeyShapeMismatch)
+  }
   let extracted_dimension = match
     @params.lwe_dimension(
       glwe_parameters.glwe_dimension() * glwe_parameters.polynomial_size(),
@@ -93,12 +138,15 @@ pub fn bootstrap_key_from_encrypted_parts(
     key_switch.output_dimension() != input_dimension {
     return Err(BootstrapKeyShapeMismatch)
   }
-  for control in controls {
-    if control.validate() is Err(_) {
-      return Err(BootstrapKeyShapeMismatch)
-    }
-  }
-  Ok({ input_dimension, glwe_parameters, controls, key_switch, order })
+  Ok({
+    input_dimension,
+    glwe_parameters,
+    ggsw_parameters,
+    coefficient_bsk,
+    key_switch,
+    order,
+    fourier,
+  })
 }
 
 ///|
@@ -117,7 +165,14 @@ pub fn BootstrapKey::glwe_parameters(
 
 ///|
 pub fn BootstrapKey::control_count(self : BootstrapKey) -> Int {
-  self.controls.length()
+  self.input_dimension.value()
+}
+
+///|
+pub fn BootstrapKey::coefficient_bsk_copy(
+  self : BootstrapKey,
+) -> FixedArray[UInt] {
+  self.coefficient_bsk.copy()
 }
 
 ///|
@@ -137,6 +192,76 @@ pub fn BootstrapKey::key_switch_output_dimension(
 ///|
 pub fn BootstrapKey::order(self : BootstrapKey) -> PbsOrder {
   self.order
+}
+
+///|
+fn BootstrapKey::control(
+  self : BootstrapKey,
+  index : Int,
+) -> Result[@ggsw.GgswCiphertext, PbsError] {
+  if index < 0 || index >= self.input_dimension.value() {
+    return Err(BootstrapKeyShapeMismatch)
+  }
+  let flat_size = self.ggsw_parameters.flat_size()
+  let offset = index * flat_size
+  match
+    @ggsw.ggsw_from_flat_u32(
+      self.ggsw_parameters,
+      FixedArray::makei(flat_size, fn(word) {
+        self.coefficient_bsk[offset + word]
+      }),
+    ) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(BootstrapKeyShapeMismatch)
+  }
+}
+
+///|
+fn BootstrapKey::fourier_external_product(
+  self : BootstrapKey,
+  key : @provider.FourierBootstrapKey,
+  control_index : Int,
+  input : @glwe.GlweCiphertext,
+) -> Result[@glwe.GlweCiphertext, PbsError] {
+  if input.parameters() != self.glwe_parameters {
+    return Err(InputDimensionMismatch)
+  }
+  let n = self.glwe_parameters.polynomial_size()
+  let columns = self.glwe_parameters.glwe_dimension() + 1
+  let level = self.ggsw_parameters.level()
+  let decomposition = match
+    @params.decomposition_parameters(self.ggsw_parameters.base_log(), level) {
+    Ok(value) => value
+    Err(_) => return Err(BlindRotationFailure)
+  }
+  let digits = FixedArray::make(level * columns * n, 0U)
+  let flat = input.flat_u32_copy()
+  for component in 0..<columns {
+    for coefficient in 0..<n {
+      let decomposition_digits = match
+        @keyswitch.signed_gadget_decompose(
+          @torus.Torus32::from_uint(flat[component * n + coefficient]),
+          decomposition,
+        ) {
+        Ok(value) => value
+        Err(_) => return Err(BlindRotationFailure)
+      }
+      for level_index in 0..<level {
+        let row = level_index * columns + component
+        digits[row * n + coefficient] = decomposition_digits[level_index].reinterpret_as_uint()
+      }
+    }
+  }
+  let output = FixedArray::make(columns * n, 0U)
+  match key.external_product(control_index, digits, output) {
+    Ok(_) =>
+      match
+        @glwe.glwe_ciphertext_from_owned_flat_u32(self.glwe_parameters, output) {
+        Ok(value) => Ok(value)
+        Err(_) => Err(BlindRotationFailure)
+      }
+    Err(_) => Err(BlindRotationFailure)
+  }
 }
 
 ///|
@@ -180,7 +305,7 @@ pub fn BootstrapKey::blind_rotate(
   input : @lwe.LweCiphertext,
 ) -> Result[@glwe.GlweCiphertext, PbsError] {
   if input.parameters() != self.input_dimension ||
-    input.a().length() != self.controls.length() ||
+    input.a().length() != self.input_dimension.value() ||
     accumulator.parameters() != self.glwe_parameters {
     return Err(InputDimensionMismatch)
   }
@@ -206,8 +331,28 @@ pub fn BootstrapKey::blind_rotate(
     }
     if switched != 0 {
       let rotated = result.rotate_negacyclic(-switched)
-      result = match self.controls[index].cmux(rotated, result) {
+      let difference = match rotated.sub(result) {
         Ok(value) => value
+        Err(_) => return Err(BlindRotationFailure)
+      }
+      let selected = match self.fourier {
+        Some(key) => self.fourier_external_product(key, index, difference)
+        None =>
+          match self.control(index) {
+            Ok(control) =>
+              match control.external_product(difference) {
+                Ok(value) => Ok(value)
+                Err(_) => Err(BlindRotationFailure)
+              }
+            Err(error) => Err(error)
+          }
+      }
+      result = match selected {
+        Ok(value) =>
+          match result.add(value) {
+            Ok(sum) => sum
+            Err(_) => return Err(BlindRotationFailure)
+          }
         Err(_) => return Err(BlindRotationFailure)
       }
     }

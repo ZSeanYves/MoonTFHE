@@ -6,6 +6,7 @@ import {
   "ZSeanYves/MoonTFHE/src/core/glwe",
   "ZSeanYves/MoonTFHE/src/core/keyswitch",
   "ZSeanYves/MoonTFHE/src/core/lwe",
+  "ZSeanYves/MoonTFHE/src/native/provider",
   "ZSeanYves/MoonTFHE/src/params",
   "ZSeanYves/MoonTFHE/src/torus",
   "moonbitlang/core/debug",
@@ -15,6 +16,8 @@ import {
 pub fn boolean_lut(@torus.Torus32, @torus.Torus32) -> BooleanLut
 
 pub fn bootstrap_key_from_encrypted_parts(@params.LweDimension, @glwe.GlweParameters, Array[@ggsw.GgswCiphertext], @keyswitch.KeySwitchKey, PbsOrder) -> Result[BootstrapKey, PbsError]
+
+pub fn bootstrap_key_from_flat_encrypted_parts(@params.LweDimension, @glwe.GlweParameters, @ggsw.GgswParameters, FixedArray[UInt], @keyswitch.KeySwitchKey, PbsOrder, @provider.FourierBootstrapKey?) -> Result[BootstrapKey, PbsError]
 
 pub fn bootstrap_keyswitch_order() -> PbsOrder
 
@@ -43,11 +46,14 @@ pub fn BooleanLut::true_value(Self) -> @torus.Torus32
 pub struct BootstrapKey {
   input_dimension : @params.LweDimension
   glwe_parameters : @glwe.GlweParameters
-  controls : Array[@ggsw.GgswCiphertext]
+  ggsw_parameters : @ggsw.GgswParameters
+  coefficient_bsk : FixedArray[UInt]
   key_switch : @keyswitch.KeySwitchKey
   order : PbsOrder
+  fourier : @provider.FourierBootstrapKey?
 }
 pub fn BootstrapKey::blind_rotate(Self, @glwe.GlweCiphertext, @lwe.LweCiphertext) -> Result[@glwe.GlweCiphertext, PbsError]
+pub fn BootstrapKey::coefficient_bsk_copy(Self) -> FixedArray[UInt]
 pub fn BootstrapKey::control_count(Self) -> Int
 pub fn BootstrapKey::glwe_parameters(Self) -> @glwe.GlweParameters
 pub fn BootstrapKey::input_dimension(Self) -> @params.LweDimension

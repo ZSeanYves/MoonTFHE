@@ -30,3 +30,13 @@ test "stable Boolean facade: native SecretExport import authenticates key" {
     is Err(AuthenticationFailed),
   )
 }
+
+///|
+test "stable Boolean facade: native 110-bit keygen closes encrypt and NAND" {
+  let parameters = boolean_110_parameters()
+  let (client, server) = generate_keys(parameters).unwrap()
+  assert_eq(client.decrypt(client.encrypt(false)), Ok(false))
+  assert_eq(client.decrypt(client.encrypt(true)), Ok(true))
+  let result = server.nand(client.encrypt(true), client.encrypt(true)).unwrap()
+  assert_eq(client.decrypt(result), Ok(false))
+}

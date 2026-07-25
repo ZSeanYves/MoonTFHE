@@ -97,6 +97,7 @@ pub struct ClientKey {
   inner : @lwe.LweSecretKey
   mask_rng : @random.RandomGenerator
   noise_rng : @random.RandomGenerator
+  serialization_rng : @random.RandomGenerator
   encryption_noise : @random.DiscreteGaussian
   parameters : BooleanParameters
   key_id : @params.KeyId

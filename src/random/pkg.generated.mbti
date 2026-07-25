@@ -6,6 +6,8 @@ import {
 }
 
 // Values
+pub fn bootstrap_key_domain() -> RandomDomain
+
 pub fn clear_entropy_provider() -> Unit
 
 pub fn gaussian_boolean_110_glwe_fixture() -> DiscreteGaussian
@@ -19,6 +21,8 @@ pub fn gaussian_boolean_128_lwe_fixture() -> DiscreteGaussian
 pub fn gaussian_sigma_3_fixture() -> DiscreteGaussian
 
 pub fn install_entropy_provider((Int) -> Bytes?) -> Unit
+
+pub fn key_generation_domain() -> RandomDomain
 
 pub fn secure_encryption_mask_rng_new() -> Result[RandomGenerator, RandomError]
 

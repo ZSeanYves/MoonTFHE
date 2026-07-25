@@ -95,6 +95,21 @@ pub fn glwe_ciphertext_from_flat_u32(
 }
 
 ///|
+/// Adopt a validated caller-owned flat buffer without copying it. This is an
+/// internal core boundary used by preallocated native PBS workspaces.
+pub fn glwe_ciphertext_from_owned_flat_u32(
+  parameters : GlweParameters,
+  data : FixedArray[UInt],
+) -> Result[GlweCiphertext, GlweError] {
+  let expected = (parameters.glwe_dimension + 1) * parameters.polynomial_size
+  if data.length() != expected {
+    Err(CiphertextShapeMismatch)
+  } else {
+    Ok({ parameters, data })
+  }
+}
+
+///|
 pub fn GlweCiphertext::flat_u32_copy(self : GlweCiphertext) -> FixedArray[UInt] {
   self.data.copy()
 }
@@ -269,6 +284,48 @@ pub fn GlweSecretKey::encrypt(
     }
     body[i] = body[i].add(@torus.Torus32::from_int(noise))
     data[self.parameters.glwe_dimension * n + i] = body[i].to_uint()
+  }
+  Ok({ parameters: self.parameters, data })
+}
+
+///|
+/// Encrypt a GLWE row using one preallocated native FFT plan. Masks and noise
+/// remain generated in MoonBit; only the batched mask/secret convolution
+/// crosses the borrowed-array ABI.
+pub fn GlweSecretKey::encrypt_with_fft(
+  self : GlweSecretKey,
+  message : Array[@torus.Torus32],
+  noise_distribution : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+  plan : @provider.FftPlan,
+) -> Result[GlweCiphertext, GlweError] {
+  let n = self.parameters.polynomial_size
+  let k = self.parameters.glwe_dimension
+  if message.length() != n {
+    return Err(MessageLengthMismatch)
+  }
+  let masks = FixedArray::make(k * n, 0U)
+  for index in 0..<masks.length() {
+    masks[index] = rng.next_u32()
+  }
+  let products = FixedArray::make(n, 0U)
+  match plan.batched_glwe_convolution(masks, self.data, k, products) {
+    Ok(_) => ()
+    Err(_) => return Err(PolynomialFailure)
+  }
+  let data = FixedArray::make((k + 1) * n, 0U)
+  for index in 0..<masks.length() {
+    data[index] = masks[index]
+  }
+  for index in 0..<n {
+    let noise = match rng.sample_discrete_gaussian_fixed(noise_distribution) {
+      Ok(value) => value
+      Err(_) => return Err(NoiseFailure)
+    }
+    data[k * n + index] = message[index]
+      .add(@torus.Torus32::from_uint(products[index]))
+      .add(@torus.Torus32::from_int(noise))
+      .to_uint()
   }
   Ok({ parameters: self.parameters, data })
 }

@@ -186,6 +186,16 @@ pub fn serialization_nonce_domain() -> RandomDomain {
 }
 
 ///|
+pub fn key_generation_domain() -> RandomDomain {
+  KeyGeneration
+}
+
+///|
+pub fn bootstrap_key_domain() -> RandomDomain {
+  BootstrapKey
+}
+
+///|
 /// Create a production stream separated by a protocol-owned domain label.
 pub fn secure_rng_new_for(
   domain : RandomDomain,

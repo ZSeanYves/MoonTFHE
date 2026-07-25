@@ -10,11 +10,11 @@ negacyclic convolution, indexed external products, and reusable workspaces.
 - A polynomial contains `N` Torus32 coefficients.
 - A Fourier polynomial contains `N / 2` `Complex64` values. The omitted half is
   reconstructed by conjugate symmetry of the odd negacyclic roots.
-- Full-width Torus32 coefficients are split into 16-bit limbs before conversion.
-  This keeps every rounded convolution sum inside the exact integer range of an
-  IEEE-754 `f64` for the supported `N <= 1024` parameter sets.
+- Full-width standalone Torus32 products are split into 16-bit limbs. The BSK
+  cache instead uses one centered `Complex64` half-spectrum per polynomial,
+  matching the memory model needed by standard TFHE bootstrapping.
 - A Fourier BSK is indexed as
-  `[ggsw][digit][output][low-or-high-limb][frequency]`.
+  `[ggsw][digit][output][frequency]`.
 
 The coefficient BSK remains the canonical serialization form. The Fourier form
 is an opaque native cache and is never part of the stable Boolean API.

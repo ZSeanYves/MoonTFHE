@@ -3,6 +3,7 @@ package "ZSeanYves/MoonTFHE/src/core/glwe"
 
 import {
   "ZSeanYves/MoonTFHE/src/core/lwe",
+  "ZSeanYves/MoonTFHE/src/native/provider",
   "ZSeanYves/MoonTFHE/src/random",
   "ZSeanYves/MoonTFHE/src/torus",
   "moonbitlang/core/debug",
@@ -10,6 +11,8 @@ import {
 
 // Values
 pub fn glwe_ciphertext_from_flat_u32(GlweParameters, FixedArray[UInt]) -> Result[GlweCiphertext, GlweError]
+
+pub fn glwe_ciphertext_from_owned_flat_u32(GlweParameters, FixedArray[UInt]) -> Result[GlweCiphertext, GlweError]
 
 pub fn glwe_key_from_binary_secret(GlweParameters, Array[Array[Bool]]) -> Result[GlweSecretKey, GlweError]
 
@@ -62,6 +65,7 @@ pub struct GlweSecretKey {
 }
 pub fn GlweSecretKey::decrypt(Self, GlweCiphertext) -> Result[Array[@torus.Torus32], GlweError]
 pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]
+pub fn GlweSecretKey::encrypt_with_fft(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator, @provider.FftPlan) -> Result[GlweCiphertext, GlweError]
 pub fn GlweSecretKey::parameters(Self) -> GlweParameters
 pub fn GlweSecretKey::to_extracted_lwe_key(Self) -> Result[@lwe.LweSecretKey, GlweError]
 

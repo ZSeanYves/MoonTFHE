@@ -56,6 +56,7 @@ pub struct ClientKey {
   inner : @lwe.LweSecretKey
   mask_rng : @random.RandomGenerator
   noise_rng : @random.RandomGenerator
+  serialization_rng : @random.RandomGenerator
   encryption_noise : @random.DiscreteGaussian
   parameters : BooleanParameters
   key_id : @params.KeyId
@@ -122,8 +123,8 @@ pub fn BooleanParameters::is_test_only(self : BooleanParameters) -> Bool {
 }
 
 ///|
-/// Production key generation remains unavailable during C0/C1. The error is
-/// intentional until the migrated core owns the full entropy and PBS path.
+/// Production construction is native-first. Portable implementations reject
+/// unsupported standard backends before allocating evaluation material.
 pub fn generate_keys(
   parameters : BooleanParameters,
 ) -> Result[(ClientKey, ServerKey), KeyGenerationError] {
@@ -133,7 +134,7 @@ pub fn generate_keys(
   if parameters.record.validate() is Err(_) {
     return Err(InvalidParameters)
   }
-  Err(UnsupportedBackend)
+  generate_standard_keys_impl(parameters)
 }
 
 ///|
@@ -205,6 +206,7 @@ pub fn generate_test_keys(
     inner: input_key,
     mask_rng: @random.test_rng_new(seed ^ 0x454D41534BUL),
     noise_rng: @random.test_rng_new(seed ^ 0x454E4F4953UL),
+    serialization_rng: @random.test_rng_new(seed ^ 0x534E4F4E43UL),
     encryption_noise: noise,
     parameters,
     key_id,
@@ -673,14 +675,9 @@ pub fn ClientKey::export_secret(
   boolean_write_u32(header, 10, self.parameters.dimension.reinterpret_as_uint())
   boolean_write_key_id(header, 14, self.key_id)
   boolean_write_u32(header, 30, payload_length.reinterpret_as_uint())
-  let nonce_rng = match
-    @random.secure_rng_new_for(@random.serialization_nonce_domain()) {
-    Ok(value) => value
-    Err(_) => return Err(UnsupportedBackend)
-  }
   let nonce = Array::make(12, b'\x00')
   for word_index in 0..<3 {
-    let word = nonce_rng.next_u32()
+    let word = self.serialization_rng.next_u32()
     for byte_index in 0..<4 {
       nonce[word_index * 4 + byte_index] = (word >> (byte_index * 8)).to_byte()
     }
@@ -815,6 +812,11 @@ pub fn ClientKey::import_secret(
     Ok(value) => value
     Err(_) => return Err(UnsupportedBackend)
   }
+  let serialization_rng = match
+    @random.secure_rng_new_for(@random.serialization_nonce_domain()) {
+    Ok(value) => value
+    Err(_) => return Err(UnsupportedBackend)
+  }
   let encryption_noise = if parameters.test_only {
     @random.test_zero_noise_fixture()
   } else if parameters.security.target_security_bits() == 110 {
@@ -826,6 +828,7 @@ pub fn ClientKey::import_secret(
     inner: secret,
     mask_rng,
     noise_rng,
+    serialization_rng,
     encryption_noise,
     parameters,
     key_id,

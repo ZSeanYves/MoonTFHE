@@ -3,12 +3,15 @@ package "ZSeanYves/MoonTFHE/src/core/ggsw"
 
 import {
   "ZSeanYves/MoonTFHE/src/core/glwe",
+  "ZSeanYves/MoonTFHE/src/native/provider",
   "ZSeanYves/MoonTFHE/src/random",
   "moonbitlang/core/debug",
 }
 
 // Values
 pub fn ggsw_encrypt_boolean(GgswParameters, @glwe.GlweSecretKey, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GgswCiphertext, GgswError]
+
+pub fn ggsw_encrypt_boolean_with_fft(GgswParameters, @glwe.GlweSecretKey, Bool, @random.DiscreteGaussian, @random.RandomGenerator, @provider.FftPlan) -> Result[GgswCiphertext, GgswError]
 
 pub fn ggsw_from_flat_u32(GgswParameters, FixedArray[UInt]) -> Result[GgswCiphertext, GgswError]
 
@@ -45,6 +48,7 @@ pub struct GgswParameters {
 } derive(Eq, @debug.Debug)
 pub fn GgswParameters::base_log(Self) -> Int
 pub fn GgswParameters::columns(Self) -> Int
+pub fn GgswParameters::flat_size(Self) -> Int
 pub fn GgswParameters::glwe(Self) -> @glwe.GlweParameters
 pub fn GgswParameters::level(Self) -> Int
 pub fn GgswParameters::rows(Self) -> Int

@@ -6,4 +6,5 @@ import {
   "ZSeanYves/MoonTFHE/src/params",
   "ZSeanYves/MoonTFHE/src/random",
   "ZSeanYves/MoonTFHE/src/torus",
+  "ZSeanYves/MoonTFHE/src/native/provider",
 }
