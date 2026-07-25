@@ -8,3 +8,11 @@ import {
   "ZSeanYves/MoonTFHE/src/torus",
   "ZSeanYves/MoonTFHE/src/native/provider",
 }
+
+options(
+  link: {
+    "native": {
+      "cc-link-flags": "native/fft/target/release/libmoontfhe_fft.a native/aead/target/release/libmoontfhe_aead.a -lm",
+    },
+  },
+)
