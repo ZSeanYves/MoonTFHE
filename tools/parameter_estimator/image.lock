@@ -1,5 +1,6 @@
-image: sagemath/sagemath
-# The release gate refuses this sentinel. Replace it with a registry digest
-# before enabling cryptanalytic execution in CI or a release build.
-digest: sha256:UNAVAILABLE_NO_CONTAINER_IMAGE
+image: ghcr.io/zseanyves/moontfhe-estimator
+digest: sha256:d4598c718ba6536101fd4808febc8cfb20ba86c59ac0ba2297e23dea70da5431
+platform: linux/amd64
+base_image: sagemath/sagemath
+base_digest: sha256:e068670ae5863b54b2550e72437ec637b0283acb0dc712c8584c124dbf44e667
 lattice_estimator_commit: 3e48ef421ec256afddb3e7d2249a77eab6e9ba12

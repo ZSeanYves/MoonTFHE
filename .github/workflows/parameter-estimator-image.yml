@@ -67,3 +67,30 @@ jobs:
           name: estimator-image-lock
           path: image.lock.generated
           if-no-files-found: error
+
+      - name: Run locked estimator inputs
+        shell: bash
+        run: |
+          image='${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}'
+          mkdir -p estimator-outputs
+          docker run --rm --platform linux/amd64 "$image" \
+            /workspace/inputs/boolean-110.json \
+            > estimator-outputs/boolean-110.json
+          docker run --rm --platform linux/amd64 "$image" \
+            /workspace/inputs/boolean-128.json \
+            > estimator-outputs/boolean-128.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for name in ("boolean-110", "boolean-128"):
+              output = json.loads((Path("estimator-outputs") / f"{name}.json").read_text())
+              assert output["status"] == "lattice_verified_noise_pending"
+              assert output["security_bits"] > 0
+          PY
+
+      - name: Upload estimator outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: estimator-outputs
+          path: estimator-outputs/*.json
+          if-no-files-found: error
