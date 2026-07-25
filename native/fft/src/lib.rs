@@ -62,7 +62,7 @@ impl FftPlan {
         let fft_scratch_len = forward
             .get_inplace_scratch_len()
             .max(inverse.get_inplace_scratch_len());
-        let forward_twist = (0..polynomial_size)
+        let forward_twist: Vec<Complex<f64>> = (0..polynomial_size)
             .map(|index| {
                 Complex::from_polar(1.0, -PI * index as f64 / polynomial_size as f64)
             })
@@ -235,8 +235,8 @@ impl FourierBootstrapKey {
     }
 
     fn spectrum_offset(&self, ggsw: usize, digit: usize, output: usize, limb: usize) -> usize {
-        ((((ggsw * self.digit_count + digit) * self.output_count + output) * 2 + limb)
-            * (self.polynomial_size / 2))
+        (((ggsw * self.digit_count + digit) * self.output_count + output) * 2 + limb)
+            * (self.polynomial_size / 2)
     }
 
     fn convert(&mut self, plan: &FftPlan, coefficients: &[u32], scratch: &mut FftScratch) -> bool {
@@ -471,7 +471,8 @@ pub unsafe extern "C" fn batched_glwe_convolution_u32(
                 scratch,
             );
             for coefficient in 0..plan.polynomial_size {
-                output[coefficient] = output[coefficient].wrapping_add(temporary[coefficient]);
+                output[coefficient] =
+                    output[coefficient].wrapping_add(scratch.temporary_output[coefficient]);
             }
         }
         FFT_OK
