@@ -1,0 +1,24 @@
+{
+  "parameter_id": "tfhe-rs-boolean-110-reference",
+  "modulus": "2^32",
+  "lwe_dimension": 805,
+  "glwe_dimension": 3,
+  "polynomial_size": 512,
+  "secret_distribution": "binary",
+  "lwe_noise": {
+    "distribution": "discrete_gaussian_cdt",
+    "sigma_q32": 108127244401837,
+    "tail_sigma": 8,
+    "fixture_hash": "sha256:d2f74890066c5c72916b8e909d4989ed09e2e9ba73853967c60ef22abb28b4a6"
+  },
+  "glwe_noise": {
+    "distribution": "discrete_gaussian_cdt",
+    "sigma_q32": 17183644010,
+    "tail_sigma": 8,
+    "fixture_hash": "sha256:8cfa36c5e9de3ea09a2105903498105aa7af0f771dfb3e180a8db81f7cb1164b"
+  },
+  "pbs_decomposition": {"base_log": 10, "level": 2},
+  "ks_decomposition": {"base_log": 3, "level": 5},
+  "failure_probability_log2_milli": -64344,
+  "estimator_commit": "3e48ef421ec256afddb3e7d2249a77eab6e9ba12"
+}

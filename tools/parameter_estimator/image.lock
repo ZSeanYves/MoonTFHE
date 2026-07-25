@@ -1,0 +1,5 @@
+image: sagemath/sagemath
+# The release gate refuses this sentinel. Replace it with a registry digest
+# before enabling cryptanalytic execution in CI or a release build.
+digest: sha256:UNAVAILABLE_NO_CONTAINER_IMAGE
+lattice_estimator_commit: 3e48ef421ec256afddb3e7d2249a77eab6e9ba12

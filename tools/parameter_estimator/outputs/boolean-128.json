@@ -1,0 +1,9 @@
+{
+  "status": "not_run",
+  "parameter_id": "tfhe-rs-boolean-128-reference",
+  "security_bits": null,
+  "failure_probability": null,
+  "noise_margin": null,
+  "estimator_commit": "3e48ef421ec256afddb3e7d2249a77eab6e9ba12",
+  "input_sha256": "f96edbb6fd039d81ce3d95e81f3e9512c8f116eda6542ff443c70b6117c6e600"
+}

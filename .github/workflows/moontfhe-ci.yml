@@ -32,7 +32,7 @@ jobs:
           git diff --exit-code -- src/pkg.generated.mbti
 
       - name: Verify parameter fixtures
-        run: sh tools/parameter_estimator/check.sh
+        run: sh tools/parameter_estimator/run.sh --check
 
       - name: Verify noise fixtures
         run: sh tools/noise_fixtures/check.sh
