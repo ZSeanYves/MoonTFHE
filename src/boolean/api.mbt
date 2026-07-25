@@ -1032,14 +1032,14 @@ pub fn ClientKey::import_secret(
   let dimension = boolean_read_u32(bytes, 10).reinterpret_as_int()
   let key_id = boolean_read_key_id(bytes, 46)
   let payload_length = boolean_read_u32(bytes, 62).reinterpret_as_int()
+  if !boolean_validate_parameter_fields(bytes, parameters) ||
+    dimension != parameters.dimension {
+    return Err(ParameterMismatch)
+  }
   let expected_payload_length = 9 + (parameters.dimension + 7) / 8
   if payload_length != expected_payload_length ||
     bytes.length() != header_length + nonce_length + payload_length + tag_length {
     return Err(InvalidLength)
-  }
-  if !boolean_validate_parameter_fields(bytes, parameters) ||
-    dimension != parameters.dimension {
-    return Err(ParameterMismatch)
   }
   let aad = bytes[:header_length].to_owned()
   let nonce = bytes[header_length:header_length + nonce_length].to_owned()
