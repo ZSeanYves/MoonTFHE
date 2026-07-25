@@ -14,19 +14,19 @@ pub suberror GlweError {
   InvalidSampleIndex
   InvalidSampleDimension
   InvalidComponent
+  PolynomialFailure
 } derive(Debug, Eq)
 
 ///|
 pub struct GlweSecretKey {
   parameters : GlweParameters
-  data : Array[Array[Bool]]
+  data : FixedArray[UInt]
 }
 
 ///|
 pub struct GlweCiphertext {
   parameters : GlweParameters
-  a : Array[Array[@torus.Torus32]]
-  b : Array[@torus.Torus32]
+  data : FixedArray[UInt]
 }
 
 ///|
@@ -71,11 +71,32 @@ pub fn GlweCiphertext::component(
   if index < 0 || index > self.parameters.glwe_dimension {
     return Err(InvalidComponent)
   }
-  if index == self.parameters.glwe_dimension {
-    Ok(self.b)
+  let n = self.parameters.polynomial_size
+  let offset = index * n
+  Ok(
+    Array::makei(n, fn(coefficient) {
+      @torus.Torus32::from_uint(self.data[offset + coefficient])
+    }),
+  )
+}
+
+///|
+/// Construct a GLWE ciphertext from `(mask polynomials || body polynomial)`.
+pub fn glwe_ciphertext_from_flat_u32(
+  parameters : GlweParameters,
+  data : FixedArray[UInt],
+) -> Result[GlweCiphertext, GlweError] {
+  let expected = (parameters.glwe_dimension + 1) * parameters.polynomial_size
+  if data.length() != expected {
+    Err(CiphertextShapeMismatch)
   } else {
-    Ok(self.a[index])
+    Ok({ parameters, data: data.copy() })
   }
+}
+
+///|
+pub fn GlweCiphertext::flat_u32_copy(self : GlweCiphertext) -> FixedArray[UInt] {
+  self.data.copy()
 }
 
 ///|
@@ -86,13 +107,13 @@ pub fn glwe_trivial(
   if message.length() != parameters.polynomial_size {
     return Err(MessageLengthMismatch)
   }
-  Ok({
-    parameters,
-    a: Array::makei(parameters.glwe_dimension, fn(_) {
-      Array::make(parameters.polynomial_size, @torus.Torus32::zero())
-    }),
-    b: message,
-  })
+  let n = parameters.polynomial_size
+  let body_offset = parameters.glwe_dimension * n
+  let data = FixedArray::make((parameters.glwe_dimension + 1) * n, 0U)
+  for index in 0..<n {
+    data[body_offset + index] = message[index].to_uint()
+  }
+  Ok({ parameters, data })
 }
 
 ///|
@@ -111,17 +132,21 @@ pub fn GlweCiphertext::sample_extract(
     Ok(value) => value
     Err(_) => return Err(InvalidSampleDimension)
   }
-  let a = Array::makei(dimension, fn(flat_index) {
+  let data = FixedArray::make(dimension + 1, 0U)
+  for flat_index in 0..<dimension {
     let component = flat_index / n
     let coefficient = flat_index % n
     let source = index - coefficient
-    if source >= 0 {
-      self.a[component][source]
+    data[flat_index] = if source >= 0 {
+      self.data[component * n + source]
     } else {
-      self.a[component][source + n].neg()
+      @torus.Torus32::from_uint(self.data[component * n + source + n])
+      .neg()
+      .to_uint()
     }
-  })
-  match @lwe.lwe_ciphertext_from_parts(lwe_dimension, a, self.b[index]) {
+  }
+  data[dimension] = self.data[dimension + index]
+  match @lwe.lwe_ciphertext_from_flat_u32(lwe_dimension, data) {
     Ok(ciphertext) => Ok(ciphertext)
     Err(_) => Err(InvalidSampleDimension)
   }
@@ -129,13 +154,12 @@ pub fn GlweCiphertext::sample_extract(
 
 ///|
 pub fn glwe_zero_ciphertext(parameters : GlweParameters) -> GlweCiphertext {
-  let n = parameters.polynomial_size
   {
     parameters,
-    a: Array::makei(parameters.glwe_dimension, fn(_) {
-      Array::make(n, @torus.Torus32::zero())
-    }),
-    b: Array::make(n, @torus.Torus32::zero()),
+    data: FixedArray::make(
+      (parameters.glwe_dimension + 1) * parameters.polynomial_size,
+      0U,
+    ),
   }
 }
 
@@ -144,11 +168,10 @@ pub fn glwe_keygen(
   parameters : GlweParameters,
   rng : @random.RandomGenerator,
 ) -> GlweSecretKey {
-  let data = Array::makei(parameters.glwe_dimension, fn(_) {
-    Array::makei(parameters.polynomial_size, fn(_) {
-      (rng.next_u32() & 1U) == 1U
-    })
-  })
+  let data = FixedArray::makei(
+    parameters.glwe_dimension * parameters.polynomial_size,
+    fn(_) { rng.next_u32() & 1U },
+  )
   { parameters, data }
 }
 
@@ -167,7 +190,17 @@ pub fn glwe_key_from_binary_secret(
       return Err(CiphertextShapeMismatch)
     }
   }
-  Ok({ parameters, data: data.map(fn(component) { component.copy() }) })
+  let n = parameters.polynomial_size
+  Ok({
+    parameters,
+    data: FixedArray::makei(parameters.glwe_dimension * n, fn(index) {
+      if data[index / n][index % n] {
+        1U
+      } else {
+        0U
+      }
+    }),
+  })
 }
 
 ///|
@@ -183,24 +216,13 @@ pub fn GlweSecretKey::to_extracted_lwe_key(
     Ok(value) => value
     Err(_) => return Err(InvalidSampleDimension)
   }
-  let bits : Array[Bool] = []
-  for component in self.data {
-    for bit in component {
-      bits.push(bit)
-    }
-  }
+  let bits = Array::makei(self.data.length(), fn(index) {
+    self.data[index] == 1U
+  })
   match @lwe.lwe_key_from_binary_secret(dimension, bits) {
     Ok(value) => Ok(value)
     Err(_) => Err(InvalidSampleDimension)
   }
-}
-
-///|
-fn poly_add(
-  left : Array[@torus.Torus32],
-  right : Array[@torus.Torus32],
-) -> Array[@torus.Torus32] {
-  Array::makei(left.length(), fn(i) { left[i].add(right[i]) })
 }
 
 ///|
@@ -214,24 +236,31 @@ pub fn GlweSecretKey::encrypt(
   if message.length() != n {
     return Err(MessageLengthMismatch)
   }
-  let a = Array::makei(self.parameters.glwe_dimension, fn(_) {
-    Array::makei(n, fn(_) {
-      @torus.Torus32::from_int(rng.next_u32().reinterpret_as_int())
+  let data = FixedArray::make((self.parameters.glwe_dimension + 1) * n, 0U)
+  let body = message.copy()
+  for component in 0..<self.parameters.glwe_dimension {
+    let mask = Array::makei(n, fn(coefficient) {
+      let raw = rng.next_u32()
+      data[component * n + coefficient] = raw
+      @torus.Torus32::from_uint(raw)
     })
-  })
-  let mut body = message.copy()
-  for i in 0..<self.parameters.glwe_dimension {
-    let product = @polynomial.negacyclic_mul_reference(
-      a[i],
-      Array::makei(n, fn(j) {
-        if self.data[i][j] {
-          @torus.Torus32::from_int(1)
-        } else {
-          @torus.Torus32::zero()
-        }
-      }),
-    ).unwrap()
-    body = poly_add(body, product)
+    let product = match
+      @polynomial.negacyclic_mul_reference(
+        mask,
+        Array::makei(n, fn(coefficient) {
+          if self.data[component * n + coefficient] == 1U {
+            @torus.Torus32::from_int(1)
+          } else {
+            @torus.Torus32::zero()
+          }
+        }),
+      ) {
+      Ok(value) => value
+      Err(_) => return Err(PolynomialFailure)
+    }
+    for coefficient in 0..<n {
+      body[coefficient] = body[coefficient].add(product[coefficient])
+    }
   }
   for i in 0..<n {
     let noise = match rng.sample_discrete_gaussian_fixed(noise_distribution) {
@@ -239,8 +268,9 @@ pub fn GlweSecretKey::encrypt(
       Err(_) => return Err(NoiseFailure)
     }
     body[i] = body[i].add(@torus.Torus32::from_int(noise))
+    data[self.parameters.glwe_dimension * n + i] = body[i].to_uint()
   }
-  Ok({ parameters: self.parameters, a, b: body })
+  Ok({ parameters: self.parameters, data })
 }
 
 ///|
@@ -249,23 +279,32 @@ pub fn GlweSecretKey::decrypt(
   ciphertext : GlweCiphertext,
 ) -> Result[Array[@torus.Torus32], GlweError] {
   if ciphertext.parameters != self.parameters ||
-    ciphertext.a.length() != self.parameters.glwe_dimension ||
-    ciphertext.b.length() != self.parameters.polynomial_size {
+    ciphertext.data.length() !=
+    (self.parameters.glwe_dimension + 1) * self.parameters.polynomial_size {
     return Err(CiphertextShapeMismatch)
   }
-  let body = ciphertext.b.copy()
   let n = self.parameters.polynomial_size
-  for i in 0..<self.parameters.glwe_dimension {
-    let product = @polynomial.negacyclic_mul_reference(
-      ciphertext.a[i],
-      Array::makei(n, fn(j) {
-        if self.data[i][j] {
-          @torus.Torus32::from_int(1)
-        } else {
-          @torus.Torus32::zero()
-        }
-      }),
-    ).unwrap()
+  let body_offset = self.parameters.glwe_dimension * n
+  let body = Array::makei(n, fn(index) {
+    @torus.Torus32::from_uint(ciphertext.data[body_offset + index])
+  })
+  for component in 0..<self.parameters.glwe_dimension {
+    let product = match
+      @polynomial.negacyclic_mul_reference(
+        Array::makei(n, fn(index) {
+          @torus.Torus32::from_uint(ciphertext.data[component * n + index])
+        }),
+        Array::makei(n, fn(index) {
+          if self.data[component * n + index] == 1U {
+            @torus.Torus32::from_int(1)
+          } else {
+            @torus.Torus32::zero()
+          }
+        }),
+      ) {
+      Ok(value) => value
+      Err(_) => return Err(PolynomialFailure)
+    }
     for j in 0..<n {
       body[j] = body[j].sub(product[j])
     }
@@ -281,10 +320,14 @@ pub fn GlweCiphertext::add(
   if self.parameters != other.parameters {
     return Err(CiphertextShapeMismatch)
   }
-  let a = Array::makei(self.a.length(), fn(i) {
-    poly_add(self.a[i], other.a[i])
+  Ok({
+    parameters: self.parameters,
+    data: FixedArray::makei(self.data.length(), fn(index) {
+      @torus.Torus32::from_uint(self.data[index])
+      .add(@torus.Torus32::from_uint(other.data[index]))
+      .to_uint()
+    }),
   })
-  Ok({ parameters: self.parameters, a, b: poly_add(self.b, other.b) })
 }
 
 ///|
@@ -295,11 +338,14 @@ pub fn GlweCiphertext::sub(
   if self.parameters != other.parameters {
     return Err(CiphertextShapeMismatch)
   }
-  let a = Array::makei(self.a.length(), fn(i) {
-    Array::makei(self.a[i].length(), fn(j) { self.a[i][j].sub(other.a[i][j]) })
+  Ok({
+    parameters: self.parameters,
+    data: FixedArray::makei(self.data.length(), fn(index) {
+      @torus.Torus32::from_uint(self.data[index])
+      .sub(@torus.Torus32::from_uint(other.data[index]))
+      .to_uint()
+    }),
   })
-  let b = Array::makei(self.b.length(), fn(i) { self.b[i].sub(other.b[i]) })
-  Ok({ parameters: self.parameters, a, b })
 }
 
 ///|
@@ -311,25 +357,21 @@ pub fn GlweCiphertext::rotate_negacyclic(
   let n = self.parameters.polynomial_size
   let period = 2 * n
   let normalized = (rotation % period + period) % period
-  fn rotate(polynomial : Array[@torus.Torus32]) -> Array[@torus.Torus32] {
-    let result = Array::make(n, @torus.Torus32::zero())
+  let data = FixedArray::make(self.data.length(), 0U)
+  for component in 0..<=self.parameters.glwe_dimension {
+    let offset = component * n
     for source in 0..<n {
       let exponent = source + normalized
       let wraps = exponent / n
       let destination = exponent % n
-      result[destination] = if (wraps & 1) == 0 {
-        polynomial[source]
+      data[offset + destination] = if (wraps & 1) == 0 {
+        self.data[offset + source]
       } else {
-        polynomial[source].neg()
+        @torus.Torus32::from_uint(self.data[offset + source]).neg().to_uint()
       }
     }
-    result
   }
-  {
-    parameters: self.parameters,
-    a: self.a.map(fn(component) { rotate(component) }),
-    b: rotate(self.b),
-  }
+  { parameters: self.parameters, data }
 }
 
 ///|
@@ -342,14 +384,10 @@ pub fn GlweCiphertext::add_gadget_to_component(
   if component < 0 || component > self.parameters.glwe_dimension {
     return Err(InvalidComponent)
   }
-  let a = self.a.map(fn(poly) { poly.copy() })
-  let b = self.b.copy()
-  if component == self.parameters.glwe_dimension {
-    b[0] = b[0].add(gadget)
-  } else {
-    a[component][0] = a[component][0].add(gadget)
-  }
-  Ok({ parameters: self.parameters, a, b })
+  let data = self.data.copy()
+  let offset = component * self.parameters.polynomial_size
+  data[offset] = @torus.Torus32::from_uint(data[offset]).add(gadget).to_uint()
+  Ok({ parameters: self.parameters, data })
 }
 
 ///|
@@ -361,18 +399,25 @@ pub fn GlweCiphertext::mul_plain_poly(
   if polynomial.length() != self.parameters.polynomial_size {
     return Err(MessageLengthMismatch)
   }
-  let a : Array[Array[@torus.Torus32]] = []
-  for component in self.a {
-    match @polynomial.negacyclic_mul_reference(component, polynomial) {
-      Ok(value) => a.push(value)
+  let n = self.parameters.polynomial_size
+  let data = FixedArray::make(self.data.length(), 0U)
+  for component in 0..<=self.parameters.glwe_dimension {
+    let offset = component * n
+    let product = match
+      @polynomial.negacyclic_mul_reference(
+        Array::makei(n, fn(index) {
+          @torus.Torus32::from_uint(self.data[offset + index])
+        }),
+        polynomial,
+      ) {
+      Ok(value) => value
       Err(_) => return Err(MessageLengthMismatch)
     }
+    for index in 0..<n {
+      data[offset + index] = product[index].to_uint()
+    }
   }
-  let b = match @polynomial.negacyclic_mul_reference(self.b, polynomial) {
-    Ok(value) => value
-    Err(_) => return Err(MessageLengthMismatch)
-  }
-  Ok({ parameters: self.parameters, a, b })
+  Ok({ parameters: self.parameters, data })
 }
 
 ///|
@@ -399,23 +444,10 @@ test "glwe: explicit dimension and polynomial shape round trip" {
 ///|
 test "glwe: sample extraction handles k=0 and negacyclic wrap" {
   let parameters = glwe_parameters(1, 4).unwrap()
-  let ciphertext : GlweCiphertext = {
+  let ciphertext = glwe_ciphertext_from_flat_u32(
     parameters,
-    a: [
-      [
-        @torus.Torus32::from_int(1),
-        @torus.Torus32::from_int(2),
-        @torus.Torus32::from_int(3),
-        @torus.Torus32::from_int(4),
-      ],
-    ],
-    b: [
-      @torus.Torus32::from_int(10),
-      @torus.Torus32::from_int(11),
-      @torus.Torus32::from_int(12),
-      @torus.Torus32::from_int(13),
-    ],
-  }
+    FixedArray::from_array([1U, 2U, 3U, 4U, 10U, 11U, 12U, 13U]),
+  ).unwrap()
   let extracted = ciphertext.sample_extract(0).unwrap()
   assert_eq(extracted.a().map(fn(value) { value.to_int() }), [1, -4, -3, -2])
   assert_eq(extracted.b().to_int(), 10)

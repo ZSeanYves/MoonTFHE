@@ -20,6 +20,10 @@ pub fn gaussian_sigma_3_fixture() -> DiscreteGaussian
 
 pub fn install_entropy_provider((Int) -> Bytes?) -> Unit
 
+pub fn secure_encryption_mask_rng_new() -> Result[RandomGenerator, RandomError]
+
+pub fn secure_encryption_noise_rng_new() -> Result[RandomGenerator, RandomError]
+
 pub fn secure_rng_new() -> Result[RandomGenerator, RandomError]
 
 pub fn secure_rng_new_for(RandomDomain) -> Result[RandomGenerator, RandomError]
@@ -42,8 +46,8 @@ pub suberror RandomError {
 pub struct DiscreteGaussian {
   sigma_q32 : UInt64
   tail_bound : Int
-  magnitude_step : Int
-  cdt : Array[UInt64]
+  cdt_length : Int
+  cdt_chunks : Array[FixedArray[UInt64]]
   fixture_hash : String
 }
 pub fn DiscreteGaussian::fixture_hash(Self) -> String

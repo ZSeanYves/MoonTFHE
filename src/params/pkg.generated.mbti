@@ -16,7 +16,7 @@ pub fn decomposition_parameters(Int, Int) -> Result[DecompositionParameters, Par
 
 pub fn glwe_dimension(Int) -> Result[GlweDimension, ParameterValidationError]
 
-pub fn key_id_from_int(Int) -> KeyId
+pub fn key_id_from_words(UInt64, UInt64) -> KeyId
 
 pub fn lwe_dimension(Int) -> Result[LweDimension, ParameterValidationError]
 
@@ -49,9 +49,11 @@ pub struct GlweDimension {
 pub fn GlweDimension::value(Self) -> Int
 
 pub struct KeyId {
-  value : Int
+  high : UInt64
+  low : UInt64
 } derive(Eq, @debug.Debug)
-pub fn KeyId::to_int(Self) -> Int
+pub fn KeyId::high(Self) -> UInt64
+pub fn KeyId::low(Self) -> UInt64
 
 pub struct LweDimension {
   value : Int
@@ -100,12 +102,12 @@ pub struct PolynomialSize {
 pub fn PolynomialSize::value(Self) -> Int
 
 pub struct QuantizedGaussian {
-  sigma_q64 : UInt64
+  sigma_q32 : UInt64
   tail_sigma : Int
   fixture_hash : String
 } derive(Eq, @debug.Debug)
 pub fn QuantizedGaussian::fixture_hash(Self) -> String
-pub fn QuantizedGaussian::sigma_q64(Self) -> UInt64
+pub fn QuantizedGaussian::sigma_q32(Self) -> UInt64
 pub fn QuantizedGaussian::tail_sigma(Self) -> Int
 
 pub struct SecurityMetadata {

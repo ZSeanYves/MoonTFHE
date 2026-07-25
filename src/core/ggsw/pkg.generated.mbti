@@ -10,6 +10,8 @@ import {
 // Values
 pub fn ggsw_encrypt_boolean(GgswParameters, @glwe.GlweSecretKey, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GgswCiphertext, GgswError]
 
+pub fn ggsw_from_flat_u32(GgswParameters, FixedArray[UInt]) -> Result[GgswCiphertext, GgswError]
+
 pub fn ggsw_parameters(@glwe.GlweParameters, Int, Int) -> Result[GgswParameters, GgswError]
 
 pub fn ggsw_zero(GgswParameters) -> GgswCiphertext
@@ -26,10 +28,11 @@ pub suberror GgswError {
 // Types and methods
 pub struct GgswCiphertext {
   parameters : GgswParameters
-  rows : Array[@glwe.GlweCiphertext]
+  data : FixedArray[UInt]
 }
 pub fn GgswCiphertext::cmux(Self, @glwe.GlweCiphertext, @glwe.GlweCiphertext) -> Result[@glwe.GlweCiphertext, GgswError]
 pub fn GgswCiphertext::external_product(Self, @glwe.GlweCiphertext) -> Result[@glwe.GlweCiphertext, GgswError]
+pub fn GgswCiphertext::flat_u32_copy(Self) -> FixedArray[UInt]
 pub fn GgswCiphertext::parameters(Self) -> GgswParameters
 pub fn GgswCiphertext::row(Self, Int) -> Result[@glwe.GlweCiphertext, GgswError]
 pub fn GgswCiphertext::row_count(Self) -> Int

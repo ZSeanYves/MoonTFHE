@@ -9,6 +9,8 @@ import {
 }
 
 // Values
+pub fn glwe_ciphertext_from_flat_u32(GlweParameters, FixedArray[UInt]) -> Result[GlweCiphertext, GlweError]
+
 pub fn glwe_key_from_binary_secret(GlweParameters, Array[Array[Bool]]) -> Result[GlweSecretKey, GlweError]
 
 pub fn glwe_keygen(GlweParameters, @random.RandomGenerator) -> GlweSecretKey
@@ -29,17 +31,18 @@ pub suberror GlweError {
   InvalidSampleIndex
   InvalidSampleDimension
   InvalidComponent
+  PolynomialFailure
 } derive(Eq, @debug.Debug)
 
 // Types and methods
 pub struct GlweCiphertext {
   parameters : GlweParameters
-  a : Array[Array[@torus.Torus32]]
-  b : Array[@torus.Torus32]
+  data : FixedArray[UInt]
 }
 pub fn GlweCiphertext::add(Self, Self) -> Result[Self, GlweError]
 pub fn GlweCiphertext::add_gadget_to_component(Self, Int, @torus.Torus32) -> Result[Self, GlweError]
 pub fn GlweCiphertext::component(Self, Int) -> Result[Array[@torus.Torus32], GlweError]
+pub fn GlweCiphertext::flat_u32_copy(Self) -> FixedArray[UInt]
 pub fn GlweCiphertext::mul_plain_poly(Self, Array[@torus.Torus32]) -> Result[Self, GlweError]
 pub fn GlweCiphertext::parameters(Self) -> GlweParameters
 pub fn GlweCiphertext::rotate_negacyclic(Self, Int) -> Self
@@ -55,7 +58,7 @@ pub fn GlweParameters::polynomial_size(Self) -> Int
 
 pub struct GlweSecretKey {
   parameters : GlweParameters
-  data : Array[Array[Bool]]
+  data : FixedArray[UInt]
 }
 pub fn GlweSecretKey::decrypt(Self, GlweCiphertext) -> Result[Array[@torus.Torus32], GlweError]
 pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]

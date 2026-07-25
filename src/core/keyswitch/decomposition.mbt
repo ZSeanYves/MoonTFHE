@@ -95,7 +95,7 @@ pub struct KeySwitchKey {
   input_parameters : @params.LweDimension
   output_parameters : @params.LweDimension
   decomposition : @params.DecompositionParameters
-  rows : Array[Array[@lwe.LweCiphertext]]
+  data : FixedArray[UInt]
 }
 
 ///|
@@ -121,7 +121,29 @@ pub fn KeySwitchKey::decomposition(
 
 ///|
 pub fn KeySwitchKey::row_count(self : KeySwitchKey) -> Int {
-  self.rows.length()
+  self.input_parameters.value()
+}
+
+///|
+pub fn KeySwitchKey::flat_u32_copy(self : KeySwitchKey) -> FixedArray[UInt] {
+  self.data.copy()
+}
+
+///|
+pub fn keyswitch_key_from_flat_u32(
+  input_parameters : @params.LweDimension,
+  output_parameters : @params.LweDimension,
+  decomposition : @params.DecompositionParameters,
+  data : FixedArray[UInt],
+) -> Result[KeySwitchKey, KeySwitchError] {
+  let expected = input_parameters.value() *
+    decomposition.level() *
+    (output_parameters.value() + 1)
+  if data.length() != expected {
+    Err(CiphertextError)
+  } else {
+    Ok({ input_parameters, output_parameters, decomposition, data: data.copy() })
+  }
 }
 
 ///|
@@ -146,11 +168,23 @@ pub fn keyswitch_keygen(
     decomposition.base_log() * decomposition.level() > 32 {
     return Err(InvalidDecomposition)
   }
-  let rows : Array[Array[@lwe.LweCiphertext]] = []
+  let level_count = decomposition.level()
+  let ciphertext_size = target.parameters().value() + 1
+  let data = FixedArray::make(
+    input.parameters().value() * level_count * ciphertext_size,
+    0U,
+  )
   for index in 0..<input.parameters().value() {
     match
       input.encrypt_secret_gadget_row(index, target, decomposition, noise, rng) {
-      Ok(row) => rows.push(row)
+      Ok(row) =>
+        for level in 0..<level_count {
+          let ciphertext = row[level].flat_u32_copy()
+          let offset = (index * level_count + level) * ciphertext_size
+          for word in 0..<ciphertext_size {
+            data[offset + word] = ciphertext[word]
+          }
+        }
       Err(_) => return Err(CiphertextError)
     }
   }
@@ -158,7 +192,7 @@ pub fn keyswitch_keygen(
     input_parameters: input.parameters(),
     output_parameters: target.parameters(),
     decomposition,
-    rows,
+    data,
   })
 }
 
@@ -179,7 +213,18 @@ pub fn KeySwitchKey::apply(
       Err(_) => return Err(InvalidDecomposition)
     }
     for level in 0..<digits.length() {
-      result = match result.sub_scaled(self.rows[index][level], digits[level]) {
+      let ciphertext_size = self.output_parameters.value() + 1
+      let offset = (index * self.decomposition.level() + level) *
+        ciphertext_size
+      let row_data = FixedArray::makei(ciphertext_size, fn(word) {
+        self.data[offset + word]
+      })
+      let row = match
+        @lwe.lwe_ciphertext_from_flat_u32(self.output_parameters, row_data) {
+        Ok(value) => value
+        Err(_) => return Err(CiphertextError)
+      }
+      result = match result.sub_scaled(row, digits[level]) {
         Ok(value) => value
         Err(_) => return Err(CiphertextError)
       }

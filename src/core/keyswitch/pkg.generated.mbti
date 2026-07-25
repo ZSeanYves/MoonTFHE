@@ -10,6 +10,8 @@ import {
 }
 
 // Values
+pub fn keyswitch_key_from_flat_u32(@params.LweDimension, @params.LweDimension, @params.DecompositionParameters, FixedArray[UInt]) -> Result[KeySwitchKey, KeySwitchError]
+
 pub fn keyswitch_keygen(@lwe.LweSecretKey, @lwe.LweSecretKey, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[KeySwitchKey, KeySwitchError]
 
 pub fn signed_decompose(@torus.Torus32, @params.DecompositionParameters) -> Result[Array[Int], DecompositionError]
@@ -38,10 +40,11 @@ pub struct KeySwitchKey {
   input_parameters : @params.LweDimension
   output_parameters : @params.LweDimension
   decomposition : @params.DecompositionParameters
-  rows : Array[Array[@lwe.LweCiphertext]]
+  data : FixedArray[UInt]
 }
 pub fn KeySwitchKey::apply(Self, @lwe.LweCiphertext) -> Result[@lwe.LweCiphertext, KeySwitchError]
 pub fn KeySwitchKey::decomposition(Self) -> @params.DecompositionParameters
+pub fn KeySwitchKey::flat_u32_copy(Self) -> FixedArray[UInt]
 pub fn KeySwitchKey::input_dimension(Self) -> @params.LweDimension
 pub fn KeySwitchKey::output_dimension(Self) -> @params.LweDimension
 pub fn KeySwitchKey::row_count(Self) -> Int

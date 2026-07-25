@@ -1,47 +1,52 @@
 {
-  "distribution": "discrete_gaussian_absolute_cdt_u64",
+  "chunk_entries": 4096,
+  "distribution": "discrete_gaussian_absolute_cdt_u128",
   "fixtures": [
     {
-      "entries": 3148,
-      "generator_version": "moontfhe-cdt-v1",
-      "magnitude_step": 64,
+      "chunks": 50,
+      "entries": 201404,
+      "generator_version": "moontfhe-cdt-u128-v2",
       "name": "boolean_110_lwe",
       "parameter_id": "tfhe-rs-boolean-110-reference",
       "sigma_q32": "108127244401837",
-      "table_hash": "sha256:a201920a31d48e213960d1d5764b0e72b54043b5b340ec0de1b7b854fd98f68e",
-      "tail_bound": 201403
+      "table_hash": "sha256:bf40a2ef2b5fdcae8deea3e0a06869e2a50fcfb8e164145b7ab2177b048e3df1",
+      "tail_bound": 201403,
+      "threshold_bits": 128
     },
     {
+      "chunks": 1,
       "entries": 34,
-      "generator_version": "moontfhe-cdt-v1",
-      "magnitude_step": 1,
+      "generator_version": "moontfhe-cdt-u128-v2",
       "name": "boolean_110_glwe",
       "parameter_id": "tfhe-rs-boolean-110-reference",
       "sigma_q32": "17183644010",
-      "table_hash": "sha256:8cfa36c5e9de3ea09a2105903498105aa7af0f771dfb3e180a8db81f7cb1164b",
-      "tail_bound": 33
+      "table_hash": "sha256:56d701274aaac4fb79b00783cea6c88ec8bc5f9bbbded63bc23506ecc354d017",
+      "tail_bound": 33,
+      "threshold_bits": 128
     },
     {
-      "entries": 1813,
-      "generator_version": "moontfhe-cdt-v1",
-      "magnitude_step": 64,
+      "chunks": 29,
+      "entries": 115956,
+      "generator_version": "moontfhe-cdt-u128-v2",
       "name": "boolean_128_lwe",
       "parameter_id": "tfhe-rs-boolean-128-reference",
       "sigma_q32": "62252492428718",
-      "table_hash": "sha256:8ac551a218647e0752d0d876c9e57209ea8a3b1e91f02dc97e09ceaa11733d00",
-      "tail_bound": 115955
+      "table_hash": "sha256:91bf1b8bbf39e50a0aace73f1f67c1da907d93e149cde5e9835d2a4ce5e17872",
+      "tail_bound": 115955,
+      "threshold_bits": 128
     },
     {
+      "chunks": 1,
       "entries": 33,
-      "generator_version": "moontfhe-cdt-v1",
-      "magnitude_step": 1,
+      "generator_version": "moontfhe-cdt-u128-v2",
       "name": "boolean_128_glwe",
       "parameter_id": "tfhe-rs-boolean-128-reference",
       "sigma_q32": "17179869184",
-      "table_hash": "sha256:3d66e6b7acd2e90e22515c77b239418c45ad0188ab40acbb9db5fa11e1b380e3",
-      "tail_bound": 32
+      "table_hash": "sha256:1368fdbec94619f2e31e855d8a0043f1eb92b9208981c283ad73379cc056c7fd",
+      "tail_bound": 32,
+      "threshold_bits": 128
     }
   ],
-  "generator_version": "moontfhe-cdt-v1",
+  "generator_version": "moontfhe-cdt-u128-v2",
   "tail_sigma": 8
 }

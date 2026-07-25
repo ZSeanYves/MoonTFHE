@@ -7,17 +7,23 @@ pub struct LweDimension {
 /// Stable identity attached to a key/ciphertext family. It is an identifier,
 /// not a secret and never derives encryption keys.
 pub struct KeyId {
-  value : Int
+  high : UInt64
+  low : UInt64
 } derive(Debug, Eq)
 
 ///|
-pub fn key_id_from_int(value : Int) -> KeyId {
-  { value, }
+pub fn key_id_from_words(high : UInt64, low : UInt64) -> KeyId {
+  { high, low }
 }
 
 ///|
-pub fn KeyId::to_int(self : KeyId) -> Int {
-  self.value
+pub fn KeyId::high(self : KeyId) -> UInt64 {
+  self.high
+}
+
+///|
+pub fn KeyId::low(self : KeyId) -> UInt64 {
+  self.low
 }
 
 ///|
@@ -48,7 +54,7 @@ pub struct DecompositionParameters {
 
 ///|
 pub struct QuantizedGaussian {
-  sigma_q64 : UInt64
+  sigma_q32 : UInt64
   tail_sigma : Int
   fixture_hash : String
 } derive(Debug, Eq)
@@ -115,20 +121,20 @@ fn parameter_set(
   pbs_level : Int,
   ks_base_log : Int,
   ks_level : Int,
-  lwe_sigma_q64 : UInt64,
-  glwe_sigma_q64 : UInt64,
+  lwe_sigma_q32 : UInt64,
+  glwe_sigma_q32 : UInt64,
 ) -> ParameterSet {
-  let lwe_fixture_hash = if lwe_sigma_q64 == 0x625755FE3CADUL {
-    "sha256:d2f74890066c5c72916b8e909d4989ed09e2e9ba73853967c60ef22abb28b4a6"
-  } else if lwe_sigma_q64 == 0x389E49B295AEUL {
-    "sha256:c3ebc32d93f7793230e7ddf99e2177ad550bb1d9c6b4be89bf0a44a918dda149"
+  let lwe_fixture_hash = if lwe_sigma_q32 == 0x625755FE3CADUL {
+    "sha256:bf40a2ef2b5fdcae8deea3e0a06869e2a50fcfb8e164145b7ab2177b048e3df1"
+  } else if lwe_sigma_q32 == 0x389E49B295AEUL {
+    "sha256:91bf1b8bbf39e50a0aace73f1f67c1da907d93e149cde5e9835d2a4ce5e17872"
   } else {
     "unavailable:reference-only"
   }
-  let glwe_fixture_hash = if glwe_sigma_q64 == 0x40039996AUL {
-    "sha256:8cfa36c5e9de3ea09a2105903498105aa7af0f771dfb3e180a8db81f7cb1164b"
-  } else if glwe_sigma_q64 == 0x400000000UL {
-    "sha256:3d66e6b7acd2e90e22515c77b239418c45ad0188ab40acbb9db5fa11e1b380e3"
+  let glwe_fixture_hash = if glwe_sigma_q32 == 0x40039996AUL {
+    "sha256:56d701274aaac4fb79b00783cea6c88ec8bc5f9bbbded63bc23506ecc354d017"
+  } else if glwe_sigma_q32 == 0x400000000UL {
+    "sha256:1368fdbec94619f2e31e855d8a0043f1eb92b9208981c283ad73379cc056c7fd"
   } else {
     "unavailable:reference-only"
   }
@@ -143,12 +149,12 @@ fn parameter_set(
     pbs_decomposition: { base_log: pbs_base_log, level: pbs_level },
     ks_decomposition: { base_log: ks_base_log, level: ks_level },
     lwe_noise: Gaussian({
-      sigma_q64: lwe_sigma_q64,
+      sigma_q32: lwe_sigma_q32,
       tail_sigma: 8,
       fixture_hash: lwe_fixture_hash.to_string(),
     }),
     glwe_noise: Gaussian({
-      sigma_q64: glwe_sigma_q64,
+      sigma_q32: glwe_sigma_q32,
       tail_sigma: 8,
       fixture_hash: glwe_fixture_hash.to_string(),
     }),
@@ -276,7 +282,7 @@ pub fn ParameterSet::validate(
   for noise in [self.lwe_noise, self.glwe_noise] {
     match noise {
       Gaussian(distribution) =>
-        if distribution.sigma_q64 == 0UL || distribution.tail_sigma <= 0 {
+        if distribution.sigma_q32 == 0UL || distribution.tail_sigma <= 0 {
           return Err(UnsupportedDistribution)
         }
       TUniform(width) => if width <= 0 { return Err(UnsupportedDistribution) }
@@ -365,8 +371,8 @@ pub fn ParameterSet::ks_decomposition(
 }
 
 ///|
-pub fn QuantizedGaussian::sigma_q64(self : QuantizedGaussian) -> UInt64 {
-  self.sigma_q64
+pub fn QuantizedGaussian::sigma_q32(self : QuantizedGaussian) -> UInt64 {
+  self.sigma_q32
 }
 
 ///|
@@ -439,7 +445,9 @@ test "params: reference records are structurally valid" {
   assert_eq(metadata.failure_log2_milli(), high.failure_log2_milli())
   assert_eq(metadata.estimator_commit(), high.estimator_commit())
   assert_true(metadata.is_reference_only())
-  assert_eq(key_id_from_int(-1).to_int(), -1)
+  let key_id = key_id_from_words(0x0123456789ABCDEFUL, 0xFEDCBA9876543210UL)
+  assert_eq(key_id.high(), 0x0123456789ABCDEFUL)
+  assert_eq(key_id.low(), 0xFEDCBA9876543210UL)
 }
 
 ///|

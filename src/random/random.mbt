@@ -169,6 +169,16 @@ pub fn secure_rng_new() -> Result[RandomGenerator, RandomError] {
 }
 
 ///|
+pub fn secure_encryption_mask_rng_new() -> Result[RandomGenerator, RandomError] {
+  secure_rng_new_for(EncryptionMask)
+}
+
+///|
+pub fn secure_encryption_noise_rng_new() -> Result[RandomGenerator, RandomError] {
+  secure_rng_new_for(EncryptionNoise)
+}
+
+///|
 /// Return the domain reserved for serialization nonces without exposing enum
 /// constructor details to facade packages.
 pub fn serialization_nonce_domain() -> RandomDomain {
@@ -230,13 +240,13 @@ pub fn RandomGenerator::next_u64(self : RandomGenerator) -> UInt64 {
 }
 
 ///|
-/// Versioned fixed-point cumulative distribution table. Thresholds encode the
-/// cumulative distribution of the absolute value over all 64-bit draws.
+/// Versioned 128-bit fixed-point cumulative distribution table. Each chunk
+/// stores `(high, low)` UInt64 words for at most 4096 thresholds.
 pub struct DiscreteGaussian {
   sigma_q32 : UInt64
   tail_bound : Int
-  magnitude_step : Int
-  cdt : Array[UInt64]
+  cdt_length : Int
+  cdt_chunks : Array[FixedArray[UInt64]]
   fixture_hash : String
 }
 
@@ -247,17 +257,21 @@ pub fn gaussian_sigma_3_fixture() -> DiscreteGaussian {
   {
     sigma_q32: 3UL << 32,
     tail_bound: 24,
-    magnitude_step: 1,
-    cdt: [
-      0x220B06EFC59DC000UL, 0x627326E31B016000UL, 0x98F80C58C41FC000UL, 0xC243E9165D940800UL,
-      0xDE419EB854B03800UL, 0xEF3BD7AEDFB2A800UL, 0xF872BE6BD7C64800UL, 0xFCEC65493DA1D000UL,
-      0xFEDE4B3B6D0EB000UL, 0xFF9FEC9E1608F000UL, 0xFFE34EB751D53800UL, 0xFFF84A73D0751000UL,
-      0xFFFE2351715FF000UL, 0xFFFF98909E326000UL, 0xFFFFEBD8F78A6000UL, 0xFFFFFC79E8784000UL,
-      0xFFFFFF727D757000UL, 0xFFFFFFEC177B8800UL, 0xFFFFFFFD7D26D800UL, 0xFFFFFFFFB7517000UL,
-      0xFFFFFFFFF8A2B800UL, 0xFFFFFFFFFF54D800UL, 0xFFFFFFFFFFF21800UL, 0xFFFFFFFFFFFF0000UL,
-      0xFFFFFFFFFFFFFFFFUL,
+    cdt_length: 25,
+    cdt_chunks: [
+      FixedArray::from_array([
+        0x220B06EFC59DC000UL, 0UL, 0x627326E31B016000UL, 0UL, 0x98F80C58C41FC000UL,
+        0UL, 0xC243E9165D940800UL, 0UL, 0xDE419EB854B03800UL, 0UL, 0xEF3BD7AEDFB2A800UL,
+        0UL, 0xF872BE6BD7C64800UL, 0UL, 0xFCEC65493DA1D000UL, 0UL, 0xFEDE4B3B6D0EB000UL,
+        0UL, 0xFF9FEC9E1608F000UL, 0UL, 0xFFE34EB751D53800UL, 0UL, 0xFFF84A73D0751000UL,
+        0UL, 0xFFFE2351715FF000UL, 0UL, 0xFFFF98909E326000UL, 0UL, 0xFFFFEBD8F78A6000UL,
+        0UL, 0xFFFFFC79E8784000UL, 0UL, 0xFFFFFF727D757000UL, 0UL, 0xFFFFFFEC177B8800UL,
+        0UL, 0xFFFFFFFD7D26D800UL, 0UL, 0xFFFFFFFFB7517000UL, 0UL, 0xFFFFFFFFF8A2B800UL,
+        0UL, 0xFFFFFFFFFF54D800UL, 0UL, 0xFFFFFFFFFFF21800UL, 0UL, 0xFFFFFFFFFFFF0000UL,
+        0UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFFFFFFFFFFUL,
+      ]),
     ],
-    fixture_hash: "sha256:1839de5e5990ccec2baa162916d353175ea9a93e3ed94dff6dc639e65952a784".to_string(),
+    fixture_hash: "test-only:sigma-3-u128-expanded-u64".to_string(),
   }
 }
 
@@ -268,8 +282,10 @@ pub fn test_zero_noise_fixture() -> DiscreteGaussian {
   {
     sigma_q32: 0UL,
     tail_bound: 0,
-    magnitude_step: 1,
-    cdt: [0xFFFFFFFFFFFFFFFFUL],
+    cdt_length: 1,
+    cdt_chunks: [
+      FixedArray::from_array([0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFFFFFFFFFFUL]),
+    ],
     fixture_hash: "test-only:zero-noise".to_string(),
   }
 }
@@ -294,30 +310,40 @@ pub fn RandomGenerator::sample_discrete_gaussian_fixed(
   self : RandomGenerator,
   distribution : DiscreteGaussian,
 ) -> Result[Int, RandomError] {
-  if distribution.cdt.length() == 0 || distribution.magnitude_step <= 0 {
+  if distribution.cdt_length <= 0 || distribution.cdt_chunks.length() == 0 {
     return Err(InvalidDistribution)
   }
-  let draw = self.next_u64()
+  let draw_high = self.next_u64()
+  let draw_low = self.next_u64()
   let mut low = 0
-  let mut high = distribution.cdt.length() - 1
+  let mut high = distribution.cdt_length - 1
   while low < high {
     let middle = (low + high) / 2
-    if draw <= distribution.cdt[middle] {
+    let (threshold_high, threshold_low) = distribution.cdt_threshold(middle)
+    if draw_high < threshold_high ||
+      (draw_high == threshold_high && draw_low <= threshold_low) {
       high = middle
     } else {
       low = middle + 1
     }
   }
-  let magnitude = if low == distribution.cdt.length() - 1 {
-    distribution.tail_bound
-  } else {
-    low * distribution.magnitude_step
-  }
+  let magnitude = low
   if magnitude == 0 || (self.next_u32() & 1U) == 0U {
     Ok(magnitude)
   } else {
     Ok(-magnitude)
   }
+}
+
+///|
+fn DiscreteGaussian::cdt_threshold(
+  self : DiscreteGaussian,
+  index : Int,
+) -> (UInt64, UInt64) {
+  let chunk_index = index / 4096
+  let word_index = index % 4096 * 2
+  let chunk = self.cdt_chunks[chunk_index]
+  (chunk[word_index], chunk[word_index + 1])
 }
 
 ///|
@@ -382,12 +408,16 @@ test "random: fixed-point CDT has stable moments and support" {
 test "random: fixed-point CDT known vector" {
   let rng = test_rng_new(0x434454464958)
   let distribution = gaussian_sigma_3_fixture()
-  let expected = [
-    -2, -1, -2, -1, 3, 2, 0, -1, -1, 0, 2, 6, -6, -2, 5, 2, -1, -4, -5, -2,
-  ]
-  for value in expected {
-    assert_eq(rng.sample_discrete_gaussian_fixed(distribution), Ok(value))
+  let actual : Array[Int] = []
+  for _ in 0..<20 {
+    actual.push(rng.sample_discrete_gaussian_fixed(distribution).unwrap())
   }
+  inspect(
+    actual,
+    content=(
+      #|[-2, -1, 2, 2, 1, 4, -2, 0, -1, -2, -4, -3, -2, 1, -1, 0, 1, -2, 6, 2]
+    ),
+  )
 }
 
 ///|
@@ -405,6 +435,47 @@ test "random: standard Boolean CDT fixtures are bounded and reproducible" {
     let high_sample = rng.sample_discrete_gaussian_fixed(high).unwrap()
     assert_true(high_sample >= -115955 && high_sample <= 115955)
   }
+}
+
+///|
+test "random: standard Boolean LWE CDT moments match quantized sigma" {
+  let cases = [
+    (gaussian_boolean_110_lwe_fixture(), 550000000L, 720000000L),
+    (gaussian_boolean_128_lwe_fixture(), 180000000L, 250000000L),
+  ]
+  for case_index in 0..<cases.length() {
+    let (distribution, variance_low, variance_high) = cases[case_index]
+    let rng = test_rng_new(0x5354415449535449UL + case_index.to_uint64())
+    let mut sum = 0L
+    let mut squared_sum = 0L
+    for _ in 0..<20000 {
+      let sample = rng.sample_discrete_gaussian_fixed(distribution).unwrap()
+      let wide = sample.to_int64()
+      sum = sum + wide
+      squared_sum = squared_sum + wide * wide
+    }
+    let variance = squared_sum / 20000L
+    assert_true(sum > -10000000L && sum < 10000000L)
+    assert_true(variance > variance_low && variance < variance_high)
+  }
+}
+
+///|
+test "random: standard Boolean CDT fixed seed vector" {
+  let rng = test_rng_new(0x5354444344543132UL)
+  let actual : Array[Int] = []
+  let low = gaussian_boolean_110_lwe_fixture()
+  let high = gaussian_boolean_128_lwe_fixture()
+  for _ in 0..<8 {
+    actual.push(rng.sample_discrete_gaussian_fixed(low).unwrap())
+    actual.push(rng.sample_discrete_gaussian_fixed(high).unwrap())
+  }
+  inspect(
+    actual,
+    content=(
+      #|[-13990, -707, -7071, 10383, 21037, 13329, 12329, -24850, -30481, 21487, 6973, -2831, 32075, -66, -6573, 6127]
+    ),
+  )
 }
 
 ///|

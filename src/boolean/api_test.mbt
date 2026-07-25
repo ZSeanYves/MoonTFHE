@@ -30,7 +30,7 @@ test "stable Boolean facade: serialization checksum rejects tampering" {
   let (client, _server) = generate_test_keys(parameters, 0x43484B).unwrap()
   let encoded = client.encrypt(true).serialize()
   let tampered = encoded.to_array()
-  tampered[39] = tampered[39] ^ 1U.to_byte()
+  tampered[51] = tampered[51] ^ 1U.to_byte()
   assert_true(
     client.deserialize(Bytes::from_array(tampered)) is Err(ChecksumMismatch),
   )

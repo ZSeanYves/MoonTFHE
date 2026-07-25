@@ -1,14 +1,13 @@
 ///|
 pub struct LweSecretKey {
   parameters : @params.LweDimension
-  bits : Array[Bool]
+  bits : FixedArray[UInt]
 }
 
 ///|
 pub struct LweCiphertext {
   parameters : @params.LweDimension
-  a : Array[@torus.Torus32]
-  b : @torus.Torus32
+  data : FixedArray[UInt]
 } derive(Debug, Eq)
 
 ///|
@@ -26,7 +25,7 @@ pub fn lwe_keygen(
   rng : @random.RandomGenerator,
 ) -> LweSecretKey {
   let n = parameters.value()
-  { parameters, bits: Array::makei(n, fn(_) { (rng.next_u32() & 1U) == 1U }) }
+  { parameters, bits: FixedArray::makei(n, fn(_) { rng.next_u32() & 1U }) }
 }
 
 ///|
@@ -40,7 +39,16 @@ pub fn lwe_key_from_binary_secret(
   if bits.length() != parameters.value() {
     return Err(InvalidDimension)
   }
-  Ok({ parameters, bits: bits.copy() })
+  Ok({
+    parameters,
+    bits: FixedArray::makei(bits.length(), fn(index) {
+      if bits[index] {
+        1U
+      } else {
+        0U
+      }
+    }),
+  })
 }
 
 ///|
@@ -51,7 +59,16 @@ pub fn lwe_key_from_binary_secret_unchecked(
   parameters : @params.LweDimension,
   bits : Array[Bool],
 ) -> LweSecretKey {
-  { parameters, bits: bits.copy() }
+  {
+    parameters,
+    bits: FixedArray::makei(bits.length(), fn(index) {
+      if bits[index] {
+        1U
+      } else {
+        0U
+      }
+    }),
+  }
 }
 
 ///|
@@ -64,7 +81,29 @@ pub fn lwe_ciphertext_from_parts(
   if a.length() != parameters.value() {
     Err(CiphertextDimensionMismatch)
   } else {
-    Ok({ parameters, a, b })
+    Ok({
+      parameters,
+      data: FixedArray::makei(a.length() + 1, fn(index) {
+        if index == a.length() {
+          b.to_uint()
+        } else {
+          a[index].to_uint()
+        }
+      }),
+    })
+  }
+}
+
+///|
+/// Construct an LWE ciphertext from the canonical `(mask || body)` layout.
+pub fn lwe_ciphertext_from_flat_u32(
+  parameters : @params.LweDimension,
+  data : FixedArray[UInt],
+) -> Result[LweCiphertext, LweError] {
+  if data.length() != parameters.value() + 1 {
+    Err(CiphertextDimensionMismatch)
+  } else {
+    Ok({ parameters, data: data.copy() })
   }
 }
 
@@ -80,7 +119,7 @@ pub fn LweSecretKey::lwe_encrypt_binary(
   } else {
     @torus.Torus32::from_int(-0x2000_0000)
   }
-  self.lwe_encrypt_torus(encoded, noise, rng)
+  self.lwe_encrypt_torus_with_streams(encoded, noise, rng, rng)
 }
 
 ///|
@@ -90,23 +129,33 @@ pub fn LweSecretKey::lwe_encrypt_torus(
   noise : @random.DiscreteGaussian,
   rng : @random.RandomGenerator,
 ) -> Result[LweCiphertext, LweError] {
+  self.lwe_encrypt_torus_with_streams(message, noise, rng, rng)
+}
+
+///|
+/// Encrypt using independently domain-separated mask and noise streams.
+pub fn LweSecretKey::lwe_encrypt_torus_with_streams(
+  self : LweSecretKey,
+  message : @torus.Torus32,
+  noise : @random.DiscreteGaussian,
+  mask_rng : @random.RandomGenerator,
+  noise_rng : @random.RandomGenerator,
+) -> Result[LweCiphertext, LweError] {
   let n = self.parameters.value()
-  let a = Array::makei(n, fn(_) { @torus.Torus32::from_uint(rng.next_u32()) })
+  let data = FixedArray::make(n + 1, 0U)
   let mut phase = message
   for i in 0..<n {
-    if self.bits[i] {
-      phase = phase.add(a[i])
+    data[i] = mask_rng.next_u32()
+    if self.bits[i] == 1U {
+      phase = phase.add(@torus.Torus32::from_uint(data[i]))
     }
   }
-  let error = match rng.sample_discrete_gaussian_fixed(noise) {
+  let error = match noise_rng.sample_discrete_gaussian_fixed(noise) {
     Ok(value) => value
     Err(_) => return Err(NoiseFailure)
   }
-  Ok({
-    parameters: self.parameters,
-    a,
-    b: phase.add(@torus.Torus32::from_int(error)),
-  })
+  data[n] = phase.add(@torus.Torus32::from_int(error)).to_uint()
+  Ok({ parameters: self.parameters, data })
 }
 
 ///|
@@ -114,11 +163,9 @@ pub fn lwe_trivial(
   parameters : @params.LweDimension,
   message : @torus.Torus32,
 ) -> LweCiphertext {
-  {
-    parameters,
-    a: Array::make(parameters.value(), @torus.Torus32::zero()),
-    b: message,
-  }
+  let data = FixedArray::make(parameters.value() + 1, 0U)
+  data[parameters.value()] = message.to_uint()
+  { parameters, data }
 }
 
 ///|
@@ -127,15 +174,17 @@ pub fn LweCiphertext::sub_scaled(
   other : LweCiphertext,
   scalar : Int,
 ) -> Result[LweCiphertext, LweError] {
-  if self.parameters != other.parameters || self.a.length() != other.a.length() {
+  if self.parameters != other.parameters ||
+    self.data.length() != other.data.length() {
     return Err(CiphertextDimensionMismatch)
   }
   Ok({
     parameters: self.parameters,
-    a: Array::makei(self.a.length(), fn(i) {
-      self.a[i].sub(other.a[i].scale(scalar))
+    data: FixedArray::makei(self.data.length(), fn(index) {
+      @torus.Torus32::from_uint(self.data[index])
+      .sub(@torus.Torus32::from_uint(other.data[index]).scale(scalar))
+      .to_uint()
     }),
-    b: self.b.sub(other.b.scale(scalar)),
   })
 }
 
@@ -145,13 +194,17 @@ pub fn LweCiphertext::add(
   self : LweCiphertext,
   other : LweCiphertext,
 ) -> Result[LweCiphertext, LweError] {
-  if self.parameters != other.parameters || self.a.length() != other.a.length() {
+  if self.parameters != other.parameters ||
+    self.data.length() != other.data.length() {
     return Err(CiphertextDimensionMismatch)
   }
   Ok({
     parameters: self.parameters,
-    a: Array::makei(self.a.length(), fn(i) { self.a[i].add(other.a[i]) }),
-    b: self.b.add(other.b),
+    data: FixedArray::makei(self.data.length(), fn(index) {
+      @torus.Torus32::from_uint(self.data[index])
+      .add(@torus.Torus32::from_uint(other.data[index]))
+      .to_uint()
+    }),
   })
 }
 
@@ -161,7 +214,10 @@ pub fn LweCiphertext::add_plain(
   self : LweCiphertext,
   value : @torus.Torus32,
 ) -> LweCiphertext {
-  { parameters: self.parameters, a: self.a.copy(), b: self.b.add(value) }
+  let data = self.data.copy()
+  let body = self.parameters.value()
+  data[body] = @torus.Torus32::from_uint(data[body]).add(value).to_uint()
+  { parameters: self.parameters, data }
 }
 
 ///|
@@ -170,7 +226,10 @@ pub fn LweCiphertext::sub_plain(
   self : LweCiphertext,
   value : @torus.Torus32,
 ) -> LweCiphertext {
-  { parameters: self.parameters, a: self.a.copy(), b: self.b.sub(value) }
+  let data = self.data.copy()
+  let body = self.parameters.value()
+  data[body] = @torus.Torus32::from_uint(data[body]).sub(value).to_uint()
+  { parameters: self.parameters, data }
 }
 
 ///|
@@ -196,7 +255,7 @@ pub fn LweSecretKey::encrypt_secret_gadget_row(
   for level_index in 0..<level {
     let shift = 32 - base_log * (level_index + 1)
     let gadget = 1U << shift
-    let plaintext = if self.bits[index] {
+    let plaintext = if self.bits[index] == 1U {
       @torus.Torus32::from_uint(gadget)
     } else {
       @torus.Torus32::zero()
@@ -231,7 +290,7 @@ pub fn LweSecretKey::secret_export_payload(self : LweSecretKey) -> Bytes {
   output[7] = (length >> 16).to_byte()
   output[8] = (length >> 24).to_byte()
   for index in 0..<self.bits.length() {
-    if self.bits[index] {
+    if self.bits[index] == 1U {
       let byte_index = 9 + index / 8
       output[byte_index] = output[byte_index] | (1U << (index % 8)).to_byte()
     }
@@ -245,13 +304,13 @@ pub fn LweSecretKey::lwe_decrypt_binary(
   ciphertext : LweCiphertext,
 ) -> Result[Bool, LweError] {
   if ciphertext.parameters != self.parameters ||
-    ciphertext.a.length() != self.bits.length() {
+    ciphertext.data.length() != self.bits.length() + 1 {
     return Err(CiphertextDimensionMismatch)
   }
-  let mut phase = ciphertext.b
+  let mut phase = @torus.Torus32::from_uint(ciphertext.data[self.bits.length()])
   for i in 0..<self.bits.length() {
-    if self.bits[i] {
-      phase = phase.sub(ciphertext.a[i])
+    if self.bits[i] == 1U {
+      phase = phase.sub(@torus.Torus32::from_uint(ciphertext.data[i]))
     }
   }
   Ok(phase.decode_sign())
@@ -264,12 +323,20 @@ pub fn LweCiphertext::parameters(self : LweCiphertext) -> @params.LweDimension {
 
 ///|
 pub fn LweCiphertext::a(self : LweCiphertext) -> Array[@torus.Torus32] {
-  self.a
+  Array::makei(self.parameters.value(), fn(index) {
+    @torus.Torus32::from_uint(self.data[index])
+  })
 }
 
 ///|
 pub fn LweCiphertext::b(self : LweCiphertext) -> @torus.Torus32 {
-  self.b
+  @torus.Torus32::from_uint(self.data[self.parameters.value()])
+}
+
+///|
+/// Copy the canonical `(mask || body)` representation.
+pub fn LweCiphertext::flat_u32_copy(self : LweCiphertext) -> FixedArray[UInt] {
+  self.data.copy()
 }
 
 ///|

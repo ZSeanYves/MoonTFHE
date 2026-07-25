@@ -54,7 +54,9 @@ pub struct Ciphertext {
 /// package and is not exposed through this facade.
 pub struct ClientKey {
   inner : @lwe.LweSecretKey
-  rng : @random.RandomGenerator
+  mask_rng : @random.RandomGenerator
+  noise_rng : @random.RandomGenerator
+  encryption_noise : @random.DiscreteGaussian
   parameters : BooleanParameters
   key_id : @params.KeyId
 }
@@ -198,10 +200,12 @@ pub fn generate_test_keys(
     key_switch,
     @pbs.bootstrap_keyswitch_order(),
   ).unwrap()
-  let key_id = @params.key_id_from_int(seed.to_int())
+  let key_id = @params.key_id_from_words(0x4D54464854455354UL, seed)
   let client_key : ClientKey = {
     inner: input_key,
-    rng: @random.test_rng_new(seed ^ 0x454E43UL),
+    mask_rng: @random.test_rng_new(seed ^ 0x454D41534BUL),
+    noise_rng: @random.test_rng_new(seed ^ 0x454E4F4953UL),
+    encryption_noise: noise,
     parameters,
     key_id,
   }
@@ -211,13 +215,21 @@ pub fn generate_test_keys(
 
 ///|
 pub fn ClientKey::encrypt(self : ClientKey, message : Bool) -> Ciphertext {
-  {
-    inner: self.inner
-    .lwe_encrypt_binary(message, @random.test_zero_noise_fixture(), self.rng)
-    .unwrap(),
-    key_id: self.key_id,
-    parameters: self.parameters,
+  let inner = match
+    self.inner.lwe_encrypt_torus_with_streams(
+      if message {
+        @torus.Torus32::from_int(0x2000_0000)
+      } else {
+        @torus.Torus32::from_int(-0x2000_0000)
+      },
+      self.encryption_noise,
+      self.mask_rng,
+      self.noise_rng,
+    ) {
+    Ok(value) => value
+    Err(_) => abort("validated ClientKey noise invariant violated")
   }
+  { inner, key_id: self.key_id, parameters: self.parameters }
 }
 
 ///|
@@ -451,7 +463,7 @@ pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes {
   }
   boolean_write_u32(payload, dimension * 4, self.inner.b().to_uint())
   let payload = Bytes::from_array(payload)
-  let header_length = 39
+  let header_length = 51
   let output = Array::make(header_length + payload.length(), b'\x00')
   output[0] = b'M'
   output[1] = b'B'
@@ -465,14 +477,14 @@ pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes {
     boolean_parameter_code(self.parameters).reinterpret_as_uint(),
   )
   boolean_write_u32(output, 11, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_u32(output, 15, self.key_id.to_int().reinterpret_as_uint())
+  boolean_write_key_id(output, 15, self.key_id)
   // Torus32 uses modulus 2^32, represented by zero modulo 2^32.
-  boolean_write_u32(output, 19, 0U)
+  boolean_write_u32(output, 31, 0U)
   // The compatibility facade has no production decomposition yet.
-  boolean_write_u32(output, 23, 0U)
-  boolean_write_u32(output, 27, if self.parameters.test_only { 0U } else { 1U })
-  boolean_write_u32(output, 31, payload.length().reinterpret_as_uint())
-  boolean_write_u32(output, 35, boolean_crc32c(payload))
+  boolean_write_u32(output, 35, 0U)
+  boolean_write_u32(output, 39, if self.parameters.test_only { 0U } else { 1U })
+  boolean_write_u32(output, 43, payload.length().reinterpret_as_uint())
+  boolean_write_u32(output, 47, boolean_crc32c(payload))
   for i in 0..<payload.length() {
     output[header_length + i] = payload[i]
   }
@@ -494,10 +506,10 @@ pub fn ClientKey::deserialize(
     return Err(InvalidMagic)
   }
   let version = bytes[4]
-  let header_length = 39
+  let header_length = 51
   let mut parameter_code = 0
   let mut dimension = 0
-  let mut key_id = @params.key_id_from_int(0)
+  let mut key_id = @params.key_id_from_words(0UL, 0UL)
   let mut payload_length = 0
   let mut payload = Bytes::make(0, 0)
   let mut checksum_ok = false
@@ -506,22 +518,20 @@ pub fn ClientKey::deserialize(
   }
   parameter_code = boolean_read_u32(bytes, 7).reinterpret_as_int()
   dimension = boolean_read_u32(bytes, 11).reinterpret_as_int()
-  key_id = @params.key_id_from_int(
-    boolean_read_u32(bytes, 15).reinterpret_as_int(),
-  )
-  if boolean_read_u32(bytes, 19) != 0U || boolean_read_u32(bytes, 23) != 0U {
+  key_id = boolean_read_key_id(bytes, 15)
+  if boolean_read_u32(bytes, 31) != 0U || boolean_read_u32(bytes, 35) != 0U {
     return Err(InvalidCiphertext)
   }
   let distribution = if self.parameters.test_only { 0U } else { 1U }
-  if boolean_read_u32(bytes, 27) != distribution {
+  if boolean_read_u32(bytes, 39) != distribution {
     return Err(ParameterMismatch)
   }
-  payload_length = boolean_read_u32(bytes, 31).reinterpret_as_int()
+  payload_length = boolean_read_u32(bytes, 43).reinterpret_as_int()
   if payload_length < 0 || bytes.length() != header_length + payload_length {
     return Err(InvalidLength)
   }
   payload = bytes[header_length:].to_owned()
-  checksum_ok = boolean_crc32c(payload) == boolean_read_u32(bytes, 35)
+  checksum_ok = boolean_crc32c(payload) == boolean_read_u32(bytes, 47)
   if parameter_code != boolean_parameter_code(self.parameters) ||
     dimension != self.parameters.dimension ||
     key_id != self.key_id {
@@ -582,11 +592,45 @@ fn boolean_write_u32(output : Array[Byte], offset : Int, value : UInt) -> Unit {
 }
 
 ///|
+fn boolean_write_u64(
+  output : Array[Byte],
+  offset : Int,
+  value : UInt64,
+) -> Unit {
+  boolean_write_u32(output, offset, value.to_uint())
+  boolean_write_u32(output, offset + 4, (value >> 32).to_uint())
+}
+
+///|
+fn boolean_write_key_id(
+  output : Array[Byte],
+  offset : Int,
+  key_id : @params.KeyId,
+) -> Unit {
+  boolean_write_u64(output, offset, key_id.high())
+  boolean_write_u64(output, offset + 8, key_id.low())
+}
+
+///|
 fn boolean_read_u32(input : Bytes, offset : Int) -> UInt {
   input[offset].to_uint() |
   (input[offset + 1].to_uint() << 8) |
   (input[offset + 2].to_uint() << 16) |
   (input[offset + 3].to_uint() << 24)
+}
+
+///|
+fn boolean_read_u64(input : Bytes, offset : Int) -> UInt64 {
+  boolean_read_u32(input, offset).to_uint64() |
+  (boolean_read_u32(input, offset + 4).to_uint64() << 32)
+}
+
+///|
+fn boolean_read_key_id(input : Bytes, offset : Int) -> @params.KeyId {
+  @params.key_id_from_words(
+    boolean_read_u64(input, offset),
+    boolean_read_u64(input, offset + 8),
+  )
 }
 
 ///|
@@ -614,7 +658,7 @@ pub fn ClientKey::export_secret(
     return Err(InvalidKeyLength)
   }
   let payload_length = 9 + (self.parameters.dimension + 7) / 8
-  let header = Array::make(22, b'\x00')
+  let header = Array::make(34, b'\x00')
   header[0] = b'M'
   header[1] = b'T'
   header[2] = b'S'
@@ -627,8 +671,8 @@ pub fn ClientKey::export_secret(
     boolean_parameter_code(self.parameters).reinterpret_as_uint(),
   )
   boolean_write_u32(header, 10, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_u32(header, 14, self.key_id.to_int().reinterpret_as_uint())
-  boolean_write_u32(header, 18, payload_length.reinterpret_as_uint())
+  boolean_write_key_id(header, 14, self.key_id)
+  boolean_write_u32(header, 30, payload_length.reinterpret_as_uint())
   let nonce_rng = match
     @random.secure_rng_new_for(@random.serialization_nonce_domain()) {
     Ok(value) => value
@@ -664,15 +708,15 @@ pub fn ClientKey::export_secret(
   if encrypted.length() != payload_length + 16 {
     return Err(InvalidLength)
   }
-  let output = Array::make(34 + encrypted.length(), b'\x00')
-  for index in 0..<22 {
+  let output = Array::make(46 + encrypted.length(), b'\x00')
+  for index in 0..<34 {
     output[index] = header[index]
   }
   for index in 0..<12 {
-    output[22 + index] = nonce[index]
+    output[34 + index] = nonce[index]
   }
   for index in 0..<encrypted.length() {
-    output[34 + index] = encrypted[index]
+    output[46 + index] = encrypted[index]
   }
   Ok(Bytes::from_array(output))
 }
@@ -686,7 +730,7 @@ pub fn ClientKey::import_secret(
   key : SerializationKey,
   bytes : Bytes,
 ) -> Result[ClientKey, SerializationError] {
-  let header_length = 22
+  let header_length = 34
   let nonce_length = 12
   let tag_length = 16
   if key.bytes.length() != 32 {
@@ -709,10 +753,8 @@ pub fn ClientKey::import_secret(
   }
   let parameter_code = boolean_read_u32(bytes, 6).reinterpret_as_int()
   let dimension = boolean_read_u32(bytes, 10).reinterpret_as_int()
-  let key_id = @params.key_id_from_int(
-    boolean_read_u32(bytes, 14).reinterpret_as_int(),
-  )
-  let payload_length = boolean_read_u32(bytes, 18).reinterpret_as_int()
+  let key_id = boolean_read_key_id(bytes, 14)
+  let payload_length = boolean_read_u32(bytes, 30).reinterpret_as_int()
   if payload_length < 9 ||
     bytes.length() != header_length + nonce_length + payload_length + tag_length {
     return Err(InvalidLength)
@@ -765,11 +807,29 @@ pub fn ClientKey::import_secret(
     Ok(value) => value
     Err(_) => return Err(InvalidCiphertext)
   }
-  let rng = match @random.secure_rng_new() {
+  let mask_rng = match @random.secure_encryption_mask_rng_new() {
     Ok(value) => value
     Err(_) => return Err(UnsupportedBackend)
   }
-  Ok({ inner: secret, rng, parameters, key_id })
+  let noise_rng = match @random.secure_encryption_noise_rng_new() {
+    Ok(value) => value
+    Err(_) => return Err(UnsupportedBackend)
+  }
+  let encryption_noise = if parameters.test_only {
+    @random.test_zero_noise_fixture()
+  } else if parameters.security.target_security_bits() == 110 {
+    @random.gaussian_boolean_110_lwe_fixture()
+  } else {
+    @random.gaussian_boolean_128_lwe_fixture()
+  }
+  Ok({
+    inner: secret,
+    mask_rng,
+    noise_rng,
+    encryption_noise,
+    parameters,
+    key_id,
+  })
 }
 
 ///|
@@ -787,7 +847,7 @@ pub fn ServerKey::serialize(
     b'\x01',
     self.parameters.dimension.to_byte(),
   ])
-  let header_length = 39
+  let header_length = 51
   let output = Array::make(header_length + payload.length(), b'\x00')
   output[0] = b'M'
   output[1] = b'B'
@@ -801,12 +861,12 @@ pub fn ServerKey::serialize(
     boolean_parameter_code(self.parameters).reinterpret_as_uint(),
   )
   boolean_write_u32(output, 11, self.parameters.dimension.reinterpret_as_uint())
-  boolean_write_u32(output, 15, self.key_id.to_int().reinterpret_as_uint())
-  boolean_write_u32(output, 19, 0U)
-  boolean_write_u32(output, 23, 0U)
-  boolean_write_u32(output, 27, if self.parameters.test_only { 0U } else { 1U })
-  boolean_write_u32(output, 31, payload.length().reinterpret_as_uint())
-  boolean_write_u32(output, 35, boolean_crc32c(payload))
+  boolean_write_key_id(output, 15, self.key_id)
+  boolean_write_u32(output, 31, 0U)
+  boolean_write_u32(output, 35, 0U)
+  boolean_write_u32(output, 39, if self.parameters.test_only { 0U } else { 1U })
+  boolean_write_u32(output, 43, payload.length().reinterpret_as_uint())
+  boolean_write_u32(output, 47, boolean_crc32c(payload))
   for index in 0..<payload.length() {
     output[header_length + index] = payload[index]
   }

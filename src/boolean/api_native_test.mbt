@@ -11,7 +11,7 @@ test "stable Boolean facade: native SecretExport uses fresh AES-GCM nonces" {
   assert_eq(first[1], b'T')
   assert_eq(first[2], b'S')
   assert_eq(first[3], b'K')
-  assert_true(first[22:34].to_owned() != second[22:34].to_owned())
+  assert_true(first[34:46].to_owned() != second[34:46].to_owned())
   assert_true(first != second)
 }
 

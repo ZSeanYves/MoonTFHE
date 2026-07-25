@@ -9,6 +9,8 @@ import {
 }
 
 // Values
+pub fn lwe_ciphertext_from_flat_u32(@params.LweDimension, FixedArray[UInt]) -> Result[LweCiphertext, LweError]
+
 pub fn lwe_ciphertext_from_parts(@params.LweDimension, Array[@torus.Torus32], @torus.Torus32) -> Result[LweCiphertext, LweError]
 
 pub fn lwe_key_from_binary_secret(@params.LweDimension, Array[Bool]) -> Result[LweSecretKey, LweError]
@@ -31,25 +33,26 @@ pub suberror LweError {
 // Types and methods
 pub struct LweCiphertext {
   parameters : @params.LweDimension
-  a : Array[@torus.Torus32]
-  b : @torus.Torus32
+  data : FixedArray[UInt]
 } derive(Eq, @debug.Debug)
 pub fn LweCiphertext::a(Self) -> Array[@torus.Torus32]
 pub fn LweCiphertext::add(Self, Self) -> Result[Self, LweError]
 pub fn LweCiphertext::add_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::b(Self) -> @torus.Torus32
+pub fn LweCiphertext::flat_u32_copy(Self) -> FixedArray[UInt]
 pub fn LweCiphertext::parameters(Self) -> @params.LweDimension
 pub fn LweCiphertext::sub_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::sub_scaled(Self, Self, Int) -> Result[Self, LweError]
 
 pub struct LweSecretKey {
   parameters : @params.LweDimension
-  bits : Array[Bool]
+  bits : FixedArray[UInt]
 }
 pub fn LweSecretKey::encrypt_secret_gadget_row(Self, Int, Self, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[Array[LweCiphertext], LweError]
 pub fn LweSecretKey::lwe_decrypt_binary(Self, LweCiphertext) -> Result[Bool, LweError]
 pub fn LweSecretKey::lwe_encrypt_binary(Self, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
 pub fn LweSecretKey::lwe_encrypt_torus(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
+pub fn LweSecretKey::lwe_encrypt_torus_with_streams(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
 pub fn LweSecretKey::parameters(Self) -> @params.LweDimension
 pub fn LweSecretKey::secret_export_payload(Self) -> Bytes
 

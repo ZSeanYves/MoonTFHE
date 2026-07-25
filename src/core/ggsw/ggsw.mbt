@@ -20,7 +20,7 @@ pub suberror GgswError {
 /// nested here.
 pub struct GgswCiphertext {
   parameters : GgswParameters
-  rows : Array[@glwe.GlweCiphertext]
+  data : FixedArray[UInt]
 }
 
 ///|
@@ -67,7 +67,7 @@ pub fn GgswCiphertext::parameters(self : GgswCiphertext) -> GgswParameters {
 
 ///|
 pub fn GgswCiphertext::row_count(self : GgswCiphertext) -> Int {
-  self.rows.length()
+  self.parameters.rows()
 }
 
 ///|
@@ -75,10 +75,38 @@ pub fn GgswCiphertext::row(
   self : GgswCiphertext,
   index : Int,
 ) -> Result[@glwe.GlweCiphertext, GgswError] {
-  if index < 0 || index >= self.rows.length() {
+  if index < 0 || index >= self.parameters.rows() {
     return Err(ShapeMismatch)
   }
-  Ok(self.rows[index])
+  let row_size = self.parameters.columns() *
+    self.parameters.glwe.polynomial_size()
+  let row_data = FixedArray::makei(row_size, fn(offset) {
+    self.data[index * row_size + offset]
+  })
+  match @glwe.glwe_ciphertext_from_flat_u32(self.parameters.glwe, row_data) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(ShapeMismatch)
+  }
+}
+
+///|
+pub fn GgswCiphertext::flat_u32_copy(self : GgswCiphertext) -> FixedArray[UInt] {
+  self.data.copy()
+}
+
+///|
+pub fn ggsw_from_flat_u32(
+  parameters : GgswParameters,
+  data : FixedArray[UInt],
+) -> Result[GgswCiphertext, GgswError] {
+  let expected = parameters.rows() *
+    parameters.columns() *
+    parameters.glwe.polynomial_size()
+  if data.length() != expected {
+    Err(ShapeMismatch)
+  } else {
+    Ok({ parameters, data: data.copy() })
+  }
 }
 
 ///|
@@ -86,12 +114,14 @@ pub fn GgswCiphertext::row(
 /// gadget filling are intentionally separate operations so shape validation is
 /// independent from the cryptographic implementation.
 pub fn ggsw_zero(parameters : GgswParameters) -> GgswCiphertext {
-  let row_count = parameters.rows()
   {
     parameters,
-    rows: Array::makei(row_count, fn(_) {
-      @glwe.glwe_zero_ciphertext(parameters.glwe)
-    }),
+    data: FixedArray::make(
+      parameters.rows() *
+      parameters.columns() *
+      parameters.glwe.polynomial_size(),
+      0U,
+    ),
   }
 }
 
@@ -99,15 +129,14 @@ pub fn ggsw_zero(parameters : GgswParameters) -> GgswCiphertext {
 pub fn GgswCiphertext::validate(
   self : GgswCiphertext,
 ) -> Result[Unit, GgswError] {
-  if self.rows.length() != self.parameters.rows() {
-    return Err(ShapeMismatch)
+  let expected = self.parameters.rows() *
+    self.parameters.columns() *
+    self.parameters.glwe.polynomial_size()
+  if self.data.length() == expected {
+    Ok(())
+  } else {
+    Err(ShapeMismatch)
   }
-  for ciphertext in self.rows {
-    if ciphertext.parameters() != self.parameters.glwe {
-      return Err(ShapeMismatch)
-    }
-  }
-  Ok(())
 }
 
 ///|
@@ -124,7 +153,9 @@ pub fn ggsw_encrypt_boolean(
   }
   let n = parameters.glwe.polynomial_size()
   let zero = Array::make(n, @torus.Torus32::zero())
-  let rows : Array[@glwe.GlweCiphertext] = []
+  let row_size = parameters.columns() * n
+  let data = FixedArray::make(parameters.rows() * row_size, 0U)
+  let mut row_index = 0
   for level_index in 0..<parameters.level {
     let shift = 32 - parameters.base_log * (level_index + 1)
     let gadget = @torus.Torus32::from_uint(1U << shift)
@@ -133,17 +164,22 @@ pub fn ggsw_encrypt_boolean(
         Ok(value) => value
         Err(_) => return Err(EncryptionFailure)
       }
-      if message {
+      let row = if message {
         match row.add_gadget_to_component(component, gadget) {
-          Ok(value) => rows.push(value)
+          Ok(value) => value
           Err(_) => return Err(EncryptionFailure)
         }
       } else {
-        rows.push(row)
+        row
       }
+      let flat = row.flat_u32_copy()
+      for offset in 0..<row_size {
+        data[row_index * row_size + offset] = flat[offset]
+      }
+      row_index = row_index + 1
     }
   }
-  Ok({ parameters, rows })
+  Ok({ parameters, data })
 }
 
 ///|
@@ -187,8 +223,11 @@ pub fn GgswCiphertext::external_product(
         @torus.Torus32::from_int(decomposed[index][level_index])
       })
       let row_index = level_index * columns + component
-      let product = match
-        self.rows[row_index].mul_plain_poly(digit_polynomial) {
+      let row = match self.row(row_index) {
+        Ok(value) => value
+        Err(_) => return Err(ExternalProductFailure)
+      }
+      let product = match row.mul_plain_poly(digit_polynomial) {
         Ok(value) => value
         Err(_) => return Err(ExternalProductFailure)
       }

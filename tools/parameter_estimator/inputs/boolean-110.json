@@ -6,16 +6,24 @@
   "polynomial_size": 512,
   "secret_distribution": "binary",
   "lwe_noise": {
-    "distribution": "discrete_gaussian_cdt",
+    "distribution": "discrete_gaussian_cdt_u128",
     "sigma_q32": 108127244401837,
     "tail_sigma": 8,
-    "fixture_hash": "sha256:d2f74890066c5c72916b8e909d4989ed09e2e9ba73853967c60ef22abb28b4a6"
+    "tail_bound": 201403,
+    "threshold_bits": 128,
+    "entries": 201404,
+    "quantization_error_bound": "2^-128",
+    "fixture_hash": "sha256:bf40a2ef2b5fdcae8deea3e0a06869e2a50fcfb8e164145b7ab2177b048e3df1"
   },
   "glwe_noise": {
-    "distribution": "discrete_gaussian_cdt",
+    "distribution": "discrete_gaussian_cdt_u128",
     "sigma_q32": 17183644010,
     "tail_sigma": 8,
-    "fixture_hash": "sha256:8cfa36c5e9de3ea09a2105903498105aa7af0f771dfb3e180a8db81f7cb1164b"
+    "tail_bound": 33,
+    "threshold_bits": 128,
+    "entries": 34,
+    "quantization_error_bound": "2^-128",
+    "fixture_hash": "sha256:56d701274aaac4fb79b00783cea6c88ec8bc5f9bbbded63bc23506ecc354d017"
   },
   "pbs_decomposition": {"base_log": 10, "level": 2},
   "ks_decomposition": {"base_log": 3, "level": 5},

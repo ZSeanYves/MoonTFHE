@@ -95,7 +95,9 @@ pub fn Ciphertext::serialize(Self) -> Bytes
 
 pub struct ClientKey {
   inner : @lwe.LweSecretKey
-  rng : @random.RandomGenerator
+  mask_rng : @random.RandomGenerator
+  noise_rng : @random.RandomGenerator
+  encryption_noise : @random.DiscreteGaussian
   parameters : BooleanParameters
   key_id : @params.KeyId
 }
