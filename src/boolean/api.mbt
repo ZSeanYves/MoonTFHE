@@ -44,7 +44,7 @@ pub suberror SerializationError {
 ///|
 /// Opaque Boolean ciphertext.
 pub struct Ciphertext {
-  inner : @src.BooleanCiphertext
+  inner : @lwe.LweCiphertext
   key_id : @params.KeyId
   parameters : BooleanParameters
 }
@@ -53,7 +53,8 @@ pub struct Ciphertext {
 /// Client-side secret key. The secret representation is owned by the core
 /// package and is not exposed through this facade.
 pub struct ClientKey {
-  inner : @src.ExperimentalBooleanClientKey
+  inner : @lwe.LweSecretKey
+  rng : @random.RandomGenerator
   parameters : BooleanParameters
   key_id : @params.KeyId
 }
@@ -61,7 +62,7 @@ pub struct ClientKey {
 ///|
 /// Secret-free evaluation key.
 pub struct ServerKey {
-  inner : @src.ExperimentalBooleanServerKey
+  inner : @pbs.BootstrapKey
   parameters : BooleanParameters
   key_id : @params.KeyId
 }
@@ -146,19 +147,74 @@ pub fn generate_test_keys(
   if parameters.record.validate() is Err(_) {
     return Err(InvalidParameters)
   }
-  let (client, server) = @src.experimental_boolean_keygen(seed)
-  // The current experimental implementation derives the tag internally. The
-  // facade uses the deterministic seed as its compatibility identity.
+  let input_dimension = @params.lwe_dimension(parameters.dimension).unwrap()
+  let glwe = @glwe.glwe_parameters(
+    parameters.record.glwe_dimension().value(),
+    parameters.record.polynomial_size().value(),
+  ).unwrap()
+  let key_rng = @random.test_rng_new(seed)
+  let input_bits = Array::makei(parameters.dimension, fn(_) {
+    (key_rng.next_u32() & 1U) == 1U
+  })
+  let input_key = @lwe.lwe_key_from_binary_secret_unchecked(
+    input_dimension, input_bits,
+  )
+  let glwe_data = Array::makei(glwe.glwe_dimension(), fn(_) {
+    Array::makei(glwe.polynomial_size(), fn(_) {
+      (key_rng.next_u32() & 1U) == 1U
+    })
+  })
+  let glwe_key = @glwe.glwe_key_from_binary_secret(glwe, glwe_data).unwrap()
+  let extracted_key = glwe_key.to_extracted_lwe_key().unwrap()
+  let noise = @random.test_zero_noise_fixture()
+  let key_switch = @keyswitch.keyswitch_keygen(
+    extracted_key,
+    input_key,
+    parameters.record.ks_decomposition(),
+    noise,
+    @random.test_rng_new(seed ^ 0x4B534BUL),
+  ).unwrap()
+  let ggsw_parameters = @ggsw.ggsw_parameters(
+    glwe,
+    parameters.record.pbs_decomposition().base_log(),
+    parameters.record.pbs_decomposition().level(),
+  ).unwrap()
+  let controls : Array[@ggsw.GgswCiphertext] = []
+  for index in 0..<input_bits.length() {
+    controls.push(
+      @ggsw.ggsw_encrypt_boolean(
+        ggsw_parameters,
+        glwe_key,
+        input_bits[index],
+        noise,
+        @random.test_rng_new(seed ^ (0x42534B00UL + index.to_uint64())),
+      ).unwrap(),
+    )
+  }
+  let bootstrap = @pbs.bootstrap_key_from_encrypted_parts(
+    input_dimension,
+    glwe,
+    controls,
+    key_switch,
+    @pbs.bootstrap_keyswitch_order(),
+  ).unwrap()
   let key_id = @params.key_id_from_int(seed.to_int())
-  let client_key : ClientKey = { inner: client, parameters, key_id }
-  let server_key : ServerKey = { inner: server, parameters, key_id }
+  let client_key : ClientKey = {
+    inner: input_key,
+    rng: @random.test_rng_new(seed ^ 0x454E43UL),
+    parameters,
+    key_id,
+  }
+  let server_key : ServerKey = { inner: bootstrap, parameters, key_id }
   Ok((client_key, server_key))
 }
 
 ///|
 pub fn ClientKey::encrypt(self : ClientKey, message : Bool) -> Ciphertext {
   {
-    inner: self.inner.encrypt(message),
+    inner: self.inner
+    .lwe_encrypt_binary(message, @random.test_zero_noise_fixture(), self.rng)
+    .unwrap(),
     key_id: self.key_id,
     parameters: self.parameters,
   }
@@ -172,7 +228,7 @@ pub fn ClientKey::decrypt(
   if ciphertext.key_id != self.key_id {
     return Err(KeyMismatch)
   }
-  match self.inner.decrypt(ciphertext.inner) {
+  match self.inner.lwe_decrypt_binary(ciphertext.inner) {
     Ok(value) => Ok(value)
     Err(_) => Err(InvalidCiphertext)
   }
@@ -202,7 +258,14 @@ pub fn ServerKey::not(
     Ok(_) => ()
     Err(error) => return Err(error)
   }
-  match self.inner.not(ciphertext.inner) {
+  match
+    self.inner.programmable_bootstrap(
+      ciphertext.inner,
+      @pbs.boolean_lut(
+        @torus.Torus32::from_int(0x2000_0000),
+        @torus.Torus32::from_int(-0x2000_0000),
+      ),
+    ) {
     Ok(value) =>
       Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
     Err(_) => Err(InvalidCiphertext)
@@ -223,7 +286,24 @@ pub fn ServerKey::nand(
     Ok(_) => ()
     Err(error) => return Err(error)
   }
-  match self.inner.nand(left.inner, right.inner) {
+  let combined = match left.inner.add(right.inner) {
+    Ok(value) => value.sub_plain(@torus.Torus32::from_int(0x2000_0000))
+    Err(_) => return Err(InvalidCiphertext)
+  }
+  let n = self.parameters.record.polynomial_size().value()
+  let table = Array::makei(n, fn(rotation) {
+    let first = n / 8
+    let third = 3 * n / 8
+    let fifth = 5 * n / 8
+    let seventh = 7 * n / 8
+    if (rotation >= first && rotation < third) ||
+      (rotation >= fifth && rotation < seventh) {
+      @torus.Torus32::from_int(0x2000_0000)
+    } else {
+      @torus.Torus32::from_int(-0x2000_0000)
+    }
+  })
+  match self.inner.programmable_bootstrap_table(combined, table) {
     Ok(value) =>
       Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
     Err(_) => Err(InvalidCiphertext)
@@ -363,7 +443,14 @@ pub fn ServerKey::apply_lut(
 
 ///|
 pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes {
-  let payload = self.inner.serialize()
+  let dimension = self.inner.parameters().value()
+  let payload = Array::make(4 * (dimension + 1), b'\x00')
+  let mask = self.inner.a()
+  for index in 0..<dimension {
+    boolean_write_u32(payload, index * 4, mask[index].to_uint())
+  }
+  boolean_write_u32(payload, dimension * 4, self.inner.b().to_uint())
+  let payload = Bytes::from_array(payload)
   let header_length = 39
   let output = Array::make(header_length + payload.length(), b'\x00')
   output[0] = b'M'
@@ -407,49 +494,34 @@ pub fn ClientKey::deserialize(
     return Err(InvalidMagic)
   }
   let version = bytes[4]
-  let mut header_length = 25
+  let header_length = 39
   let mut parameter_code = 0
   let mut dimension = 0
   let mut key_id = @params.key_id_from_int(0)
   let mut payload_length = 0
   let mut payload = Bytes::make(0, 0)
   let mut checksum_ok = false
-  if version == b'\x01' {
-    parameter_code = boolean_read_i32(bytes, 5)
-    dimension = boolean_read_i32(bytes, 9)
-    key_id = @params.key_id_from_int(boolean_read_i32(bytes, 13))
-    payload_length = boolean_read_i32(bytes, 17)
-    if payload_length < 0 || bytes.length() != 25 + payload_length {
-      return Err(InvalidLength)
-    }
-    payload = bytes[25:].to_owned()
-    checksum_ok = boolean_checksum(payload) == boolean_read_i32(bytes, 21)
-  } else if version == b'\x02' {
-    header_length = 39
-    if bytes.length() < header_length || bytes[5] != b'\x01' {
-      return Err(InvalidLength)
-    }
-    parameter_code = boolean_read_u32(bytes, 7).reinterpret_as_int()
-    dimension = boolean_read_u32(bytes, 11).reinterpret_as_int()
-    key_id = @params.key_id_from_int(
-      boolean_read_u32(bytes, 15).reinterpret_as_int(),
-    )
-    if boolean_read_u32(bytes, 19) != 0U || boolean_read_u32(bytes, 23) != 0U {
-      return Err(InvalidCiphertext)
-    }
-    let distribution = if self.parameters.test_only { 0U } else { 1U }
-    if boolean_read_u32(bytes, 27) != distribution {
-      return Err(ParameterMismatch)
-    }
-    payload_length = boolean_read_u32(bytes, 31).reinterpret_as_int()
-    if payload_length < 0 || bytes.length() != header_length + payload_length {
-      return Err(InvalidLength)
-    }
-    payload = bytes[header_length:].to_owned()
-    checksum_ok = boolean_crc32c(payload) == boolean_read_u32(bytes, 35)
-  } else {
+  if version != b'\x02' || bytes.length() < header_length || bytes[5] != b'\x01' {
     return Err(UnsupportedVersion)
   }
+  parameter_code = boolean_read_u32(bytes, 7).reinterpret_as_int()
+  dimension = boolean_read_u32(bytes, 11).reinterpret_as_int()
+  key_id = @params.key_id_from_int(
+    boolean_read_u32(bytes, 15).reinterpret_as_int(),
+  )
+  if boolean_read_u32(bytes, 19) != 0U || boolean_read_u32(bytes, 23) != 0U {
+    return Err(InvalidCiphertext)
+  }
+  let distribution = if self.parameters.test_only { 0U } else { 1U }
+  if boolean_read_u32(bytes, 27) != distribution {
+    return Err(ParameterMismatch)
+  }
+  payload_length = boolean_read_u32(bytes, 31).reinterpret_as_int()
+  if payload_length < 0 || bytes.length() != header_length + payload_length {
+    return Err(InvalidLength)
+  }
+  payload = bytes[header_length:].to_owned()
+  checksum_ok = boolean_crc32c(payload) == boolean_read_u32(bytes, 35)
   if parameter_code != boolean_parameter_code(self.parameters) ||
     dimension != self.parameters.dimension ||
     key_id != self.key_id {
@@ -458,9 +530,34 @@ pub fn ClientKey::deserialize(
   if !checksum_ok {
     return Err(ChecksumMismatch)
   }
-  match self.inner.deserialize_ciphertext(payload) {
+  match boolean_decode_lwe_payload(self.inner.parameters(), payload) {
     Ok(value) =>
       Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
+    Err(_) => Err(InvalidCiphertext)
+  }
+}
+
+///|
+fn boolean_decode_lwe_payload(
+  parameters : @params.LweDimension,
+  payload : Bytes,
+) -> Result[@lwe.LweCiphertext, SerializationError] {
+  let expected = 4 * (parameters.value() + 1)
+  if payload.length() != expected {
+    return Err(InvalidCiphertext)
+  }
+  let a = Array::makei(parameters.value(), fn(index) {
+    @torus.Torus32::from_uint(boolean_read_u32(payload, index * 4))
+  })
+  match
+    @lwe.lwe_ciphertext_from_parts(
+      parameters,
+      a,
+      @torus.Torus32::from_uint(
+        boolean_read_u32(payload, parameters.value() * 4),
+      ),
+    ) {
+    Ok(value) => Ok(value)
     Err(_) => Err(InvalidCiphertext)
   }
 }
@@ -485,28 +582,11 @@ fn boolean_write_u32(output : Array[Byte], offset : Int, value : UInt) -> Unit {
 }
 
 ///|
-fn boolean_read_i32(input : Bytes, offset : Int) -> Int {
-  input[offset].to_int() |
-  (input[offset + 1].to_int() << 8) |
-  (input[offset + 2].to_int() << 16) |
-  (input[offset + 3].to_int() << 24)
-}
-
-///|
 fn boolean_read_u32(input : Bytes, offset : Int) -> UInt {
   input[offset].to_uint() |
   (input[offset + 1].to_uint() << 8) |
   (input[offset + 2].to_uint() << 16) |
   (input[offset + 3].to_uint() << 24)
-}
-
-///|
-fn boolean_checksum(bytes : Bytes) -> Int {
-  let mut hash = 0x811C9DC5
-  for byte in bytes {
-    hash = (hash ^ byte.to_int()) * 0x01000193
-  }
-  hash
 }
 
 ///|
@@ -561,17 +641,24 @@ pub fn ClientKey::export_secret(
       nonce[word_index * 4 + byte_index] = (word >> (byte_index * 8)).to_byte()
     }
   }
+  let payload = self.inner.secret_export_payload()
   let encrypted = match
-    self.inner.encrypt_secret_payload(
+    @provider.aes256_gcm_encrypt(
       key.bytes,
       Bytes::from_array(nonce),
       Bytes::from_array(header),
+      payload,
     ) {
     Ok(value) => value
-    Err(@src.SecretExportError::UnsupportedBackend) =>
+    Err(@provider.NativeProviderError::UnsupportedBackend) =>
       return Err(UnsupportedBackend)
-    Err(@src.SecretExportError::InvalidLength) => return Err(InvalidLength)
-    Err(@src.SecretExportError::ProviderFailure) =>
+    Err(@provider.NativeProviderError::InvalidLength) =>
+      return Err(InvalidLength)
+    Err(@provider.NativeProviderError::InvalidPolynomialSize) =>
+      return Err(InvalidLength)
+    Err(@provider.NativeProviderError::AuthenticationFailed) =>
+      return Err(AuthenticationFailed)
+    Err(@provider.NativeProviderError::ProviderFailure(status~)) =>
       return Err(UnsupportedBackend)
   }
   if encrypted.length() != payload_length + 16 {
@@ -595,7 +682,16 @@ pub fn ClientKey::export_secret(
 pub fn ServerKey::serialize(
   self : ServerKey,
 ) -> Result[Bytes, SerializationError] {
-  let payload = self.inner.serialize_payload()
+  // The formal public format is completed in C12. During C7 the payload is a
+  // typed, secret-free structural marker rather than a legacy root snapshot.
+  let payload = Bytes::from_array([
+    b'M',
+    b'K',
+    b'S',
+    b'P',
+    b'\x01',
+    self.parameters.dimension.to_byte(),
+  ])
   let header_length = 39
   let output = Array::make(header_length + payload.length(), b'\x00')
   output[0] = b'M'

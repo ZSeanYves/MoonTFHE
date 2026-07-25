@@ -5,6 +5,11 @@ pub enum PbsOrder {
 } derive(Debug, Eq)
 
 ///|
+pub fn bootstrap_keyswitch_order() -> PbsOrder {
+  BootstrapKeyswitch
+}
+
+///|
 /// A fixed two-point Boolean programmable LUT. The full arbitrary torus LUT
 /// representation is added with the Fourier BSK backend in C4.
 pub struct BooleanLut {
@@ -22,6 +27,7 @@ pub suberror PbsError {
   SampleExtractionFailure
   KeyswitchFailure
   UnsupportedOrder
+  InvalidTableLength
 } derive(Debug, Eq)
 
 ///|
@@ -110,48 +116,19 @@ fn polynomial_log_modulus(size : Int) -> Result[Int, PbsError] {
 }
 
 ///|
-fn accumulator_set_output(
-  polynomial : Array[@torus.Torus32],
-  rotation : Int,
-  output : @torus.Torus32,
-) -> Unit {
-  let n = polynomial.length()
-  let period = 2 * n
-  let exponent = (period - rotation % period) % period
-  if exponent < n {
-    polynomial[exponent] = output
-  } else {
-    polynomial[exponent - n] = output.neg()
-  }
-}
-
-///|
 fn BooleanLut::accumulator(
   self : BooleanLut,
   parameters : @glwe.GlweParameters,
 ) -> Result[@glwe.GlweCiphertext, PbsError] {
   let n = parameters.polynomial_size()
-  let log_n = match polynomial_log_modulus(n) {
-    Ok(value) => value
-    Err(error) => return Err(error)
+  if polynomial_log_modulus(n) is Err(_) ||
+    self.false_value != self.true_value.neg() {
+    return Err(InvalidLut)
   }
-  let modulus = match @torus.CiphertextModulus::power_of_two(log_n + 1) {
-    Ok(value) => value
-    Err(_) => return Err(InvalidPolynomialSize)
-  }
-  let positive = match
-    @torus.Torus32::from_int(0x2000_0000).modulus_switch(modulus) {
-    Ok(value) => value
-    Err(_) => return Err(InvalidLut)
-  }
-  let negative = match
-    @torus.Torus32::from_int(-0x2000_0000).modulus_switch(modulus) {
-    Ok(value) => value
-    Err(_) => return Err(InvalidLut)
-  }
-  let polynomial = Array::make(n, @torus.Torus32::zero())
-  accumulator_set_output(polynomial, positive, self.true_value)
-  accumulator_set_output(polynomial, negative, self.false_value)
+  // With the blind-rotation sign convention, a positive input extracts the
+  // negated half while a negative input extracts this stored half. Filling the
+  // whole half also absorbs modulus-switch rounding around +/-1/8.
+  let polynomial = Array::make(n, self.false_value)
   match @glwe.glwe_trivial(parameters, polynomial) {
     Ok(value) => Ok(value)
     Err(_) => Err(InvalidLut)
@@ -212,6 +189,39 @@ pub fn BootstrapKey::programmable_bootstrap(
   let accumulator = match lut.accumulator(self.glwe_parameters) {
     Ok(value) => value
     Err(error) => return Err(error)
+  }
+  let rotated = match self.blind_rotate(accumulator, input) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let extracted = match rotated.sample_extract(0) {
+    Ok(value) => value
+    Err(_) => return Err(SampleExtractionFailure)
+  }
+  match self.key_switch.apply(extracted) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(KeyswitchFailure)
+  }
+}
+
+///|
+/// Reference programmable bootstrap for an arbitrary anti-periodic torus
+/// table. `table[r]` is the output for rotation `r` in `[0, N)`; rotations
+/// `r + N` are represented by the negacyclic sign rule.
+pub fn BootstrapKey::programmable_bootstrap_table(
+  self : BootstrapKey,
+  input : @lwe.LweCiphertext,
+  table : Array[@torus.Torus32],
+) -> Result[@lwe.LweCiphertext, PbsError] {
+  if self.order is KeyswitchBootstrap {
+    return Err(UnsupportedOrder)
+  }
+  if table.length() != self.glwe_parameters.polynomial_size() {
+    return Err(InvalidTableLength)
+  }
+  let accumulator = match @glwe.glwe_trivial(self.glwe_parameters, table) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidLut)
   }
   let rotated = match self.blind_rotate(accumulator, input) {
     Ok(value) => value

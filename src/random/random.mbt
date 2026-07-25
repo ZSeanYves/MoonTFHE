@@ -260,6 +260,18 @@ pub fn gaussian_sigma_3_fixture() -> DiscreteGaussian {
 }
 
 ///|
+/// Deterministic zero-noise distribution reserved for structural tests. It is
+/// never selected by production parameter records or `generate_keys`.
+pub fn test_zero_noise_fixture() -> DiscreteGaussian {
+  {
+    sigma_q32: 0UL,
+    tail_bound: 0,
+    cdt: [0xFFFFFFFFFFFFFFFFUL],
+    fixture_hash: "test-only:zero-noise".to_string(),
+  }
+}
+
+///|
 pub fn DiscreteGaussian::sigma_q32(self : DiscreteGaussian) -> UInt64 {
   self.sigma_q32
 }

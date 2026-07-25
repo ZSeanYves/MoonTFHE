@@ -9,6 +9,8 @@ import {
 }
 
 // Values
+pub fn glwe_key_from_binary_secret(GlweParameters, Array[Array[Bool]]) -> Result[GlweSecretKey, GlweError]
+
 pub fn glwe_keygen(GlweParameters, @random.RandomGenerator) -> GlweSecretKey
 
 pub fn glwe_parameters(Int, Int) -> Result[GlweParameters, GlweError]

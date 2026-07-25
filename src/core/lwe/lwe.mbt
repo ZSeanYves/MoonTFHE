@@ -44,6 +44,17 @@ pub fn lwe_key_from_binary_secret(
 }
 
 ///|
+/// Construct a binary LWE key from caller-owned material. This is intended
+/// for key-generation code that keeps the material local; the secret bits are
+/// never exposed through an accessor on the key type.
+pub fn lwe_key_from_binary_secret_unchecked(
+  parameters : @params.LweDimension,
+  bits : Array[Bool],
+) -> LweSecretKey {
+  { parameters, bits: bits.copy() }
+}
+
+///|
 /// Construct a ciphertext from a validated sample-extraction layout.
 pub fn lwe_ciphertext_from_parts(
   parameters : @params.LweDimension,
@@ -129,6 +140,40 @@ pub fn LweCiphertext::sub_scaled(
 }
 
 ///|
+/// Add two LWE ciphertexts in the same secret-key domain.
+pub fn LweCiphertext::add(
+  self : LweCiphertext,
+  other : LweCiphertext,
+) -> Result[LweCiphertext, LweError] {
+  if self.parameters != other.parameters || self.a.length() != other.a.length() {
+    return Err(CiphertextDimensionMismatch)
+  }
+  Ok({
+    parameters: self.parameters,
+    a: Array::makei(self.a.length(), fn(i) { self.a[i].add(other.a[i]) }),
+    b: self.b.add(other.b),
+  })
+}
+
+///|
+/// Add a public torus constant to the body of an LWE ciphertext.
+pub fn LweCiphertext::add_plain(
+  self : LweCiphertext,
+  value : @torus.Torus32,
+) -> LweCiphertext {
+  { parameters: self.parameters, a: self.a.copy(), b: self.b.add(value) }
+}
+
+///|
+/// Subtract a public torus constant from the body of an LWE ciphertext.
+pub fn LweCiphertext::sub_plain(
+  self : LweCiphertext,
+  value : @torus.Torus32,
+) -> LweCiphertext {
+  { parameters: self.parameters, a: self.a.copy(), b: self.b.sub(value) }
+}
+
+///|
 /// Encrypt one input-key bit multiplied by every gadget power. This keygen
 /// hook never returns the secret bit itself.
 pub fn LweSecretKey::encrypt_secret_gadget_row(
@@ -167,6 +212,31 @@ pub fn LweSecretKey::encrypt_secret_gadget_row(
 ///|
 pub fn LweSecretKey::parameters(self : LweSecretKey) -> @params.LweDimension {
   self.parameters
+}
+
+///|
+/// Pack the binary secret for an explicit authenticated SecretExport flow.
+/// High-level APIs must encrypt this payload immediately and must not expose it
+/// as their default serialization format.
+pub fn LweSecretKey::secret_export_payload(self : LweSecretKey) -> Bytes {
+  let output = Array::make(9 + (self.bits.length() + 7) / 8, b'\x00')
+  output[0] = b'M'
+  output[1] = b'S'
+  output[2] = b'C'
+  output[3] = b'R'
+  output[4] = b'\x01'
+  let length = self.bits.length().reinterpret_as_uint()
+  output[5] = length.to_byte()
+  output[6] = (length >> 8).to_byte()
+  output[7] = (length >> 16).to_byte()
+  output[8] = (length >> 24).to_byte()
+  for index in 0..<self.bits.length() {
+    if self.bits[index] {
+      let byte_index = 9 + index / 8
+      output[byte_index] = output[byte_index] | (1U << (index % 8)).to_byte()
+    }
+  }
+  Bytes::from_array(output)
 }
 
 ///|

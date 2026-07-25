@@ -16,6 +16,8 @@ pub fn boolean_lut(@torus.Torus32, @torus.Torus32) -> BooleanLut
 
 pub fn bootstrap_key_from_encrypted_parts(@params.LweDimension, @glwe.GlweParameters, Array[@ggsw.GgswCiphertext], @keyswitch.KeySwitchKey, PbsOrder) -> Result[BootstrapKey, PbsError]
 
+pub fn bootstrap_keyswitch_order() -> PbsOrder
+
 // Errors
 pub suberror PbsError {
   InvalidLut
@@ -26,6 +28,7 @@ pub suberror PbsError {
   SampleExtractionFailure
   KeyswitchFailure
   UnsupportedOrder
+  InvalidTableLength
 } derive(Eq, @debug.Debug)
 
 // Types and methods
@@ -46,6 +49,7 @@ pub struct BootstrapKey {
 }
 pub fn BootstrapKey::blind_rotate(Self, @glwe.GlweCiphertext, @lwe.LweCiphertext) -> Result[@glwe.GlweCiphertext, PbsError]
 pub fn BootstrapKey::programmable_bootstrap(Self, @lwe.LweCiphertext, BooleanLut) -> Result[@lwe.LweCiphertext, PbsError]
+pub fn BootstrapKey::programmable_bootstrap_table(Self, @lwe.LweCiphertext, Array[@torus.Torus32]) -> Result[@lwe.LweCiphertext, PbsError]
 
 pub enum PbsOrder {
   KeyswitchBootstrap

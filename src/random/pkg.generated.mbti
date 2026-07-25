@@ -20,6 +20,8 @@ pub fn serialization_nonce_domain() -> RandomDomain
 
 pub fn test_rng_new(UInt64) -> RandomGenerator
 
+pub fn test_zero_noise_fixture() -> DiscreteGaussian
+
 // Errors
 pub suberror RandomError {
   UnsupportedBackend

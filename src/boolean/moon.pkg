@@ -1,7 +1,13 @@
 import {
   "ZSeanYves/MoonTFHE/src/params",
-  "ZSeanYves/MoonTFHE/src",
+  "ZSeanYves/MoonTFHE/src/torus",
   "ZSeanYves/MoonTFHE/src/random",
+  "ZSeanYves/MoonTFHE/src/core/lwe",
+  "ZSeanYves/MoonTFHE/src/core/glwe",
+  "ZSeanYves/MoonTFHE/src/core/keyswitch",
+  "ZSeanYves/MoonTFHE/src/core/ggsw",
+  "ZSeanYves/MoonTFHE/src/core/pbs",
+  "ZSeanYves/MoonTFHE/src/native/provider",
   "moonbitlang/core/bytes",
   "moonbitlang/core/ref",
 }

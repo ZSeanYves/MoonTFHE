@@ -13,6 +13,8 @@ pub fn lwe_ciphertext_from_parts(@params.LweDimension, Array[@torus.Torus32], @t
 
 pub fn lwe_key_from_binary_secret(@params.LweDimension, Array[Bool]) -> Result[LweSecretKey, LweError]
 
+pub fn lwe_key_from_binary_secret_unchecked(@params.LweDimension, Array[Bool]) -> LweSecretKey
+
 pub fn lwe_keygen(@params.LweDimension, @random.RandomGenerator) -> LweSecretKey
 
 pub fn lwe_trivial(@params.LweDimension, @torus.Torus32) -> LweCiphertext
@@ -33,8 +35,11 @@ pub struct LweCiphertext {
   b : @torus.Torus32
 } derive(Eq, @debug.Debug)
 pub fn LweCiphertext::a(Self) -> Array[@torus.Torus32]
+pub fn LweCiphertext::add(Self, Self) -> Result[Self, LweError]
+pub fn LweCiphertext::add_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::b(Self) -> @torus.Torus32
 pub fn LweCiphertext::parameters(Self) -> @params.LweDimension
+pub fn LweCiphertext::sub_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::sub_scaled(Self, Self, Int) -> Result[Self, LweError]
 
 pub struct LweSecretKey {
@@ -46,6 +51,7 @@ pub fn LweSecretKey::lwe_decrypt_binary(Self, LweCiphertext) -> Result[Bool, Lwe
 pub fn LweSecretKey::lwe_encrypt_binary(Self, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
 pub fn LweSecretKey::lwe_encrypt_torus(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
 pub fn LweSecretKey::parameters(Self) -> @params.LweDimension
+pub fn LweSecretKey::secret_export_payload(Self) -> Bytes
 
 // Type aliases
 

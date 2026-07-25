@@ -322,6 +322,35 @@ pub fn ParameterSet::failure_log2_milli(self : ParameterSet) -> Int {
 }
 
 ///|
+pub fn ParameterSet::lwe_dimension(self : ParameterSet) -> LweDimension {
+  self.lwe_dimension
+}
+
+///|
+pub fn ParameterSet::glwe_dimension(self : ParameterSet) -> GlweDimension {
+  self.glwe_dimension
+}
+
+///|
+pub fn ParameterSet::polynomial_size(self : ParameterSet) -> PolynomialSize {
+  self.polynomial_size
+}
+
+///|
+pub fn ParameterSet::pbs_decomposition(
+  self : ParameterSet,
+) -> DecompositionParameters {
+  self.pbs_decomposition
+}
+
+///|
+pub fn ParameterSet::ks_decomposition(
+  self : ParameterSet,
+) -> DecompositionParameters {
+  self.ks_decomposition
+}
+
+///|
 pub fn QuantizedGaussian::sigma_q64(self : QuantizedGaussian) -> UInt64 {
   self.sigma_q64
 }

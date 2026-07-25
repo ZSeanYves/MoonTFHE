@@ -2,8 +2,10 @@
 package "ZSeanYves/MoonTFHE/src/boolean"
 
 import {
-  "ZSeanYves/MoonTFHE/src",
+  "ZSeanYves/MoonTFHE/src/core/lwe",
+  "ZSeanYves/MoonTFHE/src/core/pbs",
   "ZSeanYves/MoonTFHE/src/params",
+  "ZSeanYves/MoonTFHE/src/random",
   "moonbitlang/core/debug",
 }
 
@@ -85,14 +87,15 @@ pub fn BooleanParameters::is_test_only(Self) -> Bool
 pub fn BooleanParameters::security_bits(Self) -> Int
 
 pub struct Ciphertext {
-  inner : @src.BooleanCiphertext
+  inner : @lwe.LweCiphertext
   key_id : @params.KeyId
   parameters : BooleanParameters
 }
 pub fn Ciphertext::serialize(Self) -> Bytes
 
 pub struct ClientKey {
-  inner : @src.ExperimentalBooleanClientKey
+  inner : @lwe.LweSecretKey
+  rng : @random.RandomGenerator
   parameters : BooleanParameters
   key_id : @params.KeyId
 }
@@ -106,7 +109,7 @@ pub struct SerializationKey {
 }
 
 pub struct ServerKey {
-  inner : @src.ExperimentalBooleanServerKey
+  inner : @pbs.BootstrapKey
   parameters : BooleanParameters
   key_id : @params.KeyId
 }

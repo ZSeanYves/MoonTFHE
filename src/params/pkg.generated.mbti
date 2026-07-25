@@ -80,10 +80,15 @@ pub struct ParameterSet {
 } derive(@debug.Debug)
 pub fn ParameterSet::estimator_commit(Self) -> String
 pub fn ParameterSet::failure_log2_milli(Self) -> Int
+pub fn ParameterSet::glwe_dimension(Self) -> GlweDimension
 pub fn ParameterSet::glwe_noise(Self) -> NoiseDistribution
 pub fn ParameterSet::id(Self) -> String
 pub fn ParameterSet::is_reference_only(Self) -> Bool
+pub fn ParameterSet::ks_decomposition(Self) -> DecompositionParameters
+pub fn ParameterSet::lwe_dimension(Self) -> LweDimension
 pub fn ParameterSet::lwe_noise(Self) -> NoiseDistribution
+pub fn ParameterSet::pbs_decomposition(Self) -> DecompositionParameters
+pub fn ParameterSet::polynomial_size(Self) -> PolynomialSize
 pub fn ParameterSet::security_metadata(Self) -> SecurityMetadata
 pub fn ParameterSet::target_security_bits(Self) -> Int
 pub fn ParameterSet::upstream_security_bits(Self) -> Int

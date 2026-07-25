@@ -59,37 +59,6 @@ test "stable Boolean facade: v2 CRC32C and secret export boundary" {
 }
 
 ///|
-test "stable Boolean facade: MBCT v1 remains read-only compatible" {
-  let parameters = boolean_test_parameters()
-  let (client, _server) = generate_test_keys(parameters, 0x56314D47).unwrap()
-  let current = client.encrypt(true).serialize()
-  let payload = current[39:].to_owned()
-  let legacy = Array::make(25 + payload.length(), 0U.to_byte())
-  legacy[0] = b'M'
-  legacy[1] = b'B'
-  legacy[2] = b'C'
-  legacy[3] = b'T'
-  legacy[4] = b'\x01'
-  for i in 0..<4 {
-    legacy[5 + i] = current[7 + i]
-    legacy[9 + i] = current[11 + i]
-    legacy[13 + i] = current[15 + i]
-    legacy[17 + i] = current[31 + i]
-  }
-  let mut checksum = 0x811C9DC5
-  for byte in payload {
-    checksum = (checksum ^ byte.to_int()) * 0x01000193
-  }
-  for i in 0..<4 {
-    legacy[21 + i] = (checksum >> (8 * i)).to_byte()
-  }
-  for i in 0..<payload.length() {
-    legacy[25 + i] = payload[i]
-  }
-  assert_true(client.deserialize(Bytes::from_array(legacy)) is Ok(_))
-}
-
-///|
 test "stable Boolean facade: server key export never emits metadata-only key" {
   let parameters = boolean_test_parameters()
   let (_client, server) = generate_test_keys(parameters, 0x534B4559).unwrap()
@@ -105,7 +74,7 @@ test "stable Boolean facade: server key export never emits metadata-only key" {
 test "stable Boolean facade: deterministic random NAND property circuit" {
   let parameters = boolean_test_parameters()
   let (client, server) = generate_test_keys(parameters, 0x50524F50).unwrap()
-  let rng = @src.test_rng_new(0x43495243554954)
+  let rng = @random.test_rng_new(0x43495243554954)
   for _ in 0..<32 {
     let left = (rng.next_u32() & 1U) == 1U
     let right = (rng.next_u32() & 1U) == 1U

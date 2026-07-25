@@ -8,23 +8,22 @@ MoonTFHE is a research implementation of TFHE building blocks in MoonBit. The
 repository is being rebuilt from an unmaintained teaching prototype into a
 testable library with explicit client/server key boundaries.
 
-> Security status: **not suitable for production or sensitive data**. The
-> The `experimental_boolean_*` facade uses a deterministic test-only ChaCha20
-> stream and zero noise for reproducible vectors. Native OS entropy exists as
-> a separate foundation, but production key generation is not wired to the
-> TFHE path.
+> Security status: **research release; not suitable for production or
+> sensitive data**. Standard 110/128-bit key generation and Fourier PBS remain
+> gated behind the remaining RC phases.
 
 ## Current status
 
-The maintained baseline includes Torus32 arithmetic, naive negacyclic
-polynomials, LWE/TLWE/TRLWE encryption, signed high-bit key switching, TRGSW
-external products, sample extraction, a secret-free encrypted BSK, real TRGSW
-blind rotation, PBS->KS, and experimental unary/NAND/AND/OR/XOR/XNOR/MUX gates.
+The maintained baseline includes Torus32 arithmetic, typed LWE/GLWE/GGSW
+entities, signed key switching, sample extraction, a secret-free typed BSK,
+reference blind rotation, PBS->KS, and Boolean NAND/NOT/AND/OR/XOR/XNOR/MUX
+through the stable facade.
 
 The following remain explicitly experimental or incomplete:
 
-- production-grade parameter sets and a complete security estimate;
-- a secure-randomness client-key facade on every backend;
+- production-grade standard parameter key generation and a complete security
+  estimate;
+- Fourier-domain BSK/PBS and native performance parity;
 - any claim of 110-bit or 128-bit security;
 - resistance to side-channel attacks.
 
@@ -33,13 +32,11 @@ and `Ciphertext` types, versioned `MBCT` ciphertext envelopes, and the Boolean
 gate surface. Production `generate_keys` deliberately returns
 `UnsupportedBackend` until secure key generation is fully connected.
 
-The old oracle now lives only in `oracle_wbtest.mbt`. It receives a test secret
-explicitly and exists solely as a reference. `BootstrappingKey` contains only
-encrypted GGSW data, dimensions, and an encrypted key-switching key; it is the
-evaluation object used by the current PBS path, but it is not yet a hardened
-production server key. The stable envelope wraps the legacy `MTFH` payload with
-a version, parameters, dimensions, payload length, and checksum. Secret and
-server keys are intentionally not serializable.
+The old root package and `MTFH`/`MBCT v1` formats were removed in C7.
+`BootstrappingKey` contains only encrypted GGSW data, dimensions, and an
+encrypted key-switching key; it is the typed evaluation object used by the
+current reference PBS path. `MBCT v2` is the only ciphertext format currently
+written; formal ServerKey/ClientKey import is delivered in C12.
 
 ## Build and test
 
@@ -54,26 +51,14 @@ moon fmt --check
 
 CI runs the test suite on `wasm`, `wasm-gc`, `js`, and `native`.
 
-## Experimental example
+## Boolean reference example
 
-This example is deterministic and intentionally named `experimental_*` so it
-cannot be confused with a secure production path.
-
-```mbt check
-test {
-  let client = experimental_keygen(64, 3.0, 0x4D4F4F4E)
-  let encrypted = client.encrypt(true)
-  let encrypted_not = encrypted.not()
-  assert_eq(client.decrypt(encrypted_not), false)
-}
-```
-
-The complete experimental Boolean workflow is public, and server-side
-operations do not receive a client secret:
+The deterministic constructor is explicitly test-only. It exercises the typed
+reference backend and is not a production key-generation API:
 
 ```mbt check
 test {
-  let (client, server) = experimental_boolean_keygen(0x50464F)
+  let (client, server) = generate_test_keys(boolean_test_parameters(), 0x50464F).unwrap()
   let result = server.nand(client.encrypt(true), client.encrypt(false)).unwrap()
   assert_eq(client.decrypt(result).unwrap(), true)
 }

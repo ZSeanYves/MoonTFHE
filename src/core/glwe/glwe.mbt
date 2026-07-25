@@ -153,6 +153,24 @@ pub fn glwe_keygen(
 }
 
 ///|
+/// Construct a GLWE binary key from local caller-owned material. The shape is
+/// checked before the key is created and no secret accessor is provided.
+pub fn glwe_key_from_binary_secret(
+  parameters : GlweParameters,
+  data : Array[Array[Bool]],
+) -> Result[GlweSecretKey, GlweError] {
+  if data.length() != parameters.glwe_dimension {
+    return Err(CiphertextShapeMismatch)
+  }
+  for component in data {
+    if component.length() != parameters.polynomial_size {
+      return Err(CiphertextShapeMismatch)
+    }
+  }
+  Ok({ parameters, data: data.map(fn(component) { component.copy() }) })
+}
+
+///|
 /// Return the LWE key induced by coefficient-wise GLWE sample extraction.
 /// The binary secret never crosses the public representation boundary.
 pub fn GlweSecretKey::to_extracted_lwe_key(
