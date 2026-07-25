@@ -24,6 +24,12 @@ int32_t negacyclic_mul_u32(const moontfhe_fft_plan *plan,
                            const uint32_t *rhs,
                            uint32_t *output,
                            uint8_t *scratch);
+int32_t external_product_accumulate_u32(const moontfhe_fft_plan *plan,
+                                        const uint32_t *lhs,
+                                        const uint32_t *rhs,
+                                        uint32_t term_count,
+                                        uint32_t *output,
+                                        uint8_t *scratch);
 void fft_plan_free(moontfhe_fft_plan *plan);
 
 #ifdef __cplusplus

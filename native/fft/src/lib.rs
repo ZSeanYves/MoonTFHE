@@ -127,6 +127,57 @@ pub unsafe extern "C" fn negacyclic_mul_u32(
     operation.unwrap_or(FFT_PANIC)
 }
 
+/// Accumulate a batch of negacyclic products. The flattened inputs contain
+/// `term_count` consecutive polynomials of the plan size.
+#[no_mangle]
+pub unsafe extern "C" fn external_product_accumulate_u32(
+    plan: *const FftPlan,
+    lhs: *const u32,
+    rhs: *const u32,
+    term_count: u32,
+    output: *mut u32,
+    scratch: *mut u8,
+) -> i32 {
+    if plan.is_null()
+        || lhs.is_null()
+        || rhs.is_null()
+        || output.is_null()
+        || scratch.is_null()
+    {
+        return FFT_NULL_POINTER;
+    }
+    let operation = catch_unwind(AssertUnwindSafe(|| {
+        let plan = &*plan;
+        let n = plan.polynomial_size;
+        let terms = term_count as usize;
+        if n == 0 || terms == 0 {
+            return FFT_INVALID_SIZE;
+        }
+        let total = match n.checked_mul(terms) {
+            Some(value) => value,
+            None => return FFT_INVALID_SIZE,
+        };
+        let lhs = slice::from_raw_parts(lhs, total);
+        let rhs = slice::from_raw_parts(rhs, total);
+        let output = slice::from_raw_parts_mut(output, n);
+        output.fill(0);
+        let mut term = vec![0u32; n];
+        for index in 0..terms {
+            let start = index * n;
+            plan.multiply(
+                &lhs[start..start + n],
+                &rhs[start..start + n],
+                &mut term,
+            );
+            for coefficient in 0..n {
+                output[coefficient] = output[coefficient].wrapping_add(term[coefficient]);
+            }
+        }
+        FFT_OK
+    }));
+    operation.unwrap_or(FFT_PANIC)
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn fft_plan_free(plan: *mut FftPlan) {
     if !plan.is_null() {
@@ -193,5 +244,40 @@ mod tests {
     fn invalid_plan_size_is_rejected() {
         assert!(FftPlan::new(0).is_none());
         assert!(FftPlan::new(6).is_none());
+    }
+
+    #[test]
+    fn batched_external_product_matches_reference_sum() {
+        let n = 8;
+        let lhs = [
+            1, 2, 3, 4, 5, 6, 7, 8, u32::MAX, 3, 5, 7, 11, 13, 17, 19,
+        ];
+        let rhs = [
+            8, 7, 6, 5, 4, 3, 2, 1, 0x8000_0000, 2, 4, 6, 8, 10, 12, 14,
+        ];
+        let expected_left = reference(&lhs[..n], &rhs[..n]);
+        let expected_right = reference(&lhs[n..], &rhs[n..]);
+        let expected: Vec<u32> = expected_left
+            .iter()
+            .zip(expected_right.iter())
+            .map(|(left, right)| left.wrapping_add(*right))
+            .collect();
+        let plan = fft_plan_new(n as u32);
+        let scratch_len = unsafe { fft_plan_scratch_bytes(plan) };
+        let mut scratch = vec![0u8; scratch_len];
+        let mut output = vec![0u32; n];
+        let status = unsafe {
+            external_product_accumulate_u32(
+                plan,
+                lhs.as_ptr(),
+                rhs.as_ptr(),
+                2,
+                output.as_mut_ptr(),
+                scratch.as_mut_ptr(),
+            )
+        };
+        assert_eq!(status, FFT_OK);
+        assert_eq!(output, expected);
+        unsafe { fft_plan_free(plan) };
     }
 }
