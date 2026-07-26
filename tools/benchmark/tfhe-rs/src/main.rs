@@ -6,6 +6,7 @@ use tfhe::boolean::parameters::{
     BooleanParameters, DEFAULT_PARAMETERS, PARAMETERS_ERROR_PROB_2_POW_MINUS_165,
 };
 use tfhe::boolean::server_key::ServerKey;
+use tfhe::boolean::prelude::BinaryBooleanGates;
 
 const ITERATIONS: usize = 10;
 
