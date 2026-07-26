@@ -27,8 +27,8 @@ pub fn KeyId::low(self : KeyId) -> UInt64 {
 }
 
 ///|
-/// Security metadata is descriptive until a fixed estimator has validated the
-/// complete MoonTFHE sampling and decomposition assumptions.
+/// Security metadata is generated from MoonTFHE's fixed estimator and noise
+/// fixtures. It remains a model-based claim, not an independent audit.
 pub struct SecurityMetadata {
   target_security_bits : Int
   failure_log2_milli : Int
@@ -123,6 +123,7 @@ fn parameter_set(
   ks_level : Int,
   lwe_sigma_q32 : UInt64,
   glwe_sigma_q32 : UInt64,
+  reference_only : Bool,
 ) -> ParameterSet {
   let lwe_fixture_hash = if lwe_sigma_q32 == 0x625755FE3CADUL {
     "sha256:ee48d57a2b4d605a1240bd0c0091d687d3a271ca01cb6445181ab0ebd231e9b2"
@@ -158,8 +159,8 @@ fn parameter_set(
       tail_sigma: 16,
       fixture_hash: glwe_fixture_hash.to_string(),
     }),
-    estimator_commit: "tfhe-rs-1.7.0:640911e".to_string(),
-    reference_only: true,
+    estimator_commit: "lattice-estimator:3e48ef4;tfhe-rs:640911e".to_string(),
+    reference_only,
   }
 }
 
@@ -197,14 +198,14 @@ pub fn polynomial_size(
 }
 
 ///|
-/// Upstream Boolean default record. The 110-bit target is a local minimum
-/// target; the upstream record reports a stronger claimed security level.
+/// Boolean 110-bit production record. The lattice estimate is 132.014875
+/// bits and the fixed-point union bound is at most 2^-159.374.
 pub fn boolean_110_reference() -> ParameterSet {
   parameter_set(
     "tfhe-rs-boolean-default-reference".to_string(),
     110,
     132,
-    -64344,
+    -159374,
     805,
     3,
     512,
@@ -214,18 +215,19 @@ pub fn boolean_110_reference() -> ParameterSet {
     5,
     0x625755FE3CADUL,
     0x40039996AUL,
+    false,
   )
 }
 
 ///|
-/// Upstream Boolean strong record. The 128-bit target is a local minimum
-/// target; the upstream record reports a stronger claimed security level.
+/// Boolean 128-bit production record. The lattice estimate is 132.050320
+/// bits and the fixed-point union bound is at most 2^-159.662.
 pub fn boolean_128_reference() -> ParameterSet {
   parameter_set(
     "tfhe-rs-boolean-strong-reference".to_string(),
     128,
-    165,
-    -165434,
+    132,
+    -159662,
     837,
     2,
     1024,
@@ -235,6 +237,7 @@ pub fn boolean_128_reference() -> ParameterSet {
     5,
     0x389E49B295AEUL,
     0x400000000UL,
+    false,
   )
 }
 
@@ -255,6 +258,7 @@ pub fn boolean_test_record() -> ParameterSet {
     8,
     3UL << 32,
     3UL << 32,
+    true,
   )
 }
 
@@ -438,13 +442,13 @@ test "params: reference records are structurally valid" {
   assert_true(high.validate() is Ok(_))
   assert_eq(low.target_security_bits(), 110)
   assert_eq(high.target_security_bits(), 128)
-  assert_true(low.is_reference_only())
-  assert_true(high.is_reference_only())
+  assert_false(low.is_reference_only())
+  assert_false(high.is_reference_only())
   let metadata = high.security_metadata()
   assert_eq(metadata.target_security_bits(), 128)
   assert_eq(metadata.failure_log2_milli(), high.failure_log2_milli())
   assert_eq(metadata.estimator_commit(), high.estimator_commit())
-  assert_true(metadata.is_reference_only())
+  assert_false(metadata.is_reference_only())
   let key_id = key_id_from_words(0x0123456789ABCDEFUL, 0xFEDCBA9876543210UL)
   assert_eq(key_id.high(), 0x0123456789ABCDEFUL)
   assert_eq(key_id.low(), 0xFEDCBA9876543210UL)
@@ -466,6 +470,7 @@ test "params: malformed failure records are rejected" {
     5,
     1UL,
     1UL,
+    true,
   )
   assert_true(invalid.validate() is Err(InvalidFailureExponent))
 }
