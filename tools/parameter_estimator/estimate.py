@@ -122,7 +122,7 @@ def noise_model(data: dict) -> dict:
     ks = data["ks_decomposition"]
     lwe_sigma = float(data["lwe_noise"]["sigma_q32"]) / 2.0**64
     glwe_sigma = float(data["glwe_noise"]["sigma_q32"]) / 2.0**64
-    pbs_variance = pbs_variance_132_gaussian(
+    pbs_variance = pbs_variance_132_gaussian_fft(
         n,
         k,
         polynomial_size,

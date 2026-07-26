@@ -339,12 +339,17 @@ pub fn RandomGenerator::sample_discrete_gaussian_fixed(
   let mut high = distribution.cdt_length - 1
   while low < high {
     let middle = (low + high) / 2
-    let (threshold_top, threshold_high, threshold_low) =
-      distribution.cdt_threshold(middle)
+    let (threshold_top, threshold_high, threshold_low) = distribution.cdt_threshold(
+      middle,
+    )
     if draw_top < threshold_top ||
-      (draw_top == threshold_top &&
-      (draw_high < threshold_high ||
-      (draw_high == threshold_high && draw_low <= threshold_low))) {
+      (
+        draw_top == threshold_top &&
+        (
+          draw_high < threshold_high ||
+          (draw_high == threshold_high && draw_low <= threshold_low)
+        )
+      ) {
       high = middle
     } else {
       low = middle + 1
@@ -535,7 +540,6 @@ test "random: standard Boolean CDT fixed seed vector" {
     actual,
     content=(
       #|[13990, 32571, 27241, -18993, 16097, -24850, -12036, 38092, -19843, -226, 6573, 5260, 23861, -10408, 15017, -16890]
-
     ),
   )
 }
