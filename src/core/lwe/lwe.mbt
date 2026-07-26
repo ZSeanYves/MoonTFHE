@@ -108,6 +108,18 @@ pub fn lwe_ciphertext_from_flat_u32(
 }
 
 ///|
+pub fn LweCiphertext::mask_at(
+  self : LweCiphertext,
+  index : Int,
+) -> Result[@torus.Torus32, LweError] {
+  if index < 0 || index >= self.parameters.value() {
+    Err(InvalidIndex)
+  } else {
+    Ok(@torus.Torus32::from_uint(self.data[index]))
+  }
+}
+
+///|
 pub fn LweSecretKey::lwe_encrypt_binary(
   self : LweSecretKey,
   message : Bool,

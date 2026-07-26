@@ -253,13 +253,42 @@ pub fn KeySwitchKey::apply(
     return Err(InvalidInputDimension)
   }
   let ciphertext_size = self.output_parameters.value() + 1
-  let result = FixedArray::make(ciphertext_size, 0U)
-  result[self.output_parameters.value()] = ciphertext.b().to_uint()
-  let mask = ciphertext.a()
   let digits = FixedArray::make(self.decomposition.level(), 0)
-  for index in 0..<mask.length() {
+  let result = FixedArray::make(ciphertext_size, 0U)
+  match self.apply_into(ciphertext, result, digits) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  match @lwe.lwe_ciphertext_from_flat_u32(self.output_parameters, result) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(CiphertextError)
+  }
+}
+
+///|
+pub fn KeySwitchKey::apply_into(
+  self : KeySwitchKey,
+  ciphertext : @lwe.LweCiphertext,
+  result : FixedArray[UInt],
+  digits : FixedArray[Int],
+) -> Result[Unit, KeySwitchError] {
+  if ciphertext.parameters() != self.input_parameters {
+    return Err(InvalidInputDimension)
+  }
+  let ciphertext_size = self.output_parameters.value() + 1
+  if result.length() != ciphertext_size ||
+    digits.length() != self.decomposition.level() {
+    return Err(CiphertextError)
+  }
+  result.fill(0U)
+  result[self.output_parameters.value()] = ciphertext.b().to_uint()
+  for index in 0..<self.input_parameters.value() {
+    let coefficient = match ciphertext.mask_at(index) {
+      Ok(value) => value
+      Err(_) => return Err(CiphertextError)
+    }
     match
-      signed_gadget_decompose_into(mask[index], self.decomposition, digits) {
+      signed_gadget_decompose_into(coefficient, self.decomposition, digits) {
       Ok(_) => ()
       Err(_) => return Err(InvalidDecomposition)
     }
@@ -278,10 +307,7 @@ pub fn KeySwitchKey::apply(
       }
     }
   }
-  match @lwe.lwe_ciphertext_from_flat_u32(self.output_parameters, result) {
-    Ok(value) => Ok(value)
-    Err(_) => Err(CiphertextError)
-  }
+  Ok(())
 }
 
 ///|

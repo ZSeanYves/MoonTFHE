@@ -46,6 +46,44 @@ pub struct BootstrapKey {
   key_switch : @keyswitch.KeySwitchKey
   order : PbsOrder
   fourier : @provider.FourierBootstrapKey?
+  workspace : @ref.Ref[PbsWorkspace]
+}
+
+///|
+pub struct PbsWorkspace {
+  state_a : FixedArray[UInt]
+  state_b : FixedArray[UInt]
+  rotated : FixedArray[UInt]
+  difference : FixedArray[UInt]
+  selected : FixedArray[UInt]
+  digits : FixedArray[UInt]
+  decomposition_digits : FixedArray[Int]
+  extracted : FixedArray[UInt]
+  ksk_result : FixedArray[UInt]
+  ksk_digits : FixedArray[Int]
+}
+
+///|
+fn pbs_workspace_new(
+  glwe_parameters : @glwe.GlweParameters,
+  ggsw_parameters : @ggsw.GgswParameters,
+  ksk_output_dimension : @params.LweDimension,
+  ksk_level : Int,
+) -> PbsWorkspace {
+  let n = glwe_parameters.polynomial_size()
+  let glwe_size = (glwe_parameters.glwe_dimension() + 1) * n
+  {
+    state_a: FixedArray::make(glwe_size, 0U),
+    state_b: FixedArray::make(glwe_size, 0U),
+    rotated: FixedArray::make(glwe_size, 0U),
+    difference: FixedArray::make(glwe_size, 0U),
+    selected: FixedArray::make(glwe_size, 0U),
+    digits: FixedArray::make(ggsw_parameters.level() * glwe_size, 0U),
+    decomposition_digits: FixedArray::make(ggsw_parameters.level(), 0),
+    extracted: FixedArray::make(glwe_parameters.glwe_dimension() * n + 1, 0U),
+    ksk_result: FixedArray::make(ksk_output_dimension.value() + 1, 0U),
+    ksk_digits: FixedArray::make(ksk_level, 0),
+  }
 }
 
 ///|
@@ -151,6 +189,14 @@ pub fn bootstrap_key_from_flat_encrypted_parts(
     key_switch,
     order,
     fourier,
+    workspace: @ref.Ref(
+      pbs_workspace_new(
+        glwe_parameters,
+        ggsw_parameters,
+        key_switch.output_dimension(),
+        key_switch.decomposition().level(),
+      ),
+    ),
   })
 }
 
@@ -260,14 +306,18 @@ fn BootstrapKey::fourier_external_product(
     Ok(value) => value
     Err(_) => return Err(BlindRotationFailure)
   }
-  let digits = FixedArray::make(level * columns * n, 0U)
-  let decomposition_digits = FixedArray::make(level, 0)
-  let flat = input.flat_u32_copy()
+  let workspace = self.workspace.val
+  let digits = workspace.digits
+  let decomposition_digits = workspace.decomposition_digits
   for component in 0..<columns {
     for coefficient in 0..<n {
+      let word = match input.word_at(component * n + coefficient) {
+        Ok(value) => value
+        Err(_) => return Err(BlindRotationFailure)
+      }
       match
         @keyswitch.signed_gadget_decompose_into(
-          @torus.Torus32::from_uint(flat[component * n + coefficient]),
+          @torus.Torus32::from_uint(word),
           decomposition,
           decomposition_digits,
         ) {
@@ -280,7 +330,7 @@ fn BootstrapKey::fourier_external_product(
       }
     }
   }
-  let output = FixedArray::make(columns * n, 0U)
+  let output = workspace.selected
   match key.external_product(control_index, digits, output) {
     Ok(_) =>
       match
@@ -333,7 +383,6 @@ pub fn BootstrapKey::blind_rotate(
   input : @lwe.LweCiphertext,
 ) -> Result[@glwe.GlweCiphertext, PbsError] {
   if input.parameters() != self.input_dimension ||
-    input.a().length() != self.input_dimension.value() ||
     accumulator.parameters() != self.glwe_parameters {
     return Err(InputDimensionMismatch)
   }
@@ -350,16 +399,62 @@ pub fn BootstrapKey::blind_rotate(
     Ok(value) => value
     Err(_) => return Err(BlindRotationFailure)
   }
-  let mut result = accumulator.rotate_negacyclic(initial_rotation)
-  let mask = input.a()
-  for index in 0..<mask.length() {
-    let switched = match mask[index].modulus_switch(modulus) {
-      Ok(value) => value
+  let workspace = self.workspace.val
+  let initial = accumulator.rotate_negacyclic(initial_rotation)
+  match initial.rotate_negacyclic_into(0, workspace.state_a) {
+    Ok(_) => ()
+    Err(_) => return Err(BlindRotationFailure)
+  }
+  let mut active_a = true
+  for index in 0..<self.input_dimension.value() {
+    let switched = match input.mask_at(index) {
+      Ok(value) =>
+        match value.modulus_switch(modulus) {
+          Ok(value) => value
+          Err(_) => return Err(BlindRotationFailure)
+        }
       Err(_) => return Err(BlindRotationFailure)
     }
     if switched != 0 {
-      let rotated = result.rotate_negacyclic(-switched)
-      let difference = match rotated.sub(result) {
+      let current_buffer = if active_a {
+        workspace.state_a
+      } else {
+        workspace.state_b
+      }
+      let next_buffer = if active_a {
+        workspace.state_b
+      } else {
+        workspace.state_a
+      }
+      let current = match
+        @glwe.glwe_ciphertext_from_owned_flat_u32(
+          self.glwe_parameters,
+          current_buffer,
+        ) {
+        Ok(value) => value
+        Err(_) => return Err(BlindRotationFailure)
+      }
+      match current.rotate_negacyclic_into(-switched, workspace.rotated) {
+        Ok(_) => ()
+        Err(_) => return Err(BlindRotationFailure)
+      }
+      let rotated = match
+        @glwe.glwe_ciphertext_from_owned_flat_u32(
+          self.glwe_parameters,
+          workspace.rotated,
+        ) {
+        Ok(value) => value
+        Err(_) => return Err(BlindRotationFailure)
+      }
+      match rotated.sub_into(current, workspace.difference) {
+        Ok(_) => ()
+        Err(_) => return Err(BlindRotationFailure)
+      }
+      let difference = match
+        @glwe.glwe_ciphertext_from_owned_flat_u32(
+          self.glwe_parameters,
+          workspace.difference,
+        ) {
         Ok(value) => value
         Err(_) => return Err(BlindRotationFailure)
       }
@@ -372,20 +467,30 @@ pub fn BootstrapKey::blind_rotate(
                 Ok(value) => Ok(value)
                 Err(_) => Err(BlindRotationFailure)
               }
-            Err(error) => Err(error)
+            Err(_) => Err(BootstrapKeyShapeMismatch)
           }
       }
-      result = match selected {
+      match selected {
         Ok(value) =>
-          match result.add(value) {
-            Ok(sum) => sum
+          match current.add_into(value, next_buffer) {
+            Ok(_) => ()
             Err(_) => return Err(BlindRotationFailure)
           }
         Err(_) => return Err(BlindRotationFailure)
       }
+      active_a = !active_a
     }
   }
-  Ok(result)
+  let final_buffer = if active_a {
+    workspace.state_a
+  } else {
+    workspace.state_b
+  }
+  match
+    @glwe.glwe_ciphertext_from_flat_u32(self.glwe_parameters, final_buffer) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(BlindRotationFailure)
+  }
 }
 
 ///|
@@ -398,8 +503,18 @@ fn BootstrapKey::bootstrap_without_keyswitch(
     Ok(value) => value
     Err(error) => return Err(error)
   }
-  match rotated.sample_extract(0) {
-    Ok(value) => Ok(value)
+  let workspace = self.workspace.val
+  match rotated.sample_extract_into(0, workspace.extracted) {
+    Ok(_) =>
+      match @params.lwe_dimension(workspace.extracted.length() - 1) {
+        Ok(dimension) =>
+          match
+            @lwe.lwe_ciphertext_from_flat_u32(dimension, workspace.extracted) {
+            Ok(value) => Ok(value)
+            Err(_) => Err(SampleExtractionFailure)
+          }
+        Err(_) => Err(SampleExtractionFailure)
+      }
     Err(_) => Err(SampleExtractionFailure)
   }
 }
@@ -421,8 +536,22 @@ pub fn BootstrapKey::programmable_bootstrap(
         Ok(value) => value
         Err(error) => return Err(error)
       }
-      match self.key_switch.apply(extracted) {
-        Ok(value) => Ok(value)
+      let workspace = self.workspace.val
+      match
+        self.key_switch.apply_into(
+          extracted,
+          workspace.ksk_result,
+          workspace.ksk_digits,
+        ) {
+        Ok(_) =>
+          match
+            @lwe.lwe_ciphertext_from_flat_u32(
+              self.key_switch.output_dimension(),
+              workspace.ksk_result,
+            ) {
+            Ok(value) => Ok(value)
+            Err(_) => Err(KeyswitchFailure)
+          }
         Err(_) => Err(KeyswitchFailure)
       }
     }

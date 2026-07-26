@@ -115,6 +115,18 @@ pub fn GlweCiphertext::flat_u32_copy(self : GlweCiphertext) -> FixedArray[UInt] 
 }
 
 ///|
+pub fn GlweCiphertext::word_at(
+  self : GlweCiphertext,
+  index : Int,
+) -> Result[UInt, GlweError] {
+  if index < 0 || index >= self.data.length() {
+    Err(CiphertextShapeMismatch)
+  } else {
+    Ok(self.data[index])
+  }
+}
+
+///|
 pub fn glwe_trivial(
   parameters : GlweParameters,
   message : Array[@torus.Torus32],
@@ -165,6 +177,36 @@ pub fn GlweCiphertext::sample_extract(
     Ok(ciphertext) => Ok(ciphertext)
     Err(_) => Err(InvalidSampleDimension)
   }
+}
+
+///|
+pub fn GlweCiphertext::sample_extract_into(
+  self : GlweCiphertext,
+  index : Int,
+  output : FixedArray[UInt],
+) -> Result[Unit, GlweError] {
+  let n = self.parameters.polynomial_size
+  let dimension = self.parameters.glwe_dimension * n
+  if index < 0 || index >= n {
+    return Err(InvalidSampleIndex)
+  }
+  if output.length() != dimension + 1 {
+    return Err(InvalidSampleDimension)
+  }
+  for flat_index in 0..<dimension {
+    let component = flat_index / n
+    let coefficient = flat_index % n
+    let source = index - coefficient
+    output[flat_index] = if source >= 0 {
+      self.data[component * n + source]
+    } else {
+      @torus.Torus32::from_uint(self.data[component * n + source + n])
+      .neg()
+      .to_uint()
+    }
+  }
+  output[dimension] = self.data[dimension + index]
+  Ok(())
 }
 
 ///|
@@ -388,6 +430,24 @@ pub fn GlweCiphertext::add(
 }
 
 ///|
+pub fn GlweCiphertext::add_into(
+  self : GlweCiphertext,
+  other : GlweCiphertext,
+  output : FixedArray[UInt],
+) -> Result[Unit, GlweError] {
+  if self.parameters != other.parameters ||
+    output.length() != self.data.length() {
+    return Err(CiphertextShapeMismatch)
+  }
+  for index in 0..<self.data.length() {
+    output[index] = @torus.Torus32::from_uint(self.data[index])
+      .add(@torus.Torus32::from_uint(other.data[index]))
+      .to_uint()
+  }
+  Ok(())
+}
+
+///|
 pub fn GlweCiphertext::sub(
   self : GlweCiphertext,
   other : GlweCiphertext,
@@ -403,6 +463,24 @@ pub fn GlweCiphertext::sub(
       .to_uint()
     }),
   })
+}
+
+///|
+pub fn GlweCiphertext::sub_into(
+  self : GlweCiphertext,
+  other : GlweCiphertext,
+  output : FixedArray[UInt],
+) -> Result[Unit, GlweError] {
+  if self.parameters != other.parameters ||
+    output.length() != self.data.length() {
+    return Err(CiphertextShapeMismatch)
+  }
+  for index in 0..<self.data.length() {
+    output[index] = @torus.Torus32::from_uint(self.data[index])
+      .sub(@torus.Torus32::from_uint(other.data[index]))
+      .to_uint()
+  }
+  Ok(())
 }
 
 ///|
@@ -429,6 +507,34 @@ pub fn GlweCiphertext::rotate_negacyclic(
     }
   }
   { parameters: self.parameters, data }
+}
+
+///|
+pub fn GlweCiphertext::rotate_negacyclic_into(
+  self : GlweCiphertext,
+  rotation : Int,
+  output : FixedArray[UInt],
+) -> Result[Unit, GlweError] {
+  if output.length() != self.data.length() {
+    return Err(CiphertextShapeMismatch)
+  }
+  let n = self.parameters.polynomial_size
+  let period = 2 * n
+  let normalized = (rotation % period + period) % period
+  for component in 0..<=self.parameters.glwe_dimension {
+    let offset = component * n
+    for source in 0..<n {
+      let exponent = source + normalized
+      let wraps = exponent / n
+      let destination = exponent % n
+      output[offset + destination] = if (wraps & 1) == 0 {
+        self.data[offset + source]
+      } else {
+        @torus.Torus32::from_uint(self.data[offset + source]).neg().to_uint()
+      }
+    }
+  }
+  Ok(())
 }
 
 ///|
