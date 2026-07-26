@@ -1,9 +1,75 @@
 {
-  "status": "not_run",
-  "parameter_id": "tfhe-rs-boolean-110-reference",
-  "security_bits": null,
-  "failure_probability": null,
-  "noise_margin": null,
   "estimator_commit": "3e48ef421ec256afddb3e7d2249a77eab6e9ba12",
-  "input_sha256": "371d93d63cf21d5d4707c4e72864f6e74820ee8987984695326bdba4f3272342"
+  "estimator_model": "lattice-estimator-default-all-attacks",
+  "failure_probability": {
+    "bsk_noise_samples": 3297280,
+    "gaussian_log2_upper_bound": -173.1261288469172,
+    "ksk_noise_samples": 7680,
+    "log2_upper_bound": -159.3744576225497,
+    "sampler_statistical_distance_log2_upper_bound": -159.37456222088036,
+    "union_bound": true
+  },
+  "generation_metadata": {
+    "cost_unit": "log2 ring operations",
+    "sage_entrypoint": "sage -python",
+    "timestamp_independent": true
+  },
+  "glwe_model_limitation": "The fixed estimator has no native GLWE/RLWE model; this value uses the explicitly recorded flattened-LWE approximation and is not an independent ring-security proof.",
+  "glwe_security": {
+    "attacks_log2_rop": {
+      "bdd": 160.286253,
+      "bdd_hybrid": 160.307744,
+      "bdd_mitm_hybrid": 193.518479,
+      "bkw": 275.711736,
+      "dual": 165.569101,
+      "dual_hybrid": 155.834737,
+      "usvp": 161.925724
+    },
+    "dimension": 1536,
+    "modulus": "2^32",
+    "noise_sigma_q32": 17183644010,
+    "noise_stddev_torus_integer": 4.000878895167,
+    "samples": "unlimited",
+    "security_bits": 155.834737
+  },
+  "input_sha256": "02bac2b1b23578760acd7911020b0a6b4af8bf72e567755df08abb5adb98f63f",
+  "lwe_security": {
+    "attacks_log2_rop": {
+      "bdd": 136.743586,
+      "bdd_hybrid": 136.772681,
+      "bdd_mitm_hybrid": 166.390221,
+      "bkw": 177.036296,
+      "dual": 143.460599,
+      "dual_hybrid": 132.014875,
+      "usvp": 139.32568
+    },
+    "dimension": 805,
+    "modulus": "2^32",
+    "noise_sigma_q32": 108127244401837,
+    "noise_stddev_torus_integer": 25175.33591059898,
+    "samples": "unlimited",
+    "security_bits": 132.014875
+  },
+  "noise_margin": {
+    "decrypt_sigma_scale": 87.8890337722047,
+    "decrypt_torus": 0.125,
+    "output_sigma_torus": 0.0014222479715044018,
+    "pre_pbs_sigma_scale": 15.536732943064859,
+    "pre_pbs_torus": 0.0625
+  },
+  "noise_model_source": {
+    "distribution_distance": "MoonTFHE CDT fixture metadata",
+    "keyswitch_formula": "core_crypto/commons/noise_formulas/lwe_keyswitch.rs",
+    "pbs_formula": "core_crypto/commons/noise_formulas/lwe_programmable_bootstrap.rs",
+    "tfhe_rs_commit": "640911eba7a394f078fa5d7d14e146105757e34f"
+  },
+  "noise_model_status": "verified_fixed_point_union_bound",
+  "parameter_id": "tfhe-rs-boolean-110-reference",
+  "security_bits": 132.014875,
+  "status": "verified",
+  "variance_torus": {
+    "keyswitch": 1.7493150023739762e-06,
+    "output": 2.022789292448386e-06,
+    "pbs": 2.734742900744095e-07
+  }
 }

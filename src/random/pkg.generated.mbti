@@ -51,6 +51,7 @@ pub struct DiscreteGaussian {
   sigma_q32 : UInt64
   tail_bound : Int
   cdt_length : Int
+  threshold_words : Int
   cdt_chunks : Array[FixedArray[UInt64]]
   fixture_hash : String
 }

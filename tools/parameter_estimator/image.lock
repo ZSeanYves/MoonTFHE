@@ -1,5 +1,5 @@
 image: ghcr.io/zseanyves/moontfhe-estimator
-digest: sha256:d4598c718ba6536101fd4808febc8cfb20ba86c59ac0ba2297e23dea70da5431
+digest: sha256:dc508da2f7611dcf9b03df046cfcc8e910caae7f27d6bbf89107df794c7e974c
 platform: linux/amd64
 base_image: sagemath/sagemath
 base_digest: sha256:e068670ae5863b54b2550e72437ec637b0283acb0dc712c8584c124dbf44e667
