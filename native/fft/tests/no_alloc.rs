@@ -67,6 +67,25 @@ fn external_product_hot_path_performs_no_allocations() {
         0
     );
 
+    // RustFFT may lazily initialize an internal plan on the first external
+    // product. Treat that one-time setup as initialization, then measure only
+    // the steady-state hot path below.
+    assert_eq!(
+        unsafe {
+            indexed_ggsw_external_product_u32(
+                plan,
+                key,
+                scratch,
+                1,
+                digits.as_ptr(),
+                digits.len(),
+                output.as_mut_ptr(),
+                output.len(),
+            )
+        },
+        0
+    );
+
     ALLOCATIONS.store(0, Ordering::SeqCst);
     COUNTING.store(true, Ordering::SeqCst);
     for _ in 0..1_000 {
