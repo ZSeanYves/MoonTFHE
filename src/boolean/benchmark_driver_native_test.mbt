@@ -8,12 +8,14 @@ fn benchmark_evidence_parameter(
   let keygen_us = @bench.monotonic_clock_end(keygen_start)
   let left = client.encrypt(true)
   let right = client.encrypt(true)
-  let identity = [false, true]
+  // A non-trivial LUT is required here: the identity table may be optimized
+  // as a ciphertext copy and would not measure programmable bootstrapping.
+  let not_lut = [true, false]
   let iterations = 10
   let pbs_start = @bench.monotonic_clock_start()
   let mut pbs_output = left
   for _ in 0..<iterations {
-    pbs_output = server.apply_lut(pbs_output, identity).unwrap()
+    pbs_output = server.apply_lut(pbs_output, not_lut).unwrap()
   }
   let pbs_us = @bench.monotonic_clock_end(pbs_start) / iterations.to_double()
   let nand_start = @bench.monotonic_clock_start()
