@@ -1,7 +1,0 @@
-import {
-  "ZSeanYves/MoonTFHE/src/boolean",
-  "moonbitlang/core/bench",
-  "moonbitlang/core/env",
-}
-
-pkgtype(kind: "executable")

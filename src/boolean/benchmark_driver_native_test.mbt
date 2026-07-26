@@ -1,10 +1,10 @@
 ///|
-fn measure_parameter(
+fn benchmark_evidence_parameter(
   parameter_name : String,
-  parameters : @boolean.BooleanParameters,
+  parameters : BooleanParameters,
 ) -> Unit raise {
   let keygen_start = @bench.monotonic_clock_start()
-  let (client, server) = @boolean.generate_keys(parameters).unwrap()
+  let (client, server) = generate_keys(parameters).unwrap()
   let keygen_us = @bench.monotonic_clock_end(keygen_start)
   let left = client.encrypt(true)
   let right = client.encrypt(true)
@@ -32,16 +32,13 @@ fn measure_parameter(
 }
 
 ///|
-fn main raise {
-  match @env.args() {
-    ["boolean-110"] =>
-      measure_parameter("boolean-110", @boolean.boolean_110_parameters())
-    ["boolean-128"] =>
-      measure_parameter("boolean-128", @boolean.boolean_128_parameters())
-    [] => {
-      measure_parameter("boolean-110", @boolean.boolean_110_parameters())
-      measure_parameter("boolean-128", @boolean.boolean_128_parameters())
-    }
-    _ => fail("usage: moontfhe-benchmark [boolean-110|boolean-128]")
-  }
+#skip("nightly production benchmark evidence")
+test "benchmark evidence boolean-110" {
+  benchmark_evidence_parameter("boolean-110", boolean_110_parameters())
+}
+
+///|
+#skip("nightly production benchmark evidence")
+test "benchmark evidence boolean-128" {
+  benchmark_evidence_parameter("boolean-128", boolean_128_parameters())
 }

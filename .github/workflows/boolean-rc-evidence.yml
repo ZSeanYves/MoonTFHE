@@ -46,7 +46,9 @@ jobs:
           for parameter in boolean-110 boolean-128; do
             /usr/bin/time -v \
               -o "benchmark-artifact/raw/moontfhe-${parameter}.time" \
-              moon run --target native --release tools/benchmark/moontfhe -- "${parameter}" \
+              moon test --target native --release --no-parallelize --include-skipped \
+              --filter "benchmark evidence ${parameter}" \
+              src/boolean/benchmark_driver_native_test.mbt \
               > "benchmark-artifact/raw/moontfhe-${parameter}.jsonl"
             /usr/bin/time -v \
               -o "benchmark-artifact/raw/tfhe-rs-${parameter}.time" \
