@@ -204,7 +204,9 @@ pub fn KeySwitchKey::apply(
   if ciphertext.parameters() != self.input_parameters {
     return Err(InvalidInputDimension)
   }
-  let mut result = @lwe.lwe_trivial(self.output_parameters, ciphertext.b())
+  let ciphertext_size = self.output_parameters.value() + 1
+  let result = FixedArray::make(ciphertext_size, 0U)
+  result[self.output_parameters.value()] = ciphertext.b().to_uint()
   let mask = ciphertext.a()
   for index in 0..<mask.length() {
     let digits = match
@@ -213,24 +215,24 @@ pub fn KeySwitchKey::apply(
       Err(_) => return Err(InvalidDecomposition)
     }
     for level in 0..<digits.length() {
-      let ciphertext_size = self.output_parameters.value() + 1
       let offset = (index * self.decomposition.level() + level) *
         ciphertext_size
-      let row_data = FixedArray::makei(ciphertext_size, fn(word) {
-        self.data[offset + word]
-      })
-      let row = match
-        @lwe.lwe_ciphertext_from_flat_u32(self.output_parameters, row_data) {
-        Ok(value) => value
-        Err(_) => return Err(CiphertextError)
-      }
-      result = match result.sub_scaled(row, digits[level]) {
-        Ok(value) => value
-        Err(_) => return Err(CiphertextError)
+      let digit = digits[level]
+      if digit != 0 {
+        for word in 0..<ciphertext_size {
+          result[word] = @torus.Torus32::from_uint(result[word])
+            .sub(
+              @torus.Torus32::from_uint(self.data[offset + word]).scale(digit),
+            )
+            .to_uint()
+        }
       }
     }
   }
-  Ok(result)
+  match @lwe.lwe_ciphertext_from_flat_u32(self.output_parameters, result) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(CiphertextError)
+  }
 }
 
 ///|
