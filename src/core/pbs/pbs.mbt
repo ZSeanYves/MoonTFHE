@@ -261,15 +261,17 @@ fn BootstrapKey::fourier_external_product(
     Err(_) => return Err(BlindRotationFailure)
   }
   let digits = FixedArray::make(level * columns * n, 0U)
+  let decomposition_digits = FixedArray::make(level, 0)
   let flat = input.flat_u32_copy()
   for component in 0..<columns {
     for coefficient in 0..<n {
-      let decomposition_digits = match
-        @keyswitch.signed_gadget_decompose(
+      match
+        @keyswitch.signed_gadget_decompose_into(
           @torus.Torus32::from_uint(flat[component * n + coefficient]),
           decomposition,
+          decomposition_digits,
         ) {
-        Ok(value) => value
+        Ok(_) => ()
         Err(_) => return Err(BlindRotationFailure)
       }
       for level_index in 0..<level {

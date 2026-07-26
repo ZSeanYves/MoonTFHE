@@ -20,6 +20,8 @@ pub fn signed_decompose_exact(@torus.Torus32, @params.DecompositionParameters) -
 
 pub fn signed_gadget_decompose(@torus.Torus32, @params.DecompositionParameters) -> Result[Array[Int], DecompositionError]
 
+pub fn signed_gadget_decompose_into(@torus.Torus32, @params.DecompositionParameters, FixedArray[Int]) -> Result[Unit, DecompositionError]
+
 pub fn signed_recompose(Array[Int], @params.DecompositionParameters) -> Result[@torus.Torus32, DecompositionError]
 
 // Errors

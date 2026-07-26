@@ -91,6 +91,54 @@ pub fn signed_gadget_decompose(
 }
 
 ///|
+/// Allocation-free variant for hot paths. Digits use the same largest-to-
+/// smallest gadget-weight order as `signed_gadget_decompose`.
+pub fn signed_gadget_decompose_into(
+  value : @torus.Torus32,
+  parameters : @params.DecompositionParameters,
+  digits : FixedArray[Int],
+) -> Result[Unit, DecompositionError] {
+  let base_log = parameters.base_log()
+  let level = parameters.level()
+  let total_bits = base_log * level
+  if base_log <= 0 ||
+    base_log >= 31 ||
+    level <= 0 ||
+    total_bits > 32 ||
+    digits.length() != level {
+    return Err(InvalidParameters)
+  }
+  let discarded_bits = 32 - total_bits
+  let rounded = if discarded_bits == 0 {
+    value.to_uint()
+  } else {
+    value.to_uint() + (1U << (discarded_bits - 1))
+  }
+  let state = if discarded_bits == 0 {
+    rounded
+  } else {
+    rounded >> discarded_bits
+  }
+  let base = 1 << base_log
+  let half = base / 2
+  let mask = (base - 1).reinterpret_as_uint()
+  let mut carry = 0
+  for offset in 0..<level {
+    let index = level - 1 - offset
+    let shift = (level - 1 - index) * base_log
+    let unsigned_digit = ((state >> shift) & mask).reinterpret_as_int() + carry
+    if unsigned_digit >= half {
+      digits[index] = unsigned_digit - base
+      carry = 1
+    } else {
+      digits[index] = unsigned_digit
+      carry = 0
+    }
+  }
+  Ok(())
+}
+
+///|
 pub struct KeySwitchKey {
   input_parameters : @params.LweDimension
   output_parameters : @params.LweDimension
@@ -208,10 +256,11 @@ pub fn KeySwitchKey::apply(
   let result = FixedArray::make(ciphertext_size, 0U)
   result[self.output_parameters.value()] = ciphertext.b().to_uint()
   let mask = ciphertext.a()
+  let digits = FixedArray::make(self.decomposition.level(), 0)
   for index in 0..<mask.length() {
-    let digits = match
-      signed_gadget_decompose(mask[index], self.decomposition) {
-      Ok(value) => value
+    match
+      signed_gadget_decompose_into(mask[index], self.decomposition, digits) {
+      Ok(_) => ()
       Err(_) => return Err(InvalidDecomposition)
     }
     for level in 0..<digits.length() {
@@ -320,6 +369,27 @@ test "keyswitch: signed gadget decomposition reconstructs full-width torus" {
       )
     }
     assert_eq(reconstructed.to_uint(), value)
+  }
+}
+
+///|
+test "keyswitch: allocation-free gadget decomposition matches reference" {
+  let parameters = @params.decomposition_parameters(7, 4).unwrap()
+  let values = [0U, 1U, 0x3FFF_FFFFU, 0x8000_0000U, 0xFFFF_FFFFU]
+  let output = FixedArray::make(parameters.level(), 0)
+  for value in values {
+    let expected = signed_gadget_decompose(
+      @torus.Torus32::from_uint(value),
+      parameters,
+    ).unwrap()
+    signed_gadget_decompose_into(
+      @torus.Torus32::from_uint(value),
+      parameters,
+      output,
+    ).unwrap()
+    for index in 0..<output.length() {
+      assert_eq(output[index], expected[index])
+    }
   }
 }
 
