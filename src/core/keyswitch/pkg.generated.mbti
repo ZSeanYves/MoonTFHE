@@ -45,6 +45,7 @@ pub struct KeySwitchKey {
   data : FixedArray[UInt]
 }
 pub fn KeySwitchKey::apply(Self, @lwe.LweCiphertext) -> Result[@lwe.LweCiphertext, KeySwitchError]
+pub fn KeySwitchKey::apply_into(Self, @lwe.LweCiphertext, FixedArray[UInt], FixedArray[Int]) -> Result[Unit, KeySwitchError]
 pub fn KeySwitchKey::decomposition(Self) -> @params.DecompositionParameters
 pub fn KeySwitchKey::flat_u32_copy(Self) -> FixedArray[UInt]
 pub fn KeySwitchKey::input_dimension(Self) -> @params.LweDimension

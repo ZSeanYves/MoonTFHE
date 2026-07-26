@@ -44,13 +44,18 @@ pub struct GlweCiphertext {
 }
 pub fn GlweCiphertext::add(Self, Self) -> Result[Self, GlweError]
 pub fn GlweCiphertext::add_gadget_to_component(Self, Int, @torus.Torus32) -> Result[Self, GlweError]
+pub fn GlweCiphertext::add_into(Self, Self, FixedArray[UInt]) -> Result[Unit, GlweError]
 pub fn GlweCiphertext::component(Self, Int) -> Result[Array[@torus.Torus32], GlweError]
 pub fn GlweCiphertext::flat_u32_copy(Self) -> FixedArray[UInt]
 pub fn GlweCiphertext::mul_plain_poly(Self, Array[@torus.Torus32]) -> Result[Self, GlweError]
 pub fn GlweCiphertext::parameters(Self) -> GlweParameters
 pub fn GlweCiphertext::rotate_negacyclic(Self, Int) -> Self
+pub fn GlweCiphertext::rotate_negacyclic_into(Self, Int, FixedArray[UInt]) -> Result[Unit, GlweError]
 pub fn GlweCiphertext::sample_extract(Self, Int) -> Result[@lwe.LweCiphertext, GlweError]
+pub fn GlweCiphertext::sample_extract_into(Self, Int, FixedArray[UInt]) -> Result[Unit, GlweError]
 pub fn GlweCiphertext::sub(Self, Self) -> Result[Self, GlweError]
+pub fn GlweCiphertext::sub_into(Self, Self, FixedArray[UInt]) -> Result[Unit, GlweError]
+pub fn GlweCiphertext::word_at(Self, Int) -> Result[UInt, GlweError]
 
 pub struct GlweParameters {
   glwe_dimension : Int

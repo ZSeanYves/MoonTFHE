@@ -10,6 +10,7 @@ import {
   "ZSeanYves/MoonTFHE/src/params",
   "ZSeanYves/MoonTFHE/src/torus",
   "moonbitlang/core/debug",
+  "moonbitlang/core/ref",
 }
 
 // Values
@@ -23,7 +24,20 @@ pub fn bootstrap_keyswitch_order() -> PbsOrder
 
 pub fn keyswitch_bootstrap_order() -> PbsOrder
 
+pub fn packed_ggsw_new(@ggsw.GgswParameters) -> Result[PackedGgsw, PackedShapeError]
+
+pub fn packed_glwe_new(@glwe.GlweParameters) -> Result[PackedGlwe, PackedShapeError]
+
+pub fn packed_key_switch_new(@params.LweDimension, @params.LweDimension, @params.DecompositionParameters) -> Result[PackedKeySwitchKey, PackedShapeError]
+
+pub fn packed_lwe_new(@params.LweDimension) -> Result[PackedLwe, PackedShapeError]
+
 // Errors
+pub suberror PackedShapeError {
+  InvalidShape
+  Overflow
+} derive(Eq, @debug.Debug)
+
 pub suberror PbsError {
   InvalidLut
   InvalidPolynomialSize
@@ -53,6 +67,7 @@ pub struct BootstrapKey {
   key_switch : @keyswitch.KeySwitchKey
   order : PbsOrder
   fourier : @provider.FourierBootstrapKey?
+  workspace : @ref.Ref[PbsWorkspace]
 }
 pub fn BootstrapKey::blind_rotate(Self, @glwe.GlweCiphertext, @lwe.LweCiphertext) -> Result[@glwe.GlweCiphertext, PbsError]
 pub fn BootstrapKey::coefficient_bsk_copy(Self) -> FixedArray[UInt]
@@ -68,10 +83,49 @@ pub fn BootstrapKey::order(Self) -> PbsOrder
 pub fn BootstrapKey::programmable_bootstrap(Self, @lwe.LweCiphertext, BooleanLut) -> Result[@lwe.LweCiphertext, PbsError]
 pub fn BootstrapKey::programmable_bootstrap_table(Self, @lwe.LweCiphertext, Array[@torus.Torus32]) -> Result[@lwe.LweCiphertext, PbsError]
 
+pub struct PackedGgsw {
+  parameters : @ggsw.GgswParameters
+  data : FixedArray[UInt]
+}
+pub fn PackedGgsw::word_length(Self) -> Int
+
+pub struct PackedGlwe {
+  parameters : @glwe.GlweParameters
+  data : FixedArray[UInt]
+}
+pub fn PackedGlwe::word_length(Self) -> Int
+
+pub struct PackedKeySwitchKey {
+  input_dimension : @params.LweDimension
+  output_dimension : @params.LweDimension
+  decomposition : @params.DecompositionParameters
+  data : FixedArray[UInt]
+}
+pub fn PackedKeySwitchKey::word_length(Self) -> Int
+
+pub struct PackedLwe {
+  dimension : @params.LweDimension
+  data : FixedArray[UInt]
+}
+pub fn PackedLwe::word_length(Self) -> Int
+
 pub enum PbsOrder {
   KeyswitchBootstrap
   BootstrapKeyswitch
 } derive(Eq, @debug.Debug)
+
+pub struct PbsWorkspace {
+  state_a : FixedArray[UInt]
+  state_b : FixedArray[UInt]
+  rotated : FixedArray[UInt]
+  difference : FixedArray[UInt]
+  selected : FixedArray[UInt]
+  digits : FixedArray[UInt]
+  decomposition_digits : FixedArray[Int]
+  extracted : FixedArray[UInt]
+  ksk_result : FixedArray[UInt]
+  ksk_digits : FixedArray[Int]
+}
 
 // Type aliases
 
