@@ -31,12 +31,47 @@ fn benchmark_evidence_parameter(
     nand_output = server.nand(left, right).unwrap()
   }
   let nand_us = @bench.monotonic_clock_end(nand_start) / iterations.to_double()
+  let and_start = @bench.monotonic_clock_start()
+  let mut and_output = left
+  for _ in 0..<iterations {
+    and_output = server.and_gate(left, right).unwrap()
+  }
+  let and_us = @bench.monotonic_clock_end(and_start) / iterations.to_double()
+  let or_start = @bench.monotonic_clock_start()
+  let mut or_output = left
+  for _ in 0..<iterations {
+    or_output = server.or_gate(left, right).unwrap()
+  }
+  let or_us = @bench.monotonic_clock_end(or_start) / iterations.to_double()
+  let xor_start = @bench.monotonic_clock_start()
+  let mut xor_output = left
+  for _ in 0..<iterations {
+    xor_output = server.xor_gate(left, right).unwrap()
+  }
+  let xor_us = @bench.monotonic_clock_end(xor_start) / iterations.to_double()
+  let xnor_start = @bench.monotonic_clock_start()
+  let mut xnor_output = left
+  for _ in 0..<iterations {
+    xnor_output = server.xnor_gate(left, right).unwrap()
+  }
+  let xnor_us = @bench.monotonic_clock_end(xnor_start) / iterations.to_double()
+  let mux_start = @bench.monotonic_clock_start()
+  let mut mux_output = left
+  for _ in 0..<iterations {
+    mux_output = server.mux(left, right, pbs_output).unwrap()
+  }
+  let mux_us = @bench.monotonic_clock_end(mux_start) / iterations.to_double()
   assert_eq(client.decrypt(pbs_output), Ok(true))
   assert_eq(client.decrypt(nand_output), Ok(false))
+  assert_eq(client.decrypt(and_output), Ok(true))
+  assert_eq(client.decrypt(or_output), Ok(true))
+  assert_eq(client.decrypt(xor_output), Ok(false))
+  assert_eq(client.decrypt(xnor_output), Ok(true))
+  assert_eq(client.decrypt(mux_output), Ok(true))
   let server_key_bytes = server.serialize().unwrap().length()
   let ciphertext_bytes = left.serialize().length()
   println(
-    "{\"schema_version\":1,\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"iterations\":\{iterations},\"keygen_us\":\{keygen_us},\"pbs_us\":\{pbs_us},\"nand_us\":\{nand_us},\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes}}",
+    "{\"schema_version\":2,\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"iterations\":\{iterations},\"keygen_us\":\{keygen_us},\"pbs_us\":\{pbs_us},\"nand_us\":\{nand_us},\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes},\"stage_metrics\":{\"key_generation_us\":\{keygen_us},\"pbs_with_ks_us\":\{pbs_us},\"pbs_without_ks_us\":null,\"ksk_generation_us\":null,\"ksk_apply_us\":null,\"bsk_coefficient_generation_us\":null,\"bsk_fourier_conversion_us\":null,\"polynomial_multiplication_us\":null,\"external_product_us\":null,\"blind_rotation_us\":null,\"sample_extraction_us\":null,\"nand_us\":\{nand_us},\"and_us\":\{and_us},\"or_us\":\{or_us},\"xor_us\":\{xor_us},\"xnor_us\":\{xnor_us},\"mux_us\":\{mux_us}},\"allocation_metrics\":{\"available\":false,\"steady_state_heap_allocations\":null,\"workspace_peak_bytes\":null},\"memory_metrics\":{\"peak_rss_kib\":null,\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes}}}",
   )
 }
 

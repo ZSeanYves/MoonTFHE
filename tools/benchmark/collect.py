@@ -11,6 +11,25 @@ from pathlib import Path
 
 TFHE_RS_COMMIT = "640911eba7a394f078fa5d7d14e146105757e34f"
 PARAMETERS = ("boolean-110", "boolean-128")
+STAGE_NAMES = (
+    "key_generation_us",
+    "pbs_with_ks_us",
+    "pbs_without_ks_us",
+    "ksk_generation_us",
+    "ksk_apply_us",
+    "bsk_coefficient_generation_us",
+    "bsk_fourier_conversion_us",
+    "polynomial_multiplication_us",
+    "external_product_us",
+    "blind_rotation_us",
+    "sample_extraction_us",
+    "nand_us",
+    "and_us",
+    "or_us",
+    "xor_us",
+    "xnor_us",
+    "mux_us",
+)
 
 
 def read_json_line(path: Path) -> dict:
@@ -31,6 +50,16 @@ def read_peak_rss_kib(path: Path) -> int:
     if match is None:
         raise ValueError(f"maximum RSS is missing from {path}")
     return int(match.group(1))
+
+
+def read_stage_metrics(record: dict, path: Path) -> dict:
+    stages = record.get("stage_metrics")
+    if not isinstance(stages, dict):
+        raise ValueError(f"stage_metrics is missing from {path}")
+    missing = [name for name in STAGE_NAMES if name not in stages]
+    if missing:
+        raise ValueError(f"stage_metrics missing {missing} in {path}")
+    return {name: stages[name] for name in STAGE_NAMES}
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,6 +85,14 @@ def main() -> None:
         rust["peak_rss_kib"] = read_peak_rss_kib(
             args.input_dir / f"tfhe-rs-{parameter}.time"
         )
+        moon_stages = read_stage_metrics(moon, args.input_dir / f"moontfhe-{parameter}.jsonl")
+        rust_stages = read_stage_metrics(rust, args.input_dir / f"tfhe-rs-{parameter}.jsonl")
+        stage_ratios = {}
+        for name in STAGE_NAMES:
+            left = moon_stages[name]
+            right = rust_stages[name]
+            if isinstance(left, (int, float)) and isinstance(right, (int, float)) and right > 0:
+                stage_ratios[name] = left / right
         ratios = {
             "keygen": moon["keygen_us"] / rust["keygen_us"],
             "nand": moon["nand_us"] / rust["nand_us"],
@@ -68,6 +105,24 @@ def main() -> None:
                 "moontfhe": moon,
                 "tfhe_rs": rust,
                 "ratios": ratios,
+                "stage_metrics": {"moontfhe": moon_stages, "tfhe_rs": rust_stages},
+                "stage_ratios": stage_ratios,
+                "allocation_metrics": {
+                    "moontfhe": moon.get("allocation_metrics", {"available": False}),
+                    "tfhe_rs": rust.get("allocation_metrics", {"available": False}),
+                },
+                "memory_metrics": {
+                    "moontfhe": {
+                        "peak_rss_kib": moon["peak_rss_kib"],
+                        "server_key_bytes": moon["server_key_bytes"],
+                        "ciphertext_bytes": moon["ciphertext_bytes"],
+                    },
+                    "tfhe_rs": {
+                        "peak_rss_kib": rust["peak_rss_kib"],
+                        "server_key_bytes": rust["server_key_bytes"],
+                        "ciphertext_bytes": rust["ciphertext_bytes"],
+                    },
+                },
             }
         )
     max_nand_ratio = max(item["ratios"]["nand"] for item in measurements)
@@ -80,7 +135,7 @@ def main() -> None:
     else:
         performance_score = 0
     evidence = {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": "measured",
         "repository_commit": args.repository_commit,
         "tfhe_rs_commit": TFHE_RS_COMMIT,
@@ -95,6 +150,7 @@ def main() -> None:
             "iterations_per_gate": 10,
             "time_unit": "microseconds",
             "memory_unit": "KiB",
+            "stage_metrics": "null means the implementation does not expose that internal stage",
         },
         "measurements": measurements,
         "performance": {

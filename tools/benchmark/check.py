@@ -11,6 +11,12 @@ from pathlib import Path
 TFHE_RS_COMMIT = "640911eba7a394f078fa5d7d14e146105757e34f"
 EXPECTED_PARAMETERS = {"boolean-110", "boolean-128"}
 RSS_LIMIT_KIB = {"boolean-110": 256 * 1024, "boolean-128": 320 * 1024}
+STAGE_NAMES = {
+    "key_generation_us", "pbs_with_ks_us", "pbs_without_ks_us", "ksk_generation_us",
+    "ksk_apply_us", "bsk_coefficient_generation_us", "bsk_fourier_conversion_us",
+    "polynomial_multiplication_us", "external_product_us", "blind_rotation_us",
+    "sample_extraction_us", "nand_us", "and_us", "or_us", "xor_us", "xnor_us", "mux_us",
+}
 
 
 def positive_number(value: object, field: str) -> float:
@@ -24,8 +30,9 @@ def positive_number(value: object, field: str) -> float:
 
 def validate(path: Path, require_rc_performance: bool) -> None:
     data = json.loads(path.read_text())
-    if data.get("schema_version") != 1 or data.get("status") != "measured":
-        raise ValueError("benchmark status must be measured schema v1")
+    schema_version = data.get("schema_version")
+    if schema_version not in (1, 2) or data.get("status") != "measured":
+        raise ValueError("benchmark status must be measured schema v1 or v2")
     if data.get("tfhe_rs_commit") != TFHE_RS_COMMIT:
         raise ValueError("tfhe-rs commit is not pinned to the approved revision")
     method = data.get("method", {})
@@ -52,6 +59,16 @@ def validate(path: Path, require_rc_performance: bool) -> None:
                 "peak_rss_kib",
             ):
                 positive_number(record.get(field), f"{parameter}.{implementation}.{field}")
+            if schema_version >= 2:
+                stages = record.get("stage_metrics")
+                if not isinstance(stages, dict) or set(stages) != STAGE_NAMES:
+                    raise ValueError(f"{parameter}.{implementation}.stage_metrics has the wrong shape")
+                for stage, value in stages.items():
+                    if value is not None:
+                        positive_number(value, f"{parameter}.{implementation}.{stage}")
+                allocations = record.get("allocation_metrics")
+                if not isinstance(allocations, dict) or not isinstance(allocations.get("available"), bool):
+                    raise ValueError(f"{parameter}.{implementation}.allocation_metrics is missing")
         if require_rc_performance and moon["peak_rss_kib"] > RSS_LIMIT_KIB[parameter]:
             raise ValueError(f"{parameter} exceeds the production peak RSS limit")
         reported = positive_number(item.get("ratios", {}).get("nand"), "ratios.nand")
