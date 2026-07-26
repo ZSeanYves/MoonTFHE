@@ -1,32 +1,43 @@
 {
   "parameter_id": "tfhe-rs-boolean-110-reference",
+  "target_security_bits": 110,
   "modulus": "2^32",
   "lwe_dimension": 805,
   "glwe_dimension": 3,
   "polynomial_size": 512,
   "secret_distribution": "binary",
   "lwe_noise": {
-    "distribution": "discrete_gaussian_cdt_u128",
+    "distribution": "discrete_gaussian_cdt_u192",
     "sigma_q32": 108127244401837,
-    "tail_sigma": 8,
-    "tail_bound": 201403,
-    "threshold_bits": 128,
-    "entries": 201404,
-    "quantization_error_bound": "2^-128",
-    "fixture_hash": "sha256:bf40a2ef2b5fdcae8deea3e0a06869e2a50fcfb8e164145b7ab2177b048e3df1"
+    "sigma_scale_bits": 32,
+    "tail_sigma": 16,
+    "tail_bound": 402806,
+    "threshold_bits": 192,
+    "entries": 402807,
+    "single_sample_tv_log2_upper": -172.380255,
+    "fixture_hash": "sha256:ee48d57a2b4d605a1240bd0c0091d687d3a271ca01cb6445181ab0ebd231e9b2"
   },
   "glwe_noise": {
-    "distribution": "discrete_gaussian_cdt_u128",
+    "distribution": "discrete_gaussian_cdt_u192",
     "sigma_q32": 17183644010,
-    "tail_sigma": 8,
-    "tail_bound": 33,
-    "threshold_bits": 128,
-    "entries": 34,
-    "quantization_error_bound": "2^-128",
-    "fixture_hash": "sha256:56d701274aaac4fb79b00783cea6c88ec8bc5f9bbbded63bc23506ecc354d017"
+    "sigma_scale_bits": 32,
+    "tail_sigma": 16,
+    "tail_bound": 65,
+    "threshold_bits": 192,
+    "entries": 66,
+    "single_sample_tv_log2_upper": -184.944606,
+    "fixture_hash": "sha256:d5c6cc61710e896ed6c9ce217f51353b42a4eea2a68da304a26eb9bd9a65df7d"
   },
   "pbs_decomposition": {"base_log": 10, "level": 2},
   "ks_decomposition": {"base_log": 3, "level": 5},
-  "failure_probability_log2_milli": -64344,
+  "pbs_order": "bootstrap_keyswitch",
+  "fft_mantissa_bits": 53,
+  "boolean_encoding": {
+    "true_torus_u32": 536870912,
+    "false_torus_u32": 3758096384,
+    "pre_pbs_margin_log2": -4,
+    "decrypt_margin_log2": -3,
+    "max_gate_noise_norm_squared": 8
+  },
   "estimator_commit": "3e48ef421ec256afddb3e7d2249a77eab6e9ba12"
 }

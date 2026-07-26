@@ -125,16 +125,16 @@ fn parameter_set(
   glwe_sigma_q32 : UInt64,
 ) -> ParameterSet {
   let lwe_fixture_hash = if lwe_sigma_q32 == 0x625755FE3CADUL {
-    "sha256:bf40a2ef2b5fdcae8deea3e0a06869e2a50fcfb8e164145b7ab2177b048e3df1"
+    "sha256:ee48d57a2b4d605a1240bd0c0091d687d3a271ca01cb6445181ab0ebd231e9b2"
   } else if lwe_sigma_q32 == 0x389E49B295AEUL {
-    "sha256:91bf1b8bbf39e50a0aace73f1f67c1da907d93e149cde5e9835d2a4ce5e17872"
+    "sha256:b656bcec091f9df2fcd7168769c63c7cb50fc0f1703879a54e2c94c440f6afb5"
   } else {
     "unavailable:reference-only"
   }
   let glwe_fixture_hash = if glwe_sigma_q32 == 0x40039996AUL {
-    "sha256:56d701274aaac4fb79b00783cea6c88ec8bc5f9bbbded63bc23506ecc354d017"
+    "sha256:d5c6cc61710e896ed6c9ce217f51353b42a4eea2a68da304a26eb9bd9a65df7d"
   } else if glwe_sigma_q32 == 0x400000000UL {
-    "sha256:1368fdbec94619f2e31e855d8a0043f1eb92b9208981c283ad73379cc056c7fd"
+    "sha256:08cdeccdba967b897d7782fa14f4282ac7796a79df9dc6a998ddedf49f35a68d"
   } else {
     "unavailable:reference-only"
   }
@@ -150,12 +150,12 @@ fn parameter_set(
     ks_decomposition: { base_log: ks_base_log, level: ks_level },
     lwe_noise: Gaussian({
       sigma_q32: lwe_sigma_q32,
-      tail_sigma: 8,
+      tail_sigma: 16,
       fixture_hash: lwe_fixture_hash.to_string(),
     }),
     glwe_noise: Gaussian({
       sigma_q32: glwe_sigma_q32,
-      tail_sigma: 8,
+      tail_sigma: 16,
       fixture_hash: glwe_fixture_hash.to_string(),
     }),
     estimator_commit: "tfhe-rs-1.7.0:640911e".to_string(),

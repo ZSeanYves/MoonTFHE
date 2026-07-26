@@ -250,12 +250,13 @@ pub fn RandomGenerator::next_u64(self : RandomGenerator) -> UInt64 {
 }
 
 ///|
-/// Versioned 128-bit fixed-point cumulative distribution table. Each chunk
-/// stores `(high, low)` UInt64 words for at most 4096 thresholds.
+/// Versioned fixed-point cumulative distribution table. Production fixtures
+/// use three UInt64 words (192 bits); compact toy fixtures retain two words.
 pub struct DiscreteGaussian {
   sigma_q32 : UInt64
   tail_bound : Int
   cdt_length : Int
+  threshold_words : Int
   cdt_chunks : Array[FixedArray[UInt64]]
   fixture_hash : String
 }
@@ -268,6 +269,7 @@ pub fn gaussian_sigma_3_fixture() -> DiscreteGaussian {
     sigma_q32: 3UL << 32,
     tail_bound: 24,
     cdt_length: 25,
+    threshold_words: 2,
     cdt_chunks: [
       FixedArray::from_array([
         0x220B06EFC59DC000UL, 0UL, 0x627326E31B016000UL, 0UL, 0x98F80C58C41FC000UL,
@@ -293,6 +295,7 @@ pub fn test_zero_noise_fixture() -> DiscreteGaussian {
     sigma_q32: 0UL,
     tail_bound: 0,
     cdt_length: 1,
+    threshold_words: 2,
     cdt_chunks: [
       FixedArray::from_array([0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFFFFFFFFFFUL]),
     ],
@@ -320,8 +323,15 @@ pub fn RandomGenerator::sample_discrete_gaussian_fixed(
   self : RandomGenerator,
   distribution : DiscreteGaussian,
 ) -> Result[Int, RandomError] {
-  if distribution.cdt_length <= 0 || distribution.cdt_chunks.length() == 0 {
+  if distribution.cdt_length <= 0 ||
+    distribution.cdt_chunks.length() == 0 ||
+    (distribution.threshold_words != 2 && distribution.threshold_words != 3) {
     return Err(InvalidDistribution)
+  }
+  let draw_top = if distribution.threshold_words == 3 {
+    self.next_u64()
+  } else {
+    0UL
   }
   let draw_high = self.next_u64()
   let draw_low = self.next_u64()
@@ -329,9 +339,12 @@ pub fn RandomGenerator::sample_discrete_gaussian_fixed(
   let mut high = distribution.cdt_length - 1
   while low < high {
     let middle = (low + high) / 2
-    let (threshold_high, threshold_low) = distribution.cdt_threshold(middle)
-    if draw_high < threshold_high ||
-      (draw_high == threshold_high && draw_low <= threshold_low) {
+    let (threshold_top, threshold_high, threshold_low) =
+      distribution.cdt_threshold(middle)
+    if draw_top < threshold_top ||
+      (draw_top == threshold_top &&
+      (draw_high < threshold_high ||
+      (draw_high == threshold_high && draw_low <= threshold_low))) {
       high = middle
     } else {
       low = middle + 1
@@ -349,11 +362,15 @@ pub fn RandomGenerator::sample_discrete_gaussian_fixed(
 fn DiscreteGaussian::cdt_threshold(
   self : DiscreteGaussian,
   index : Int,
-) -> (UInt64, UInt64) {
+) -> (UInt64, UInt64, UInt64) {
   let chunk_index = index / 4096
-  let word_index = index % 4096 * 2
+  let word_index = index % 4096 * self.threshold_words
   let chunk = self.cdt_chunks[chunk_index]
-  (chunk[word_index], chunk[word_index + 1])
+  if self.threshold_words == 3 {
+    (chunk[word_index], chunk[word_index + 1], chunk[word_index + 2])
+  } else {
+    (0UL, chunk[word_index], chunk[word_index + 1])
+  }
 }
 
 ///|
@@ -384,7 +401,7 @@ fn cdt_chunk_from_hex(encoded : String) -> FixedArray[UInt64] {
       }
     }
   }
-  if digits != 0 || words.length() == 0 || words.length() % 2 != 0 {
+  if digits != 0 || words.length() == 0 {
     abort("invalid generated CDT chunk")
   }
   FixedArray::from_array(words)
@@ -468,16 +485,16 @@ test "random: fixed-point CDT known vector" {
 test "random: standard Boolean CDT fixtures are bounded and reproducible" {
   let low = gaussian_boolean_110_glwe_fixture()
   let high = gaussian_boolean_128_lwe_fixture()
-  assert_eq(low.tail_bound(), 33)
-  assert_eq(high.tail_bound(), 115955)
+  assert_eq(low.tail_bound(), 65)
+  assert_eq(high.tail_bound(), 231909)
   assert_true(low.fixture_hash().has_prefix("sha256:"))
   assert_true(high.fixture_hash().has_prefix("sha256:"))
   let rng = test_rng_new(0x5354414E44415244)
   for _ in 0..<128 {
     let low_sample = rng.sample_discrete_gaussian_fixed(low).unwrap()
-    assert_true(low_sample >= -33 && low_sample <= 33)
+    assert_true(low_sample >= -65 && low_sample <= 65)
     let high_sample = rng.sample_discrete_gaussian_fixed(high).unwrap()
-    assert_true(high_sample >= -115955 && high_sample <= 115955)
+    assert_true(high_sample >= -231909 && high_sample <= 231909)
   }
 }
 
@@ -517,7 +534,8 @@ test "random: standard Boolean CDT fixed seed vector" {
   inspect(
     actual,
     content=(
-      #|[-13990, -707, -7071, 10383, 21037, 13329, 12329, -24850, -30481, 21487, 6973, -2831, 32075, -66, -6573, 6127]
+      #|[13990, 32571, 27241, -18993, 16097, -24850, -12036, 38092, -19843, -226, 6573, 5260, 23861, -10408, 15017, -16890]
+
     ),
   )
 }

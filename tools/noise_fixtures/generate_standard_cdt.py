@@ -10,7 +10,7 @@ from decimal import Decimal, ROUND_FLOOR, getcontext
 from pathlib import Path
 
 
-GENERATOR_VERSION = "moontfhe-cdt-u128-v2"
+GENERATOR_VERSION = "moontfhe-cdt-u192-v3"
 PARAMETERS = (
     ("boolean_110_lwe", "tfhe-rs-boolean-110-reference", 0x625755FE3CAD),
     ("boolean_110_glwe", "tfhe-rs-boolean-110-reference", 0x40039996A),
@@ -18,16 +18,23 @@ PARAMETERS = (
     ("boolean_128_glwe", "tfhe-rs-boolean-128-reference", 0x400000000),
 )
 U64_MAX = (1 << 64) - 1
-U128_MAX = (1 << 128) - 1
+THRESHOLD_BITS = 192
+THRESHOLD_WORDS = THRESHOLD_BITS // 64
+THRESHOLD_MAX = (1 << THRESHOLD_BITS) - 1
 Q32 = 1 << 32
 CHUNK_ENTRIES = 4096
+TAIL_SIGMA = 16
 
 
-def generate_cdt(sigma_q32: int) -> tuple[int, list[int]]:
-    getcontext().prec = 180
+def log2_decimal(value: Decimal) -> float:
+    return float(value.ln() / Decimal(2).ln())
+
+
+def generate_cdt(sigma_q32: int) -> tuple[int, list[int], dict[str, float]]:
+    getcontext().prec = 280
     sigma = Decimal(sigma_q32) / Decimal(Q32)
     tail_bound = int(
-        (Decimal(8) * sigma).to_integral_value(rounding="ROUND_CEILING")
+        (Decimal(TAIL_SIGMA) * sigma).to_integral_value(rounding="ROUND_CEILING")
     )
     ratio = (-(Decimal(1) / (Decimal(2) * sigma * sigma))).exp()
     ratio_squared = ratio * ratio
@@ -38,23 +45,47 @@ def generate_cdt(sigma_q32: int) -> tuple[int, list[int]]:
         weight *= step
         step *= ratio_squared
         weights.append(Decimal(2) * weight)
-    total = sum(weights, Decimal(0))
+    truncated_total = sum(weights, Decimal(0))
+    extended_bound = int(
+        (Decimal(24) * sigma).to_integral_value(rounding="ROUND_CEILING")
+    )
+    tail_weight = Decimal(0)
+    for _magnitude in range(tail_bound + 1, extended_bound + 1):
+        weight *= step
+        step *= ratio_squared
+        tail_weight += Decimal(2) * weight
+    weight *= step
+    next_ratio = step * ratio_squared
+    residual_bound = Decimal(2) * weight / (Decimal(1) - next_ratio)
+    tail_weight_upper = tail_weight + residual_bound
+    full_total_lower = truncated_total + tail_weight
+    tail_probability_upper = tail_weight_upper / full_total_lower
     cumulative = Decimal(0)
     thresholds: list[int] = []
     for weight in weights:
         cumulative += weight
         threshold = int(
-            (cumulative * Decimal(U128_MAX) / total).to_integral_value(
+            (cumulative * Decimal(THRESHOLD_MAX) / truncated_total).to_integral_value(
                 rounding=ROUND_FLOOR
             )
         )
-        thresholds.append(min(threshold, U128_MAX))
-    thresholds[-1] = U128_MAX
-    return tail_bound, thresholds
+        thresholds.append(min(threshold, THRESHOLD_MAX))
+    thresholds[-1] = THRESHOLD_MAX
+    quantization_tv_upper = (
+        Decimal(2 * len(thresholds) + 1) / Decimal(1 << THRESHOLD_BITS)
+    )
+    sample_tv_upper = tail_probability_upper + quantization_tv_upper
+    return tail_bound, thresholds, {
+        "tail_probability_log2_upper": round(log2_decimal(tail_probability_upper), 6),
+        "quantization_tv_log2_upper": round(log2_decimal(quantization_tv_upper), 6),
+        "single_sample_tv_log2_upper": round(log2_decimal(sample_tv_upper), 6),
+    }
 
 
 def fixture_hash(thresholds: list[int]) -> str:
-    packed = b"".join(value.to_bytes(16, "little") for value in thresholds)
+    packed = b"".join(
+        value.to_bytes(THRESHOLD_BITS // 8, "little") for value in thresholds
+    )
     return "sha256:" + hashlib.sha256(packed).hexdigest()
 
 
@@ -65,13 +96,13 @@ def render(root: Path) -> tuple[str, dict[str, str], str]:
     chunk_sources: dict[str, str] = {}
     metadata = {
         "generator_version": GENERATOR_VERSION,
-        "distribution": "discrete_gaussian_absolute_cdt_u128",
-        "tail_sigma": 8,
+        "distribution": "discrete_gaussian_absolute_cdt_u192",
+        "tail_sigma": TAIL_SIGMA,
         "chunk_entries": CHUNK_ENTRIES,
         "fixtures": [],
     }
     for name, parameter_id, sigma_q32 in PARAMETERS:
-        tail_bound, thresholds = generate_cdt(sigma_q32)
+        tail_bound, thresholds, distance = generate_cdt(sigma_q32)
         digest = fixture_hash(thresholds)
         chunks = [
             thresholds[offset : offset + CHUNK_ENTRIES]
@@ -85,9 +116,11 @@ def render(root: Path) -> tuple[str, dict[str, str], str]:
                 "tail_bound": tail_bound,
                 "entries": len(thresholds),
                 "chunks": len(chunks),
-                "threshold_bits": 128,
+                "threshold_bits": THRESHOLD_BITS,
+                "threshold_words": THRESHOLD_WORDS,
                 "table_hash": digest,
                 "generator_version": GENERATOR_VERSION,
+                **distance,
             }
         )
         chunk_names = [f"{name}_cdt_chunk_{index:03d}" for index in range(len(chunks))]
@@ -108,6 +141,7 @@ def render(root: Path) -> tuple[str, dict[str, str], str]:
                 f"    sigma_q32: 0x{sigma_q32:X}UL,",
                 f"    tail_bound: {tail_bound},",
                 f"    cdt_length: {len(thresholds)},",
+                f"    threshold_words: {THRESHOLD_WORDS},",
                 *cdt_lines,
                 f'    fixture_hash: "{digest}".to_string(),',
                 "  }",
@@ -118,7 +152,9 @@ def render(root: Path) -> tuple[str, dict[str, str], str]:
         for chunk_index, chunk in enumerate(chunks):
             words = []
             for value in chunk:
-                words.extend((value >> 64, value & U64_MAX))
+                words.extend(
+                    (value >> 128, (value >> 64) & U64_MAX, value & U64_MAX)
+                )
             payload = "".join(f"{value:016X}" for value in words)
             payload_lines = [
                 f"      #|{payload[offset : offset + 128]}"
