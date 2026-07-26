@@ -86,8 +86,9 @@ jobs:
           from pathlib import Path
           for name in ("boolean-110", "boolean-128"):
               output = json.loads((Path("estimator-outputs") / f"{name}.json").read_text())
-              assert output["status"] == "lattice_verified_noise_pending"
-              assert output["security_bits"] > 0
+              assert output["status"] == "verified"
+              assert output["noise_model_status"] == "verified_fixed_point_union_bound"
+              assert output["failure_probability"]["log2_upper_bound"] <= -output["security_bits"]
           PY
 
       - name: Upload estimator outputs
