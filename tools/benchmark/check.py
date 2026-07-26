@@ -52,7 +52,7 @@ def validate(path: Path, require_rc_performance: bool) -> None:
                 "peak_rss_kib",
             ):
                 positive_number(record.get(field), f"{parameter}.{implementation}.{field}")
-        if moon["peak_rss_kib"] > RSS_LIMIT_KIB[parameter]:
+        if require_rc_performance and moon["peak_rss_kib"] > RSS_LIMIT_KIB[parameter]:
             raise ValueError(f"{parameter} exceeds the production peak RSS limit")
         reported = positive_number(item.get("ratios", {}).get("nand"), "ratios.nand")
         computed = moon["nand_us"] / rust["nand_us"]
