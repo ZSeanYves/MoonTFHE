@@ -17,7 +17,7 @@ R7 separates inexpensive pull-request checks from production evidence:
 The measured artifact is committed as `docs/benchmarks-tfhe-rs.json`. The
 programmable-bootstrap measurement uses a non-trivial NOT LUT so that it
 cannot be satisfied by an identity-copy fast path. On the recorded runner,
-MoonTFHE NAND is about 32.9x (110-bit) and 33.4x (128-bit) slower than the
-pinned tfhe-rs harness; peak RSS is about 4.27 GiB and 530 MiB respectively,
+MoonTFHE NAND is about 30.25x (110-bit) and 30.24x (128-bit) slower than the
+pinned tfhe-rs harness; peak RSS is about 4.29 GiB and 530 MiB respectively,
 above the RC limits. The release therefore remains research-only. These
 failures are optimization work items, not reasons to weaken the gate.

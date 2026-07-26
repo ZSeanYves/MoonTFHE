@@ -5,29 +5,29 @@
         "ciphertext_bytes": 3294,
         "implementation": "moontfhe",
         "iterations": 10,
-        "keygen_us": 3163260.444,
-        "nand_us": 490165.2875,
+        "keygen_us": 3277816.624,
+        "nand_us": 425439.19759999996,
         "parameter": "boolean-110",
-        "pbs_us": 492162.61510000005,
-        "peak_rss_kib": 4478804,
+        "pbs_us": 423817.33030000003,
+        "peak_rss_kib": 4502872,
         "schema_version": 1,
         "server_key_bytes": 77516890
       },
       "parameter": "boolean-110",
       "ratios": {
         "ciphertext_size": 1.0104294478527607,
-        "keygen": 4.297895691999506,
-        "nand": 32.878935165164485,
+        "keygen": 4.44293889578293,
+        "nand": 30.24984644142457,
         "server_key_size": 0.5940925912363413
       },
       "tfhe_rs": {
         "ciphertext_bytes": 3260,
         "implementation": "tfhe-rs",
         "iterations": 10,
-        "keygen_us": 736002.144,
-        "nand_us": 14908.186200000002,
+        "keygen_us": 737758.655,
+        "nand_us": 14064.1771,
         "parameter": "boolean-110",
-        "peak_rss_kib": 258916,
+        "peak_rss_kib": 259200,
         "schema_version": 1,
         "server_key_bytes": 130479476
       }
@@ -37,29 +37,29 @@
         "ciphertext_bytes": 3422,
         "implementation": "moontfhe",
         "iterations": 10,
-        "keygen_us": 4315028.799,
-        "nand_us": 720185.1549,
+        "keygen_us": 4324373.984,
+        "nand_us": 627949.4021,
         "parameter": "boolean-128",
-        "pbs_us": 716137.7065999999,
-        "peak_rss_kib": 542800,
+        "pbs_us": 621955.8437,
+        "peak_rss_kib": 542820,
         "schema_version": 1,
         "server_key_bytes": 96034906
       },
       "parameter": "boolean-128",
       "ratios": {
         "ciphertext_size": 1.0100354191263283,
-        "keygen": 3.912284755802681,
-        "nand": 33.43070532090954,
+        "keygen": 4.183231085314811,
+        "nand": 30.239430403681204,
         "server_key_size": 0.6083325738274553
       },
       "tfhe_rs": {
         "ciphertext_bytes": 3388,
         "implementation": "tfhe-rs",
         "iterations": 10,
-        "keygen_us": 1102943.438,
-        "nand_us": 21542.625200000002,
+        "keygen_us": 1033740.1630000001,
+        "nand_us": 20765.913699999997,
         "parameter": "boolean-128",
-        "peak_rss_kib": 312896,
+        "peak_rss_kib": 312852,
         "schema_version": 1,
         "server_key_bytes": 157865796
       }
@@ -73,12 +73,12 @@
     "time_unit": "microseconds"
   },
   "performance": {
-    "maximum_nand_ratio": 33.43070532090954,
+    "maximum_nand_ratio": 30.24984644142457,
     "nand_within_10x": false,
     "nand_within_5x": false,
     "score": 0
   },
-  "repository_commit": "e51e5d186d8ff1078a0167a234c9aceeca097467",
+  "repository_commit": "bf1a78b02ee59b17b66aa57d317d8ff61a94dfc4",
   "runner": {
     "label": "github-actions-ubuntu-24.04",
     "machine": "x86_64",

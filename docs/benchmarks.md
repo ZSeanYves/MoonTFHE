@@ -56,6 +56,6 @@ The comparison artifact is accepted only after
 measurements, 110/128 memory ceilings and the 5x NAND gate. Until that artifact
 and its Cargo lockfile are committed, `tools/rc-gate/check.sh` intentionally
 blocks RC publication. The first committed native comparison is measured
-evidence, but it currently fails those ceilings: NAND is 32.9x/33.4x and peak
-RSS is approximately 4.27 GiB/530 MiB for 110/128-bit parameters. The PBS
+evidence, but it currently fails those ceilings: NAND is 30.25x/30.24x and peak
+RSS is approximately 4.29 GiB/530 MiB for 110/128-bit parameters. The PBS
 field measures a non-trivial NOT LUT and is therefore a real PBS datapoint.
