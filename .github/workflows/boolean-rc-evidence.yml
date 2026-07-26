@@ -48,7 +48,7 @@ jobs:
               -o "benchmark-artifact/raw/moontfhe-${parameter}.time" \
               moon test --target native --release --no-parallelize --include-skipped \
               --filter "benchmark evidence ${parameter}" \
-              src/boolean/benchmark_driver_native_test.mbt \
+              src/boolean/benchmark_driver_native_wbtest.mbt \
               > "benchmark-artifact/raw/moontfhe-${parameter}.jsonl"
             /usr/bin/time -v \
               -o "benchmark-artifact/raw/tfhe-rs-${parameter}.time" \

@@ -8,14 +8,21 @@ fn benchmark_evidence_parameter(
   let keygen_us = @bench.monotonic_clock_end(keygen_start)
   let left = client.encrypt(true)
   let right = client.encrypt(true)
-  // A non-trivial LUT is required here: the identity table may be optimized
-  // as a ciphertext copy and would not measure programmable bootstrapping.
-  let not_lut = [true, false]
+  let pbs_lut = @pbs.boolean_lut(
+    @torus.Torus32::from_int(0x2000_0000),
+    @torus.Torus32::from_int(-0x2000_0000),
+  )
   let iterations = 10
   let pbs_start = @bench.monotonic_clock_start()
   let mut pbs_output = left
   for _ in 0..<iterations {
-    pbs_output = server.apply_lut(pbs_output, not_lut).unwrap()
+    pbs_output = {
+      inner: server.inner
+      .programmable_bootstrap(pbs_output.inner, pbs_lut)
+      .unwrap(),
+      key_id: server.key_id,
+      parameters: server.parameters,
+    }
   }
   let pbs_us = @bench.monotonic_clock_end(pbs_start) / iterations.to_double()
   let nand_start = @bench.monotonic_clock_start()
