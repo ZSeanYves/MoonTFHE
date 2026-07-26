@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "status": "research_release",
+  "basis": "R7 native evidence and repository audit; no independent cryptographic audit",
+  "categories": {
+    "correctness": 29,
+    "security": 18,
+    "boolean_api": 14,
+    "performance": 0,
+    "tests_docs_maintenance": 7
+  },
+  "total": 68,
+  "blocking_reasons": [
+    "standard native NAND is about 38.9x the pinned tfhe-rs harness",
+    "standard native peak RSS exceeds the 110-bit and 128-bit production limits",
+    "the 1000-circuit scheduled evidence job has not completed",
+    "no independent cryptographic audit has been performed"
+  ],
+  "evidence": {
+    "benchmark": "docs/benchmarks-tfhe-rs.json",
+    "estimator": "tools/parameter_estimator/outputs/",
+    "stress_tests": "src/boolean/standard_stress_native_test.mbt"
+  }
+}

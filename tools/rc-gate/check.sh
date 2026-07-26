@@ -92,10 +92,12 @@ else:
     total = 0
     for category, minimum in minimums.items():
         value = categories.get(category)
-        if not isinstance(value, int) or value < minimum:
+        if not isinstance(value, int):
+            blockers.append(f"RC score {category} is missing or non-integer")
+            continue
+        total += value
+        if value < minimum:
             blockers.append(f"RC score {category} is below {minimum}")
-        else:
-            total += value
     if score.get("total") != total or total < 85:
         blockers.append(f"RC total score is {total}, expected at least 85")
 if blockers:
