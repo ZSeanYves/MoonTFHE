@@ -209,6 +209,17 @@ pub fn LweCiphertext::add(
 }
 
 ///|
+/// Negate every coefficient modulo the native Torus32 modulus.
+pub fn LweCiphertext::neg(self : LweCiphertext) -> LweCiphertext {
+  {
+    parameters: self.parameters,
+    data: FixedArray::makei(self.data.length(), fn(index) {
+      @torus.Torus32::from_uint(self.data[index]).neg().to_uint()
+    }),
+  }
+}
+
+///|
 /// Add a public torus constant to the body of an LWE ciphertext.
 pub fn LweCiphertext::add_plain(
   self : LweCiphertext,
@@ -351,4 +362,18 @@ test "lwe core: typed key and ciphertext round trip" {
     )
     .unwrap()
   assert_eq(key.lwe_decrypt_binary(ciphertext), Ok(true))
+}
+
+///|
+test "lwe core: coefficient negation flips Boolean encoding" {
+  let dimension = @params.lwe_dimension(32).unwrap()
+  let key = lwe_keygen(dimension, @random.test_rng_new(0x4C57454E4547))
+  let ciphertext = key
+    .lwe_encrypt_binary(
+      true,
+      @random.gaussian_sigma_3_fixture(),
+      @random.test_rng_new(8),
+    )
+    .unwrap()
+  assert_eq(key.lwe_decrypt_binary(ciphertext.neg()), Ok(false))
 }

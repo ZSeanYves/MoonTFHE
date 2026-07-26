@@ -408,18 +408,11 @@ pub fn ServerKey::not(
     Ok(_) => ()
     Err(error) => return Err(error)
   }
-  match
-    self.inner.programmable_bootstrap(
-      ciphertext.inner,
-      @pbs.boolean_lut(
-        @torus.Torus32::from_int(0x2000_0000),
-        @torus.Torus32::from_int(-0x2000_0000),
-      ),
-    ) {
-    Ok(value) =>
-      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
-    Err(_) => Err(InvalidCiphertext)
-  }
+  Ok({
+    inner: ciphertext.inner.neg(),
+    key_id: self.key_id,
+    parameters: self.parameters,
+  })
 }
 
 ///|
