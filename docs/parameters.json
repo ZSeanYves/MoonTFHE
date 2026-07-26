@@ -10,6 +10,7 @@
       "name": "tfhe-rs-boolean-default-reference",
       "security_bits_claimed_upstream": 132,
       "p_fail_log2_upstream": -64.344,
+      "p_fail_log2_moontfhe_upper_bound": -159.374,
       "lwe_dimension": 805,
       "glwe_dimension": 3,
       "polynomial_size": 512,
@@ -18,12 +19,13 @@
       "ks_base_log": 3,
       "ks_level": 5,
       "distribution": "Gaussian",
-      "moonbit_status": "reference-only"
+      "moonbit_status": "verified-model-based"
     },
     {
       "name": "tfhe-rs-boolean-strong-reference",
       "security_bits_claimed_upstream": 165,
       "p_fail_log2_upstream": -165.434,
+      "p_fail_log2_moontfhe_upper_bound": -159.663,
       "lwe_dimension": 837,
       "glwe_dimension": 2,
       "polynomial_size": 1024,
@@ -32,12 +34,14 @@
       "ks_base_log": 3,
       "ks_level": 5,
       "distribution": "Gaussian",
-      "moonbit_status": "reference-only"
+      "moonbit_status": "verified-model-based"
     }
   ],
   "estimator": {
-    "status": "not yet vendored",
+    "status": "verified-fixed-point-model",
     "required_before_release": true,
-    "reason": "MoonTFHE currently uses an integer transitional sampler and cannot inherit upstream security claims automatically."
+    "lattice_estimator_commit": "3e48ef421ec256afddb3e7d2249a77eab6e9ba12",
+    "moontfhe_noise_model": "tools/parameter_estimator/estimate.py",
+    "reason": "The outputs are reproducible model-based evidence and are not an independent cryptographic audit."
   }
 }

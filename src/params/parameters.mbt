@@ -226,7 +226,7 @@ pub fn boolean_128_reference() -> ParameterSet {
   parameter_set(
     "tfhe-rs-boolean-strong-reference".to_string(),
     128,
-    132,
+    165,
     -159662,
     837,
     2,

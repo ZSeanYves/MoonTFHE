@@ -1,0 +1,98 @@
+name: Boolean RC Evidence
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Install Rust toolchains
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal
+          rustup toolchain install 1.91.1 --profile minimal
+          rustup default 1.91.1
+
+      - name: Cache tfhe-rs benchmark build
+        uses: actions/cache@v4
+        with:
+          path: tools/benchmark/tfhe-rs/target
+          key: tfhe-rs-bench-${{ runner.os }}-640911eba7a394f0-${{ hashFiles('tools/benchmark/tfhe-rs/Cargo.toml', 'tools/benchmark/tfhe-rs/Cargo.lock') }}
+
+      - name: Build native providers
+        run: sh tools/native-providers/build.sh
+
+      - name: Build fixed tfhe-rs benchmark harness
+        run: cargo +1.91.1 build --manifest-path tools/benchmark/tfhe-rs/Cargo.toml --release
+
+      - name: Run interleaved production benchmarks
+        run: |
+          mkdir -p benchmark-artifact/raw
+          lscpu > benchmark-artifact/runner-lscpu.txt
+          for parameter in boolean-110 boolean-128; do
+            /usr/bin/time -v \
+              -o "benchmark-artifact/raw/moontfhe-${parameter}.time" \
+              moon run --target native --release tools/benchmark/moontfhe -- "${parameter}" \
+              > "benchmark-artifact/raw/moontfhe-${parameter}.jsonl"
+            /usr/bin/time -v \
+              -o "benchmark-artifact/raw/tfhe-rs-${parameter}.time" \
+              tools/benchmark/tfhe-rs/target/release/moontfhe-tfhe-rs-benchmark "${parameter}" \
+              > "benchmark-artifact/raw/tfhe-rs-${parameter}.jsonl"
+          done
+
+      - name: Collect and validate evidence
+        run: |
+          python3 tools/benchmark/collect.py \
+            --input-dir benchmark-artifact/raw \
+            --output benchmark-artifact/benchmarks-tfhe-rs.json \
+            --repository-commit "${GITHUB_SHA}" \
+            --runner "github-actions-ubuntu-24.04"
+          python3 tools/benchmark/check.py benchmark-artifact/benchmarks-tfhe-rs.json
+          cp tools/benchmark/tfhe-rs/Cargo.lock benchmark-artifact/tfhe-rs-Cargo.lock
+
+      - name: Upload benchmark evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: boolean-rc-benchmark-${{ github.sha }}
+          path: benchmark-artifact
+          if-no-files-found: error
+          retention-days: 30
+
+  standard-circuits:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Install Rust 1.82.0
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal
+          rustup default 1.82.0
+
+      - name: Build native providers
+        run: sh tools/native-providers/build.sh
+
+      - name: Run 110/128 standard circuit evidence
+        run: >-
+          moon test --target native --release --no-parallelize
+          --include-skipped src/boolean/standard_stress_native_test.mbt

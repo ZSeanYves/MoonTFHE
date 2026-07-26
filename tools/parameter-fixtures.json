@@ -1,5 +1,5 @@
 {
-  "estimator_status": "metadata-only",
+  "estimator_status": "verified",
   "source": {
     "project": "zama-ai/tfhe-rs",
     "version": "1.7.0",
@@ -10,7 +10,8 @@
       "id": "tfhe-rs-boolean-default-reference",
       "target_security_bits": 110,
       "upstream_security_bits": 132,
-      "failure_exponent_log2": -64.344,
+      "upstream_reference_failure_exponent_log2": -64.344,
+      "failure_exponent_log2": -159.374,
       "lwe_dimension": 805,
       "glwe_dimension": 3,
       "polynomial_size": 512,
@@ -19,13 +20,14 @@
       "ks_base_log": 3,
       "ks_level": 5,
       "distribution": "Gaussian",
-      "reference_only": true
+      "reference_only": false
     },
     {
       "id": "tfhe-rs-boolean-strong-reference",
       "target_security_bits": 128,
       "upstream_security_bits": 165,
-      "failure_exponent_log2": -165.434,
+      "upstream_reference_failure_exponent_log2": -165.434,
+      "failure_exponent_log2": -159.663,
       "lwe_dimension": 837,
       "glwe_dimension": 2,
       "polynomial_size": 1024,
@@ -34,7 +36,7 @@
       "ks_base_log": 3,
       "ks_level": 5,
       "distribution": "Gaussian",
-      "reference_only": true
+      "reference_only": false
     }
   ]
 }

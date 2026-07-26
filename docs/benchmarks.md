@@ -40,6 +40,19 @@ coefficients are split into 16-bit limbs, the plan owns reusable scratch, and
 full-width products are checked coefficient-by-coefficient against the MoonBit
 reference backend in native CI. The R2 provider also stores BSK polynomials as
 negacyclic half spectra and applies indexed GGSW external products with a
-preallocated workspace. This closes the native Fourier-kernel boundary; it is
-not yet connected to standard-parameter PBS and therefore does not provide a
-standard PBS benchmark or tfhe-rs comparison.
+preallocated workspace.
+
+## RC evidence harness
+
+R7 adds native 110/128 key generation, programmable-bootstrap and NAND
+measurements plus a dev-only tfhe-rs harness pinned to commit
+`640911eba7a394f078fa5d7d14e146105757e34f`. The `Boolean RC Evidence`
+workflow runs each parameter on the same `ubuntu-24.04` runner, records peak
+RSS with `/usr/bin/time -v`, and uploads raw logs, the generated Cargo lockfile
+and a structured comparison artifact.
+
+The comparison artifact is accepted only after
+`tools/benchmark/check.py --require-rc-performance` verifies real positive
+measurements, 110/128 memory ceilings and the 5x NAND gate. Until that artifact
+and its Cargo lockfile are committed, `tools/rc-gate/check.sh` intentionally
+blocks RC publication.

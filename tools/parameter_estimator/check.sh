@@ -28,6 +28,11 @@ fixture_names = {
     "boolean-110": ("boolean_110_lwe", "boolean_110_glwe"),
     "boolean-128": ("boolean_128_lwe", "boolean_128_glwe"),
 }
+published = json.loads((root / "tools/parameter-fixtures.json").read_text())
+assert published["estimator_status"] == "verified"
+published_by_target = {
+    item["target_security_bits"]: item for item in published["records"]
+}
 for name in ("boolean-110", "boolean-128"):
     inp = json.loads((base / "inputs" / f"{name}.json").read_text())
     out = json.loads((base / "outputs" / f"{name}.json").read_text())
@@ -68,5 +73,11 @@ for name in ("boolean-110", "boolean-128"):
     assert out["noise_model_source"]["tfhe_rs_commit"] == "640911eba7a394f078fa5d7d14e146105757e34f"
     assert out["noise_margin"]["pre_pbs_sigma_scale"] > 1.0
     assert out["noise_margin"]["decrypt_sigma_scale"] > 1.0
+    record = published_by_target[inp["target_security_bits"]]
+    assert record["reference_only"] is False
+    assert abs(
+        record["failure_exponent_log2"]
+        - round(out["failure_probability"]["log2_upper_bound"], 3)
+    ) < 0.001
 print("parameter estimator schema, fixtures, hashes, and noise bounds verified")
 PY

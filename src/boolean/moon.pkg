@@ -1,4 +1,5 @@
 import {
+  "moonbitlang/core/bench",
   "ZSeanYves/MoonTFHE/src/params",
   "ZSeanYves/MoonTFHE/src/torus",
   "ZSeanYves/MoonTFHE/src/random",
@@ -25,5 +26,7 @@ options(
     "fourier_import_portable.mbt": [ "wasm", "wasm-gc", "js" ],
     "standard_keygen_native.mbt": [ "native" ],
     "standard_keygen_portable.mbt": [ "wasm", "wasm-gc", "js" ],
+    "standard_benchmark.mbt": [ "native" ],
+    "standard_stress_native_test.mbt": [ "native" ],
   },
 )

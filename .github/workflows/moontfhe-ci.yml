@@ -29,7 +29,7 @@ jobs:
       - name: Verify generated interface
         run: |
           moon info --target all
-          git diff --exit-code -- src/pkg.generated.mbti
+          git diff --exit-code -- ':(glob)src/**/pkg.generated.mbti'
 
       - name: Verify parameter fixtures
         run: sh tools/parameter_estimator/run.sh --check
@@ -91,7 +91,9 @@ jobs:
         run: sh tools/native-providers/build.sh
 
       - name: Native benchmark smoke
-        run: moon bench --target native --release --no-parallelize
+        run: >-
+          moon bench --target native --release --no-parallelize
+          src/polynomial/fft_benchmark.mbt
 
   rust-ffi:
     runs-on: ubuntu-latest

@@ -1,0 +1,9 @@
+[package]
+name = "moontfhe-tfhe-rs-benchmark"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+bincode = "1.3.3"
+tfhe = { git = "https://github.com/zama-ai/tfhe-rs", rev = "640911eba7a394f078fa5d7d14e146105757e34f", default-features = false, features = ["boolean"] }

@@ -1,5 +1,6 @@
 .DS_Store
 _build/
 target/
+__pycache__/
 .mooncakes/
 .moonagent/
