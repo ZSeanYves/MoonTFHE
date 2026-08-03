@@ -71,6 +71,7 @@ pub struct GlweSecretKey {
 pub fn GlweSecretKey::decrypt(Self, GlweCiphertext) -> Result[Array[@torus.Torus32], GlweError]
 pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]
 pub fn GlweSecretKey::encrypt_with_fft(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator, @provider.FftPlan) -> Result[GlweCiphertext, GlweError]
+pub fn GlweSecretKey::encrypt_with_fft_into(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator, @provider.FftPlan, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt], Int) -> Result[Unit, GlweError]
 pub fn GlweSecretKey::parameters(Self) -> GlweParameters
 pub fn GlweSecretKey::to_extracted_lwe_key(Self) -> Result[@lwe.LweSecretKey, GlweError]
 

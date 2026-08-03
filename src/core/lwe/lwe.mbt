@@ -292,6 +292,60 @@ pub fn LweSecretKey::encrypt_secret_gadget_row(
 }
 
 ///|
+/// Encrypt one secret gadget row directly into a caller-owned packed KSK.
+pub fn LweSecretKey::encrypt_secret_gadget_row_into(
+  self : LweSecretKey,
+  index : Int,
+  target : LweSecretKey,
+  decomposition : @params.DecompositionParameters,
+  noise : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+  output : FixedArray[UInt],
+  output_offset : Int,
+) -> Result[Unit, LweError] {
+  if index < 0 || index >= self.bits.length() {
+    return Err(InvalidIndex)
+  }
+  let base_log = decomposition.base_log()
+  let level_count = decomposition.level()
+  if base_log <= 0 || level_count <= 0 || base_log * level_count > 32 {
+    return Err(InvalidDecomposition)
+  }
+  let ciphertext_size = target.parameters.value() + 1
+  let row_size = level_count * ciphertext_size
+  if output_offset < 0 ||
+    output.length() < row_size ||
+    output_offset > output.length() - row_size {
+    return Err(CiphertextDimensionMismatch)
+  }
+  for level_index in 0..<level_count {
+    let shift = 32 - base_log * (level_index + 1)
+    let gadget = 1U << shift
+    let mut phase = if self.bits[index] == 1U {
+      @torus.Torus32::from_uint(gadget)
+    } else {
+      @torus.Torus32::zero()
+    }
+    let ciphertext_offset = output_offset + level_index * ciphertext_size
+    for coefficient in 0..<target.parameters.value() {
+      let mask = rng.next_u32()
+      output[ciphertext_offset + coefficient] = mask
+      if target.bits[coefficient] == 1U {
+        phase = phase.add(@torus.Torus32::from_uint(mask))
+      }
+    }
+    let error = match rng.sample_discrete_gaussian_fixed(noise) {
+      Ok(value) => value
+      Err(_) => return Err(NoiseFailure)
+    }
+    output[ciphertext_offset + target.parameters.value()] = phase
+      .add(@torus.Torus32::from_int(error))
+      .to_uint()
+  }
+  Ok(())
+}
+
+///|
 pub fn LweSecretKey::parameters(self : LweSecretKey) -> @params.LweDimension {
   self.parameters
 }

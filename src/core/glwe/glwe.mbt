@@ -343,33 +343,68 @@ pub fn GlweSecretKey::encrypt_with_fft(
 ) -> Result[GlweCiphertext, GlweError] {
   let n = self.parameters.polynomial_size
   let k = self.parameters.glwe_dimension
+  let masks = FixedArray::make(k * n, 0U)
+  let products = FixedArray::make(n, 0U)
+  let data = FixedArray::make((k + 1) * n, 0U)
+  match
+    self.encrypt_with_fft_into(
+      message, noise_distribution, rng, plan, masks, products, data, 0,
+    ) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  Ok({ parameters: self.parameters, data })
+}
+
+///|
+/// Encrypt directly into a caller-owned packed GLWE row. `masks` and
+/// `products` are reusable key-generation scratch buffers.
+pub fn GlweSecretKey::encrypt_with_fft_into(
+  self : GlweSecretKey,
+  message : Array[@torus.Torus32],
+  noise_distribution : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+  plan : @provider.FftPlan,
+  masks : FixedArray[UInt],
+  products : FixedArray[UInt],
+  output : FixedArray[UInt],
+  output_offset : Int,
+) -> Result[Unit, GlweError] {
+  let n = self.parameters.polynomial_size
+  let k = self.parameters.glwe_dimension
+  let row_size = (k + 1) * n
   if message.length() != n {
     return Err(MessageLengthMismatch)
   }
-  let masks = FixedArray::make(k * n, 0U)
+  if masks.length() != k * n || products.length() != n {
+    return Err(CiphertextShapeMismatch)
+  }
+  if output_offset < 0 ||
+    output.length() < row_size ||
+    output_offset > output.length() - row_size {
+    return Err(CiphertextShapeMismatch)
+  }
   for index in 0..<masks.length() {
     masks[index] = rng.next_u32()
   }
-  let products = FixedArray::make(n, 0U)
   match plan.batched_glwe_convolution(masks, self.data, k, products) {
     Ok(_) => ()
     Err(_) => return Err(PolynomialFailure)
   }
-  let data = FixedArray::make((k + 1) * n, 0U)
   for index in 0..<masks.length() {
-    data[index] = masks[index]
+    output[output_offset + index] = masks[index]
   }
   for index in 0..<n {
     let noise = match rng.sample_discrete_gaussian_fixed(noise_distribution) {
       Ok(value) => value
       Err(_) => return Err(NoiseFailure)
     }
-    data[k * n + index] = message[index]
+    output[output_offset + k * n + index] = message[index]
       .add(@torus.Torus32::from_uint(products[index]))
       .add(@torus.Torus32::from_int(noise))
       .to_uint()
   }
-  Ok({ parameters: self.parameters, data })
+  Ok(())
 }
 
 ///|

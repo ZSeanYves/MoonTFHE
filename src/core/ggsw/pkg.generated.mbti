@@ -5,6 +5,7 @@ import {
   "ZSeanYves/MoonTFHE/src/core/glwe",
   "ZSeanYves/MoonTFHE/src/native/provider",
   "ZSeanYves/MoonTFHE/src/random",
+  "ZSeanYves/MoonTFHE/src/torus",
   "moonbitlang/core/debug",
 }
 
@@ -12,6 +13,10 @@ import {
 pub fn ggsw_encrypt_boolean(GgswParameters, @glwe.GlweSecretKey, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GgswCiphertext, GgswError]
 
 pub fn ggsw_encrypt_boolean_with_fft(GgswParameters, @glwe.GlweSecretKey, Bool, @random.DiscreteGaussian, @random.RandomGenerator, @provider.FftPlan) -> Result[GgswCiphertext, GgswError]
+
+pub fn ggsw_encrypt_boolean_with_fft_into(GgswParameters, @glwe.GlweSecretKey, Bool, @random.DiscreteGaussian, @random.RandomGenerator, @provider.FftPlan, GgswEncryptionWorkspace, FixedArray[UInt], Int) -> Result[Unit, GgswError]
+
+pub fn ggsw_encryption_workspace_new(GgswParameters) -> GgswEncryptionWorkspace
 
 pub fn ggsw_from_flat_u32(GgswParameters, FixedArray[UInt]) -> Result[GgswCiphertext, GgswError]
 
@@ -40,6 +45,13 @@ pub fn GgswCiphertext::parameters(Self) -> GgswParameters
 pub fn GgswCiphertext::row(Self, Int) -> Result[@glwe.GlweCiphertext, GgswError]
 pub fn GgswCiphertext::row_count(Self) -> Int
 pub fn GgswCiphertext::validate(Self) -> Result[Unit, GgswError]
+
+pub struct GgswEncryptionWorkspace {
+  parameters : GgswParameters
+  zero : Array[@torus.Torus32]
+  masks : FixedArray[UInt]
+  products : FixedArray[UInt]
+}
 
 pub struct GgswParameters {
   glwe : @glwe.GlweParameters

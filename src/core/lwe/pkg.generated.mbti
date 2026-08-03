@@ -51,6 +51,7 @@ pub struct LweSecretKey {
   bits : FixedArray[UInt]
 }
 pub fn LweSecretKey::encrypt_secret_gadget_row(Self, Int, Self, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[Array[LweCiphertext], LweError]
+pub fn LweSecretKey::encrypt_secret_gadget_row_into(Self, Int, Self, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator, FixedArray[UInt], Int) -> Result[Unit, LweError]
 pub fn LweSecretKey::lwe_decrypt_binary(Self, LweCiphertext) -> Result[Bool, LweError]
 pub fn LweSecretKey::lwe_encrypt_binary(Self, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
 pub fn LweSecretKey::lwe_encrypt_torus(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]

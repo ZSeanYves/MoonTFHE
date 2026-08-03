@@ -24,6 +24,15 @@ pub struct GgswCiphertext {
 }
 
 ///|
+/// Reusable scratch for streaming native GGSW key generation.
+pub struct GgswEncryptionWorkspace {
+  parameters : GgswParameters
+  zero : Array[@torus.Torus32]
+  masks : FixedArray[UInt]
+  products : FixedArray[UInt]
+}
+
+///|
 pub fn ggsw_parameters(
   glwe : @glwe.GlweParameters,
   base_log : Int,
@@ -63,6 +72,19 @@ pub fn GgswParameters::glwe(self : GgswParameters) -> @glwe.GlweParameters {
 ///|
 pub fn GgswParameters::flat_size(self : GgswParameters) -> Int {
   self.rows() * self.columns() * self.glwe.polynomial_size()
+}
+
+///|
+pub fn ggsw_encryption_workspace_new(
+  parameters : GgswParameters,
+) -> GgswEncryptionWorkspace {
+  let n = parameters.glwe.polynomial_size()
+  {
+    parameters,
+    zero: Array::make(n, @torus.Torus32::zero()),
+    masks: FixedArray::make(parameters.glwe.glwe_dimension() * n, 0U),
+    products: FixedArray::make(n, 0U),
+  }
 }
 
 ///|
@@ -197,38 +219,71 @@ pub fn ggsw_encrypt_boolean_with_fft(
   rng : @random.RandomGenerator,
   plan : @provider.FftPlan,
 ) -> Result[GgswCiphertext, GgswError] {
-  if key.parameters() != parameters.glwe {
+  let data = FixedArray::make(parameters.flat_size(), 0U)
+  let workspace = ggsw_encryption_workspace_new(parameters)
+  match
+    ggsw_encrypt_boolean_with_fft_into(
+      parameters, key, message, noise, rng, plan, workspace, data, 0,
+    ) {
+    Ok(_) => Ok({ parameters, data })
+    Err(error) => Err(error)
+  }
+}
+
+///|
+/// Stream one encrypted Boolean GGSW directly into its final packed BSK slot.
+pub fn ggsw_encrypt_boolean_with_fft_into(
+  parameters : GgswParameters,
+  key : @glwe.GlweSecretKey,
+  message : Bool,
+  noise : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+  plan : @provider.FftPlan,
+  workspace : GgswEncryptionWorkspace,
+  output : FixedArray[UInt],
+  output_offset : Int,
+) -> Result[Unit, GgswError] {
+  if key.parameters() != parameters.glwe || workspace.parameters != parameters {
     return Err(ParameterMismatch)
   }
+  let flat_size = parameters.flat_size()
+  if output_offset < 0 ||
+    output.length() < flat_size ||
+    output_offset > output.length() - flat_size {
+    return Err(ShapeMismatch)
+  }
   let n = parameters.glwe.polynomial_size()
-  let zero = Array::make(n, @torus.Torus32::zero())
   let row_size = parameters.columns() * n
-  let data = FixedArray::make(parameters.rows() * row_size, 0U)
   let mut row_index = 0
   for level_index in 0..<parameters.level {
     let shift = 32 - parameters.base_log * (level_index + 1)
     let gadget = @torus.Torus32::from_uint(1U << shift)
     for component in 0..<parameters.columns() {
-      let row = match key.encrypt_with_fft(zero, noise, rng, plan) {
-        Ok(value) => value
+      let row_offset = output_offset + row_index * row_size
+      match
+        key.encrypt_with_fft_into(
+          workspace.zero,
+          noise,
+          rng,
+          plan,
+          workspace.masks,
+          workspace.products,
+          output,
+          row_offset,
+        ) {
+        Ok(_) => ()
         Err(_) => return Err(EncryptionFailure)
       }
-      let row = if message {
-        match row.add_gadget_to_component(component, gadget) {
-          Ok(value) => value
-          Err(_) => return Err(EncryptionFailure)
-        }
-      } else {
-        row
-      }
-      let flat = row.flat_u32_copy()
-      for offset in 0..<row_size {
-        data[row_index * row_size + offset] = flat[offset]
+      if message {
+        let gadget_offset = row_offset + component * n
+        output[gadget_offset] = @torus.Torus32::from_uint(output[gadget_offset])
+          .add(gadget)
+          .to_uint()
       }
       row_index = row_index + 1
     }
   }
-  Ok({ parameters, data })
+  Ok(())
 }
 
 ///|

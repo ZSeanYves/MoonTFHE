@@ -195,6 +195,26 @@ pub fn keyswitch_key_from_flat_u32(
 }
 
 ///|
+/// Adopt an already validated packed KSK without retaining a second copy.
+pub fn keyswitch_key_from_owned_flat_u32(
+  input_parameters : @params.LweDimension,
+  output_parameters : @params.LweDimension,
+  decomposition : @params.DecompositionParameters,
+  data : FixedArray[UInt],
+) -> Result[KeySwitchKey, KeySwitchError] {
+  let row_count = input_parameters.value() * decomposition.level()
+  let ciphertext_size = output_parameters.value() + 1
+  if decomposition.level() <= 0 ||
+    row_count < 0 ||
+    (ciphertext_size != 0 && row_count > 2_000_000_000 / ciphertext_size) ||
+    data.length() != row_count * ciphertext_size {
+    Err(CiphertextError)
+  } else {
+    Ok({ input_parameters, output_parameters, decomposition, data })
+  }
+}
+
+///|
 pub suberror KeySwitchError {
   InvalidInputDimension
   InvalidOutputDimension
@@ -218,30 +238,63 @@ pub fn keyswitch_keygen(
   }
   let level_count = decomposition.level()
   let ciphertext_size = target.parameters().value() + 1
-  let data = FixedArray::make(
-    input.parameters().value() * level_count * ciphertext_size,
-    0U,
+  let row_count = input.parameters().value() * level_count
+  if ciphertext_size != 0 && row_count > 2_000_000_000 / ciphertext_size {
+    return Err(CiphertextError)
+  }
+  let data = FixedArray::make(row_count * ciphertext_size, 0U)
+  match keyswitch_keygen_into(input, target, decomposition, noise, rng, data) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  keyswitch_key_from_owned_flat_u32(
+    input.parameters(),
+    target.parameters(),
+    decomposition,
+    data,
   )
+}
+
+///|
+/// Stream all encrypted KSK rows into the final contiguous key buffer.
+pub fn keyswitch_keygen_into(
+  input : @lwe.LweSecretKey,
+  target : @lwe.LweSecretKey,
+  decomposition : @params.DecompositionParameters,
+  noise : @random.DiscreteGaussian,
+  rng : @random.RandomGenerator,
+  output : FixedArray[UInt],
+) -> Result[Unit, KeySwitchError] {
+  if decomposition.base_log() <= 0 ||
+    decomposition.level() <= 0 ||
+    decomposition.base_log() * decomposition.level() > 32 {
+    return Err(InvalidDecomposition)
+  }
+  let level_count = decomposition.level()
+  let ciphertext_size = target.parameters().value() + 1
+  let row_count = input.parameters().value() * level_count
+  if ciphertext_size != 0 && row_count > 2_000_000_000 / ciphertext_size {
+    return Err(CiphertextError)
+  }
+  if output.length() != row_count * ciphertext_size {
+    return Err(CiphertextError)
+  }
   for index in 0..<input.parameters().value() {
     match
-      input.encrypt_secret_gadget_row(index, target, decomposition, noise, rng) {
-      Ok(row) =>
-        for level in 0..<level_count {
-          let ciphertext = row[level].flat_u32_copy()
-          let offset = (index * level_count + level) * ciphertext_size
-          for word in 0..<ciphertext_size {
-            data[offset + word] = ciphertext[word]
-          }
-        }
+      input.encrypt_secret_gadget_row_into(
+        index,
+        target,
+        decomposition,
+        noise,
+        rng,
+        output,
+        index * level_count * ciphertext_size,
+      ) {
+      Ok(_) => ()
       Err(_) => return Err(CiphertextError)
     }
   }
-  Ok({
-    input_parameters: input.parameters(),
-    output_parameters: target.parameters(),
-    decomposition,
-    data,
-  })
+  Ok(())
 }
 
 ///|

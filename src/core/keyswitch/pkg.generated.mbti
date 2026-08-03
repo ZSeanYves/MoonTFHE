@@ -12,7 +12,11 @@ import {
 // Values
 pub fn keyswitch_key_from_flat_u32(@params.LweDimension, @params.LweDimension, @params.DecompositionParameters, FixedArray[UInt]) -> Result[KeySwitchKey, KeySwitchError]
 
+pub fn keyswitch_key_from_owned_flat_u32(@params.LweDimension, @params.LweDimension, @params.DecompositionParameters, FixedArray[UInt]) -> Result[KeySwitchKey, KeySwitchError]
+
 pub fn keyswitch_keygen(@lwe.LweSecretKey, @lwe.LweSecretKey, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[KeySwitchKey, KeySwitchError]
+
+pub fn keyswitch_keygen_into(@lwe.LweSecretKey, @lwe.LweSecretKey, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator, FixedArray[UInt]) -> Result[Unit, KeySwitchError]
 
 pub fn signed_decompose(@torus.Torus32, @params.DecompositionParameters) -> Result[Array[Int], DecompositionError]
 

@@ -87,26 +87,29 @@ fn generate_standard_keys_impl(
     Err(_) => return Err(UnsupportedBackend)
   }
   let control_size = ggsw_parameters.flat_size()
+  if control_size <= 0 || input_dimension.value() > 2_000_000_000 / control_size {
+    return Err(InvalidParameters)
+  }
   let coefficient_bsk = FixedArray::make(
     input_dimension.value() * control_size,
     0U,
   )
+  let ggsw_workspace = @ggsw.ggsw_encryption_workspace_new(ggsw_parameters)
   for index in 0..<input_dimension.value() {
-    let control = match
-      @ggsw.ggsw_encrypt_boolean_with_fft(
+    match
+      @ggsw.ggsw_encrypt_boolean_with_fft_into(
         ggsw_parameters,
         glwe_key,
         input_bits[index],
         glwe_noise,
         bsk_rng,
         plan,
+        ggsw_workspace,
+        coefficient_bsk,
+        index * control_size,
       ) {
-      Ok(value) => value
+      Ok(_) => ()
       Err(_) => return Err(InvalidParameters)
-    }
-    let flat = control.flat_u32_copy()
-    for offset in 0..<control_size {
-      coefficient_bsk[index * control_size + offset] = flat[offset]
     }
   }
   let fourier = match
