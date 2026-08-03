@@ -1,28 +1,20 @@
 # MoonTFHE 维护评估与升级路线
 
-评估日期：2026-07-24。
+初始评估日期：2026-07-24。最终状态更新：2026-08-03。
 
-实施进度：基线、P0、P1、P2 熵源基础、P3 真实 PBS、P4 参数元数据、P5 native benchmark 基线和 P6 实验性 Boolean facade 已分阶段推送。安全参数估计、跨后端生产熵源、FFT/NTT 性能后端和生产级发布仍未完成。
+本路线图主体保留初始差距分析作为历史记录。当前实现已经完成后续 B/C/R/O
+阶段：标准 110/128 keygen/PBS、固定点噪声、真实 estimator、Fourier native
+backend、正式序列化、跨后端契约和性能 RC gate 均已落地。最终工程评分为
+`88/100`；独立密码学与侧信道审计前仍保持 research release。
 
 ## 第二阶段 B0-B7 执行记录
 
-当前按 Boolean Core 补强计划执行。B0-B6 已逐阶段提交、推送并通过远端 CI；B7 审计结论为 55/100，因硬门槛失败而禁止 RC。阶段提交和 CI 记录以 Git 历史及 GitHub Actions 为准。
+历史 B7 首次审计为 55/100；该结果已被 O7 最终审计取代。阶段提交和 CI 记录
+以 Git 历史及 GitHub Actions 为准，最终证据见 `docs/boolean-core-audit.md`。
 
-2026-07-25 的 C 阶段补强已经接入 OS/WebCrypto/host entropy、RFC8439
-ChaCha20、固定点 CDT、RustFFT/AES-GCM C ABI、版本化 key envelopes，以及
-typed GGSW/CMUX/blind-rotation/PBS->KS reference pipeline。重新审计为 68/100；
-110/128 estimator、标准参数 BSK/PBS、Fourier BSK 和 1000+ 标准电路仍是硬
-阻断，因此 `generate_keys` 继续安全失败，不能发布 RC。
-
-本轮新增的稳定 facade 是 `src/boolean`，但它目前只对
-`boolean_test_parameters()` 提供确定性测试 keygen。110/128 命名参数已经有固定
-metadata fixture，不能被解释为 MoonTFHE 已证明的安全参数。`generate_keys` 对生产参数
-仍返回 `UnsupportedBackend`，这是刻意保留的安全失败行为。
-
-B6 的 `MBCT` 只序列化密文，包含 magic、version、parameter code、dimension、key tag、
-payload length 和 checksum。checksum 只用于完整性检测，不提供认证加密；client secret
-和 server key 没有默认导出 API。B7 必须审计这些边界，并在生产 keygen、参数 estimator、
-FFT FFI 和完整 LUT/PBS 尚未完成时阻止 RC 发布。
+2026-07-25 的 C 阶段曾重新审计为 68/100；其中列出的 estimator、标准参数
+BSK/PBS、Fourier BSK、完整序列化和 1,000+ 标准电路阻断均已在后续阶段关闭。
+正式格式现为 MBCT v3、MBKS v2 和 MTSK v2。
 
 本文件区分两件事：当前仓库已经恢复到可编译、可测试状态；当前密码学实现仍是研究原型，不能用于真实数据，也尚未满足最初任务要求中的完整性与安全性。
 
@@ -33,7 +25,7 @@ FFT FFI 和完整 LUT/PBS 尚未完成时阻止 RC 发布。
 - 算法与 API 参考：[TFHE-rs](https://github.com/zama-ai/tfhe-rs)、[TFHE-rs 文档](https://docs.zama.ai/tfhe-rs)、[Concrete FFT](https://github.com/zama-ai/concrete-fft)。
 - 方案参考：[TFHE 2016](https://eprint.iacr.org/2016/870)、[TFHE 2020/ePrint](https://eprint.iacr.org/2018/421)。
 
-## 当前实现判断
+## 初始实现判断（历史）
 
 当前数据流是：
 
@@ -58,7 +50,7 @@ Torus32 / 多项式 / 随机数
 7. `ExperimentalBooleanClientKey`/`ExperimentalBooleanServerKey` 已提供外部 NAND 流程和不透明密文；它仍是 deterministic/zero-noise 原型，不是生产级客户端 facade。
 8. oracle 已移到白盒参考层；剩余测试仍需要独立 tfhe-rs 密文夹具和更广泛随机电路覆盖。
 
-## 与 TFHE-rs 的关键差距
+## 初始版本与 TFHE-rs 的关键差距（历史）
 
 | 领域 | MoonTFHE 当前实现 | TFHE-rs 的成熟做法 | 结论 |
 |---|---|---|---|

@@ -1,6 +1,6 @@
 # ADR 0001: Move the Native PBS Hot Loop to Rust
 
-- Status: Accepted for the next performance phase
+- Status: Implemented
 - Date: 2026-08-03
 - Release impact: keep the current release research-only
 
@@ -105,5 +105,7 @@ Rust differential, fuzz, sanitizer and no-allocation coverage must grow. The
 public MoonBit Boolean API does not change. Portable backends remain correct
 reference implementations without a performance promise.
 
-O4-O7 are intentionally paused. The project remains a research release and no
-RC version or production-security claim is made from the O3 result.
+The continuation gate was passed by the one-call context, after which O4-O7
+were completed. Final run `30803448754` records worst-case PBS/NAND at
+4.216x/4.205x and peak RSS at 217,596/231,980 KiB. The engineering RC gate now
+passes, while the project remains a research release pending independent audit.

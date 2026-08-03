@@ -1,39 +1,31 @@
-# R7 RC Evidence
+# O7 RC evidence
 
-R7 separates inexpensive pull-request checks from production evidence:
+The final evidence is tied to commit `28f762c` and GitHub Actions run
+`30803448754`. MoonTFHE and tfhe-rs commit
+`640911eba7a394f078fa5d7d14e146105757e34f` ran interleaved on the same
+`ubuntu-24.04` runner. The committed structured artifact is
+`docs/benchmarks-tfhe-rs.json` and is independently recomputed by
+`tools/benchmark/check.py --require-rc-performance`.
 
-- `MoonTFHE CI` runs all-target contracts, four backend tests, Rust FFI/ASan
-  and a low-cost polynomial benchmark smoke.
-- `Boolean RC Evidence` is scheduled and dispatchable. It runs native 110/128
-  MoonTFHE and the fixed tfhe-rs revision on the same runner, then executes the
-  skipped 1,000-step circuit tests for both parameter sets.
-- `tools/benchmark/collect.py` emits the only accepted benchmark schema.
-  `tools/benchmark/check.py` recomputes ratios and rejects placeholders,
-  inconsistent values and excess memory.
-- `tools/rc-gate/check.sh` requires the immutable estimator, verified noise
-  model, stable API/import surface, standard circuit tests, locked tfhe-rs
-  harness, committed benchmark evidence and weighted score thresholds.
+| Parameter | PBS | NAND | Peak RSS | Native workspace |
+|---|---:|---:|---:|---:|
+| Boolean 110 | 58.051 ms / 4.125x | 57.628 ms / 4.095x | 217,596 KiB | 130,338,777 bytes |
+| Boolean 128 | 87.167 ms / 4.216x | 86.955 ms / 4.205x | 231,980 KiB | 157,839,481 bytes |
 
-The latest measured artifact is committed as `docs/benchmarks-tfhe-rs.json`;
-phase snapshots remain under `docs/performance/`, including the O1 artifact
-`docs/performance/o1-packed-workspace.json`. The programmable-bootstrap
-measurement uses a non-trivial NOT LUT so that it cannot be satisfied by an
-identity-copy fast path. After separating release compilation from runtime
-RSS, O1 records NAND at about 25.24x (110-bit) and 25.47x (128-bit) slower than
-the pinned tfhe-rs harness, with peak RSS about 462.5 MiB and 529.1 MiB. The
-release therefore remains research-only. These failures are optimization work
-items, not reasons to weaken the gate.
-
-The same workflow's standard-circuits job completed successfully for both
-1,000-step random Boolean workloads after O3 (run `30789949471`). This
-establishes the
-correctness evidence gate, but does not change the performance or memory
-requirements.
-
-O3 fused the native Fourier external product and accumulator add without
-moving decomposition or the blind-rotation state machine out of MoonBit. The
-result remained 25.59x/24.70x slower than tfhe-rs, and 128-bit RSS remained
-530.1 MiB. These measurements activate the optimization stop rule documented
-in `docs/adr/0001-full-rust-pbs-backend.md`; O4-O7 and RC publication remain
-paused until a one-call native PBS backend passes the 10x/512 MiB continuation
+The native provider reports zero steady-state PBS heap allocations. The same
+artifact contains independent measurements for key generation, KSK generation
+and application, coefficient BSK generation, Fourier conversion, polynomial
+multiplication, external product, blind rotation, sample extraction, PBS with
+and without key switching, every one-PBS gate and two-PBS MUX. tfhe-rs does not
+expose stable internal stage timers, so ratios are computed only where both
+harnesses expose comparable values. Standalone MoonTFHE PBS is compared with
+tfhe-rs Boolean NAND because that public operation evaluates one bootstrapped
 gate.
+
+The workflow's standard-circuits job also generated fresh 110/128 keys and
+passed 1,000 chained random Boolean operations for each parameter set. Main CI
+run `30803149677` separately passed all four MoonBit targets, Rust FFI tests,
+the 1,000-call no-allocation tests and AddressSanitizer.
+
+The engineering RC gate passes. Distribution remains research-only pending an
+independent cryptographic and side-channel audit.

@@ -53,9 +53,8 @@ and a structured comparison artifact.
 
 The comparison artifact is accepted only after
 `tools/benchmark/check.py --require-rc-performance` verifies real positive
-measurements, 110/128 memory ceilings and the 5x NAND gate. Until that artifact
-and its Cargo lockfile are committed, `tools/rc-gate/check.sh` intentionally
-blocks RC publication. The O1 packed-workspace evidence is committed as
+stage measurements, zero steady-state PBS allocations, 110/128 memory ceilings
+and the 5x PBS/NAND gates. The O1 packed-workspace evidence is committed as
 `docs/performance/o1-packed-workspace.json`. The workflow prebuilds the native
 test harness before `/usr/bin/time` starts, so peak RSS measures the benchmark
 process rather than the first release compilation. O1 reduced PBS to about
@@ -79,5 +78,23 @@ The O3 fused-Fourier artifact is
 O2, fusing external product and accumulator addition reduced PBS to about
 322.4/458.6 ms and NAND to 25.59x/24.70x tfhe-rs. Peak RSS remained about
 463.4/530.1 MiB. This triggers the plan's `>10x` and `>512 MiB` stop rule.
-Further O4-O7 work is paused in favor of
-`docs/adr/0001-full-rust-pbs-backend.md`.
+This result activated the full-context alternative described by
+`docs/adr/0001-full-rust-pbs-backend.md`. Streaming Fourier controls and moving
+one complete PBS evaluation into the reusable native context removed the
+coefficient/Fourier overlap and repeated MoonBit/FFI transitions. O4 then
+lowered every binary gate to one direct LUT PBS (MUX uses two; NOT uses none).
+
+## O7 result
+
+The final artifact is `docs/benchmarks-tfhe-rs.json`, generated for commit
+`28f762c` by workflow run `30803448754`:
+
+| Parameter | PBS ratio | NAND ratio | Peak RSS |
+|---|---:|---:|---:|
+| Boolean 110 | 4.125x | 4.095x | 217,596 KiB |
+| Boolean 128 | 4.216x | 4.205x | 231,980 KiB |
+
+Both standard parameter sets pass the 5x gate and the 256/320 MiB limits.
+Native PBS reports zero steady-state heap allocations. The artifact also
+records keygen, KSK, BSK conversion, polynomial multiplication, external
+product, blind rotation, extraction, PBS-without-KS and all Boolean gates.

@@ -9,8 +9,8 @@ repository is being rebuilt from an unmaintained teaching prototype into a
 testable library with explicit client/server key boundaries.
 
 > Security status: **research release; not suitable for production or
-> sensitive data**. Native 110/128-bit key generation and Fourier PBS are now
-> connected, but circuit statistics and the estimator remain RC gates.
+> sensitive data**. The Boolean Core engineering RC gate passes, but no
+> independent cryptographic or side-channel audit has been performed.
 
 ## Current status
 
@@ -19,25 +19,31 @@ entities, signed key switching, sample extraction, a secret-free typed BSK,
 reference blind rotation, PBS->KS, and Boolean NAND/NOT/AND/OR/XOR/XNOR/MUX
 through the stable facade.
 
-The following remain explicitly experimental or incomplete:
+The following limits remain:
 
-- a complete security estimate and scheduled portable standard smoke;
-- standard-circuit failure-rate evidence and native performance parity;
-- any claim of 110-bit or 128-bit security;
+- the estimator's GLWE result is a documented flattened-LWE approximation;
+- portable standard execution uses the correct reference backend without a
+  performance commitment;
+- no externally audited 110-bit or 128-bit security claim is made;
 - resistance to side-channel attacks.
 
 The maintained `src/boolean` facade exposes opaque `ClientKey`, `ServerKey`,
 and `Ciphertext` types, versioned `MBCT` ciphertext envelopes, complete `MBKS`
 server-key import/export, authenticated `MTSK` secret import/export, and the
 Boolean gate surface. Production `generate_keys` supports the native 110/128-bit
-reference records. Portable standard construction requires trusted host entropy.
+parameter records. Portable standard construction requires trusted host entropy.
 
 The old root package and `MTFH`/`MBCT v1` formats were removed in C7.
 `BootstrappingKey` contains only encrypted GGSW data, dimensions, and an
-encrypted key-switching key; it is the typed evaluation object used by the
-current reference PBS path. `MBCT v3` is the only ciphertext format currently
-written. Authenticated ClientKey import is available; complete ServerKey import
-remains an RC blocker.
+encrypted key-switching key. Native evaluation uses a reusable Fourier context;
+portable targets retain the coefficient reference path. `MBCT v3`, `MBKS v2`
+and authenticated `MTSK v2` are the only supported formats, with complete
+Ciphertext, ServerKey and explicit ClientKey import/export.
+
+The fixed same-runner O7 evidence records worst-case PBS/NAND ratios of
+4.216x/4.205x against the pinned tfhe-rs Boolean harness, peak RSS of about
+212.5/226.5 MiB for the 110/128 parameter sets, zero steady-state native PBS
+heap allocations, and passing 1,000-step chained circuits for both sets.
 
 ## Build and test
 

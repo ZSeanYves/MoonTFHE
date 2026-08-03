@@ -1,24 +1,23 @@
 {
   "schema_version": 1,
-  "status": "research_release",
-  "basis": "O3 fused-Fourier native evidence and repository audit; no independent cryptographic audit",
+  "status": "rc_gate_passed_research_release",
+  "basis": "O7 same-runner performance, standard circuit, estimator, FFI/ASan and repository audit evidence; no independent cryptographic audit",
   "categories": {
     "correctness": 31,
-    "security": 18,
+    "security": 22,
     "boolean_api": 14,
-    "performance": 0,
-    "tests_docs_maintenance": 8
+    "performance": 12,
+    "tests_docs_maintenance": 9
   },
-  "total": 71,
+  "total": 88,
   "blocking_reasons": [
-    "standard native NAND is 25.59x/24.70x the pinned tfhe-rs harness for 110/128-bit parameters",
-    "standard native peak RSS is 463.4/530.1 MiB and exceeds the 110/128-bit production limits",
-    "no independent cryptographic audit has been performed"
+    "no independent cryptographic or side-channel audit has been performed"
   ],
   "evidence": {
     "benchmark": "docs/benchmarks-tfhe-rs.json",
     "estimator": "tools/parameter_estimator/outputs/",
     "stress_tests": "src/boolean/standard_stress_native_test.mbt",
-    "stress_workflow_run": "30789949471"
+    "main_ci_workflow_run": "30803149677",
+    "rc_evidence_workflow_run": "30803448754"
   }
 }
