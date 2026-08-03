@@ -39,6 +39,12 @@ jobs:
       - name: Build fixed tfhe-rs benchmark harness
         run: cargo +1.91.1 build --manifest-path tools/benchmark/tfhe-rs/Cargo.toml --release
 
+      - name: Prebuild MoonTFHE benchmark harness
+        run: >-
+          moon test --target native --release --no-parallelize
+          --filter "benchmark prebuild only"
+          src/boolean/benchmark_driver_native_wbtest.mbt
+
       - name: Run interleaved production benchmarks
         run: |
           mkdir -p benchmark-artifact/raw
