@@ -82,6 +82,17 @@ extern moontfhe_native_pbs_context *native_pbs_context_new(
     uint32_t ksk_base_log, uint32_t ksk_level, uint32_t order,
     const uint32_t *coefficients, size_t coefficient_count,
     const uint32_t *ksk, size_t ksk_count);
+extern moontfhe_native_pbs_context *native_pbs_context_new_empty(
+    uint32_t polynomial_size, uint32_t input_dimension,
+    uint32_t glwe_dimension, uint32_t pbs_base_log, uint32_t pbs_level,
+    uint32_t ksk_input_dimension, uint32_t ksk_output_dimension,
+    uint32_t ksk_base_log, uint32_t ksk_level, uint32_t order,
+    const uint32_t *ksk, size_t ksk_count);
+extern int32_t native_pbs_context_set_control(
+    moontfhe_native_pbs_context *context, uint32_t index,
+    const uint32_t *coefficients, size_t coefficient_count);
+extern int32_t native_pbs_context_ready(
+    const moontfhe_native_pbs_context *context);
 extern int32_t native_pbs_context_valid(
     const moontfhe_native_pbs_context *context);
 extern size_t native_pbs_context_input_size(
@@ -148,6 +159,8 @@ typedef struct {
   uint32_t output_size;
   uint32_t coefficient_count;
   uint32_t ksk_count;
+  uint32_t control_count;
+  uint32_t control_coefficient_count;
 } moonbit_tfhe_pbs_context;
 
 static void moonbit_tfhe_fft_plan_finalize(void *payload) {
@@ -473,6 +486,8 @@ MOONBIT_FFI_EXPORT moonbit_tfhe_pbs_context *moonbit_tfhe_pbs_context_new(
   self->output_size = 0;
   self->coefficient_count = 0;
   self->ksk_count = 0;
+  self->control_count = 0;
+  self->control_coefficient_count = 0;
   if (polynomial_size <= 0 || input_dimension <= 0 || glwe_dimension <= 0 ||
       pbs_base_log <= 0 || pbs_level <= 0 || ksk_input_dimension <= 0 ||
       ksk_output_dimension <= 0 || ksk_base_log <= 0 || ksk_level <= 0 ||
@@ -509,7 +524,92 @@ MOONBIT_FFI_EXPORT moonbit_tfhe_pbs_context *moonbit_tfhe_pbs_context_new(
   self->output_size = (uint32_t)output_size;
   self->coefficient_count = (uint32_t)exported_coefficients;
   self->ksk_count = (uint32_t)exported_ksk;
+  self->control_count = (uint32_t)input_dimension;
+  self->control_coefficient_count =
+      (uint32_t)(exported_coefficients / (size_t)input_dimension);
   return self;
+}
+
+MOONBIT_FFI_EXPORT moonbit_tfhe_pbs_context *
+moonbit_tfhe_pbs_context_new_empty(
+    int32_t polynomial_size, int32_t input_dimension,
+    int32_t glwe_dimension, int32_t pbs_base_log, int32_t pbs_level,
+    int32_t ksk_input_dimension, int32_t ksk_output_dimension,
+    int32_t ksk_base_log, int32_t ksk_level, int32_t order,
+    int32_t *ksk) {
+  moonbit_tfhe_pbs_context *self = (moonbit_tfhe_pbs_context *)
+      moonbit_make_external_object(moonbit_tfhe_pbs_context_finalize,
+                                   sizeof(moonbit_tfhe_pbs_context));
+  self->context = NULL;
+  self->input_size = 0;
+  self->output_size = 0;
+  self->coefficient_count = 0;
+  self->ksk_count = 0;
+  self->control_count = 0;
+  self->control_coefficient_count = 0;
+  if (polynomial_size <= 0 || input_dimension <= 0 ||
+      glwe_dimension <= 0 || pbs_base_log <= 0 || pbs_level <= 0 ||
+      ksk_input_dimension <= 0 || ksk_output_dimension <= 0 ||
+      ksk_base_log <= 0 || ksk_level <= 0 || order < 0 || order > 1 ||
+      ksk == NULL) {
+    return self;
+  }
+  int32_t ksk_count = Moonbit_array_length(ksk);
+  if (ksk_count <= 0) {
+    return self;
+  }
+  self->context = native_pbs_context_new_empty(
+      (uint32_t)polynomial_size, (uint32_t)input_dimension,
+      (uint32_t)glwe_dimension, (uint32_t)pbs_base_log,
+      (uint32_t)pbs_level, (uint32_t)ksk_input_dimension,
+      (uint32_t)ksk_output_dimension, (uint32_t)ksk_base_log,
+      (uint32_t)ksk_level, (uint32_t)order, (const uint32_t *)ksk,
+      (size_t)ksk_count);
+  if (self->context == NULL) {
+    return self;
+  }
+  size_t input_size = native_pbs_context_input_size(self->context);
+  size_t output_size = native_pbs_context_output_size(self->context);
+  size_t exported_coefficients =
+      native_pbs_context_coefficient_count(self->context);
+  size_t exported_ksk = native_pbs_context_ksk_count(self->context);
+  if (input_size > INT32_MAX || output_size > INT32_MAX ||
+      exported_coefficients > INT32_MAX || exported_ksk > INT32_MAX ||
+      exported_coefficients % (size_t)input_dimension != 0) {
+    native_pbs_context_free(self->context);
+    self->context = NULL;
+    return self;
+  }
+  self->input_size = (uint32_t)input_size;
+  self->output_size = (uint32_t)output_size;
+  self->coefficient_count = (uint32_t)exported_coefficients;
+  self->ksk_count = (uint32_t)exported_ksk;
+  self->control_count = (uint32_t)input_dimension;
+  self->control_coefficient_count =
+      (uint32_t)(exported_coefficients / (size_t)input_dimension);
+  return self;
+}
+
+MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_pbs_context_set_control(
+    moonbit_tfhe_pbs_context *self, int32_t index,
+    int32_t *coefficients) {
+  if (self == NULL || self->context == NULL || coefficients == NULL ||
+      index < 0 || (uint32_t)index >= self->control_count) {
+    return 1;
+  }
+  int32_t count = Moonbit_array_length(coefficients);
+  if (count < 0 || (uint32_t)count != self->control_coefficient_count) {
+    return 2;
+  }
+  return native_pbs_context_set_control(
+      self->context, (uint32_t)index, (const uint32_t *)coefficients,
+      (size_t)count);
+}
+
+MOONBIT_FFI_EXPORT int32_t
+moonbit_tfhe_pbs_context_ready(moonbit_tfhe_pbs_context *self) {
+  return self != NULL && self->context != NULL &&
+         native_pbs_context_ready(self->context) != 0;
 }
 
 MOONBIT_FFI_EXPORT int32_t

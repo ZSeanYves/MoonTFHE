@@ -22,6 +22,8 @@ pub fn bootstrap_key_from_flat_encrypted_parts(@params.LweDimension, @glwe.GlweP
 
 pub fn bootstrap_key_from_flat_native_parts(@params.LweDimension, @glwe.GlweParameters, @ggsw.GgswParameters, FixedArray[UInt], @params.LweDimension, @params.LweDimension, @params.DecompositionParameters, FixedArray[UInt], PbsOrder) -> Result[BootstrapKey, PbsError]
 
+pub fn bootstrap_key_from_native_context(@params.LweDimension, @glwe.GlweParameters, @ggsw.GgswParameters, @params.LweDimension, @params.LweDimension, @params.DecompositionParameters, PbsOrder, @provider.PbsContext) -> Result[BootstrapKey, PbsError]
+
 pub fn bootstrap_keyswitch_order() -> PbsOrder
 
 pub fn keyswitch_bootstrap_order() -> PbsOrder

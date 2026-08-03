@@ -94,13 +94,27 @@ fn generate_standard_keys_impl(
     Err(_) => return Err(UnsupportedBackend)
   }
   let control_size = ggsw_parameters.flat_size()
-  if control_size <= 0 || input_dimension.value() > 2_000_000_000 / control_size {
+  if control_size <= 0 {
     return Err(InvalidParameters)
   }
-  let coefficient_bsk = FixedArray::make(
-    input_dimension.value() * control_size,
-    0U,
-  )
+  let context = match
+    @provider.pbs_context_new_empty(
+      glwe.polynomial_size(),
+      input_dimension.value(),
+      glwe.glwe_dimension(),
+      ggsw_parameters.base_log(),
+      ggsw_parameters.level(),
+      key_switch_input.value(),
+      key_switch_output.value(),
+      key_switch_decomposition.base_log(),
+      key_switch_decomposition.level(),
+      1,
+      key_switch_data,
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(UnsupportedBackend)
+  }
+  let coefficient_control = FixedArray::make(control_size, 0U)
   let ggsw_workspace = @ggsw.ggsw_encryption_workspace_new(ggsw_parameters)
   for index in 0..<input_dimension.value() {
     match
@@ -112,24 +126,27 @@ fn generate_standard_keys_impl(
         bsk_rng,
         plan,
         ggsw_workspace,
-        coefficient_bsk,
-        index * control_size,
+        coefficient_control,
+        0,
       ) {
+      Ok(_) => ()
+      Err(_) => return Err(InvalidParameters)
+    }
+    match context.set_control(index, coefficient_control) {
       Ok(_) => ()
       Err(_) => return Err(InvalidParameters)
     }
   }
   let bootstrap = match
-    @pbs.bootstrap_key_from_flat_native_parts(
+    @pbs.bootstrap_key_from_native_context(
       input_dimension,
       glwe,
       ggsw_parameters,
-      coefficient_bsk,
       key_switch_input,
       key_switch_output,
       key_switch_decomposition,
-      key_switch_data,
       @pbs.bootstrap_keyswitch_order(),
+      context,
     ) {
     Ok(value) => value
     Err(_) => return Err(InvalidParameters)

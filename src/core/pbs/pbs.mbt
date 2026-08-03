@@ -280,6 +280,50 @@ pub fn bootstrap_key_from_flat_native_parts(
 }
 
 ///|
+/// Adopt a fully initialized native context. This constructor lets native
+/// key generation stream one coefficient GGSW at a time into Fourier storage
+/// instead of retaining a complete coefficient BSK during conversion.
+pub fn bootstrap_key_from_native_context(
+  input_dimension : @params.LweDimension,
+  glwe_parameters : @glwe.GlweParameters,
+  ggsw_parameters : @ggsw.GgswParameters,
+  key_switch_input : @params.LweDimension,
+  key_switch_output : @params.LweDimension,
+  key_switch_decomposition_parameters : @params.DecompositionParameters,
+  order : PbsOrder,
+  native_context : @provider.PbsContext,
+) -> Result[BootstrapKey, PbsError] {
+  if ggsw_parameters.glwe() != glwe_parameters ||
+    key_switch_input.value() !=
+    glwe_parameters.glwe_dimension() * glwe_parameters.polynomial_size() ||
+    key_switch_output != input_dimension ||
+    !native_context.is_ready() {
+    return Err(BootstrapKeyShapeMismatch)
+  }
+  Ok({
+    input_dimension,
+    glwe_parameters,
+    ggsw_parameters,
+    coefficient_bsk: None,
+    key_switch: None,
+    key_switch_input,
+    key_switch_output,
+    key_switch_decomposition_parameters,
+    order,
+    fourier: None,
+    native_context: Some(native_context),
+    workspace: @ref.Ref(
+      pbs_workspace_new(
+        glwe_parameters,
+        ggsw_parameters,
+        key_switch_output,
+        key_switch_decomposition_parameters.level(),
+      ),
+    ),
+  })
+}
+
+///|
 pub fn BootstrapKey::input_dimension(
   self : BootstrapKey,
 ) -> @params.LweDimension {

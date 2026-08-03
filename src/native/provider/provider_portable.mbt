@@ -109,6 +109,37 @@ pub fn pbs_context_new(
 }
 
 ///|
+pub fn pbs_context_new_empty(
+  _polynomial_size : Int,
+  _input_dimension : Int,
+  _glwe_dimension : Int,
+  _pbs_base_log : Int,
+  _pbs_level : Int,
+  _ksk_input_dimension : Int,
+  _ksk_output_dimension : Int,
+  _ksk_base_log : Int,
+  _ksk_level : Int,
+  _order : Int,
+  _ksk : FixedArray[UInt],
+) -> Result[PbsContext, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn PbsContext::set_control(
+  _self : PbsContext,
+  _index : Int,
+  _coefficients : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn PbsContext::is_ready(_self : PbsContext) -> Bool {
+  false
+}
+
+///|
 pub fn PbsContext::evaluate_lut_into(
   _self : PbsContext,
   _input : FixedArray[UInt],

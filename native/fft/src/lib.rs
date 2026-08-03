@@ -70,6 +70,7 @@ pub struct NativePbsContext {
     extracted: Vec<u32>,
     ksk_result: Vec<u32>,
     switched_input: Vec<u32>,
+    initialized_controls: Vec<bool>,
     busy: AtomicBool,
 }
 
@@ -299,22 +300,40 @@ impl FourierBootstrapKey {
         if coefficients.len() != expected {
             return false;
         }
-        let half = plan.half_size;
         for ggsw in 0..self.ggsw_count {
-            for digit in 0..self.digit_count {
-                for output in 0..self.output_count {
-                    let polynomial = (ggsw * self.digit_count * self.output_count
-                        + digit * self.output_count
-                        + output)
-                        * self.polynomial_size;
-                    let coefficients = &coefficients[polynomial..polynomial + self.polynomial_size];
-                    let spectrum_offset = self.spectrum_offset(ggsw, digit, output);
-                    plan.polynomial_centered_to_half(
-                        coefficients,
-                        scratch,
-                        &mut self.spectra[spectrum_offset..spectrum_offset + half],
-                    );
-                }
+            let control_size = self.digit_count * self.output_count * self.polynomial_size;
+            let start = ggsw * control_size;
+            if !self.convert_control(plan, ggsw, &coefficients[start..start + control_size], scratch) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn convert_control(
+        &mut self,
+        plan: &FftPlan,
+        ggsw: usize,
+        coefficients: &[u32],
+        scratch: &mut FftScratch,
+    ) -> bool {
+        let expected = self.digit_count * self.output_count * self.polynomial_size;
+        if plan.polynomial_size != self.polynomial_size
+            || ggsw >= self.ggsw_count
+            || coefficients.len() != expected
+        {
+            return false;
+        }
+        let half = plan.half_size;
+        for digit in 0..self.digit_count {
+            for output in 0..self.output_count {
+                let polynomial = (digit * self.output_count + output) * self.polynomial_size;
+                let spectrum_offset = self.spectrum_offset(ggsw, digit, output);
+                plan.polynomial_centered_to_half(
+                    &coefficients[polynomial..polynomial + self.polynomial_size],
+                    scratch,
+                    &mut self.spectra[spectrum_offset..spectrum_offset + half],
+                );
             }
         }
         true
@@ -521,14 +540,48 @@ impl NativePbsContext {
         coefficients: &[u32],
         ksk: &[u32],
     ) -> Option<Self> {
+        let mut context = Self::new_empty(
+            polynomial_size,
+            input_dimension,
+            glwe_dimension,
+            pbs_base_log,
+            pbs_level,
+            ksk_input_dimension,
+            ksk_output_dimension,
+            ksk_base_log,
+            ksk_level,
+            order,
+            ksk,
+        )?;
+        if coefficients.len() != context.coefficient_count() {
+            return None;
+        }
+        let control_size = context.control_coefficient_count();
+        for index in 0..input_dimension {
+            let start = index * control_size;
+            if !context.set_control(index, &coefficients[start..start + control_size]) {
+                return None;
+            }
+        }
+        Some(context)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_empty(
+        polynomial_size: usize,
+        input_dimension: usize,
+        glwe_dimension: usize,
+        pbs_base_log: usize,
+        pbs_level: usize,
+        ksk_input_dimension: usize,
+        ksk_output_dimension: usize,
+        ksk_base_log: usize,
+        ksk_level: usize,
+        order: u32,
+        ksk: &[u32],
+    ) -> Option<Self> {
         let columns = glwe_dimension.checked_add(1)?;
         let digit_count = pbs_level.checked_mul(columns)?;
-        let coefficient_count = checked_product(&[
-            input_dimension,
-            digit_count,
-            columns,
-            polynomial_size,
-        ])?;
         let ksk_count = checked_product(&[
             ksk_input_dimension,
             ksk_level,
@@ -543,17 +596,13 @@ impl NativePbsContext {
             || ksk_input_dimension != glwe_dimension.checked_mul(polynomial_size)?
             || ksk_output_dimension != input_dimension
             || order > 1
-            || coefficients.len() != coefficient_count
             || ksk.len() != ksk_count
         {
             return None;
         }
         let plan = FftPlan::new(polynomial_size)?;
         let mut scratch = plan.new_scratch(digit_count, columns)?;
-        let mut key = FourierBootstrapKey::new(&plan, input_dimension, digit_count, columns)?;
-        if !key.convert(&plan, coefficients, &mut scratch) {
-            return None;
-        }
+        let key = FourierBootstrapKey::new(&plan, input_dimension, digit_count, columns)?;
         let glwe_size = columns.checked_mul(polynomial_size)?;
         Some(Self {
             plan,
@@ -578,8 +627,35 @@ impl NativePbsContext {
             extracted: vec![0; ksk_input_dimension + 1],
             ksk_result: vec![0; ksk_output_dimension + 1],
             switched_input: vec![0; (ksk_input_dimension + 1).max(ksk_output_dimension + 1)],
+            initialized_controls: vec![false; input_dimension],
             busy: AtomicBool::new(false),
         })
+    }
+
+    fn control_coefficient_count(&self) -> usize {
+        self.key.digit_count * self.key.output_count * self.key.polynomial_size
+    }
+
+    fn set_control(&mut self, index: usize, coefficients: &[u32]) -> bool {
+        if self.busy.load(Ordering::Acquire)
+            || index >= self.input_dimension
+            || self.initialized_controls[index]
+            || coefficients.len() != self.control_coefficient_count()
+        {
+            return false;
+        }
+        if !self
+            .key
+            .convert_control(&self.plan, index, coefficients, &mut self.scratch)
+        {
+            return false;
+        }
+        self.initialized_controls[index] = true;
+        true
+    }
+
+    fn ready(&self) -> bool {
+        self.initialized_controls.iter().all(|value| *value)
     }
 
     fn input_size(&self) -> usize {
@@ -737,6 +813,9 @@ impl NativePbsContext {
     }
 
     fn evaluate(&mut self, input: &[u32], accumulator: &[u32], output: &mut [u32]) -> i32 {
+        if !self.ready() {
+            return FFT_INVALID_SIZE;
+        }
         if self
             .busy
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
@@ -791,7 +870,10 @@ impl NativePbsContext {
     }
 
     fn export_coefficients(&mut self, output: &mut [u32]) -> bool {
-        self.key.export_coefficients(&self.plan, &mut self.scratch, output)
+        self.ready()
+            && self
+                .key
+                .export_coefficients(&self.plan, &mut self.scratch, output)
     }
 
     fn export_ksk(&self, output: &mut [u32]) -> bool {
@@ -816,6 +898,7 @@ impl NativePbsContext {
                 + self.switched_input.len())
                 * std::mem::size_of::<u32>()
             + self.decomposition_digits.len() * std::mem::size_of::<i32>()
+            + self.initialized_controls.len() * std::mem::size_of::<bool>()
     }
 }
 
@@ -1241,6 +1324,81 @@ pub unsafe extern "C" fn native_pbs_context_new(
 }
 
 #[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn native_pbs_context_new_empty(
+    polynomial_size: u32,
+    input_dimension: u32,
+    glwe_dimension: u32,
+    pbs_base_log: u32,
+    pbs_level: u32,
+    ksk_input_dimension: u32,
+    ksk_output_dimension: u32,
+    ksk_base_log: u32,
+    ksk_level: u32,
+    order: u32,
+    ksk: *const u32,
+    ksk_count: usize,
+) -> *mut NativePbsContext {
+    if ksk.is_null() {
+        return ptr::null_mut();
+    }
+    match catch_unwind(AssertUnwindSafe(|| {
+        NativePbsContext::new_empty(
+            polynomial_size as usize,
+            input_dimension as usize,
+            glwe_dimension as usize,
+            pbs_base_log as usize,
+            pbs_level as usize,
+            ksk_input_dimension as usize,
+            ksk_output_dimension as usize,
+            ksk_base_log as usize,
+            ksk_level as usize,
+            order,
+            slice::from_raw_parts(ksk, ksk_count),
+        )
+    })) {
+        Ok(Some(context)) => Box::into_raw(Box::new(context)),
+        _ => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_set_control(
+    context: *mut NativePbsContext,
+    index: u32,
+    coefficients: *const u32,
+    coefficient_count: usize,
+) -> i32 {
+    if context.is_null() || coefficients.is_null() {
+        return FFT_NULL_POINTER;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        if (&mut *context).set_control(
+            index as usize,
+            slice::from_raw_parts(coefficients, coefficient_count),
+        ) {
+            FFT_OK
+        } else {
+            FFT_INVALID_SIZE
+        }
+    }))
+    .unwrap_or(FFT_PANIC)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_ready(
+    context: *const NativePbsContext,
+) -> i32 {
+    if context.is_null() {
+        0
+    } else if (&*context).ready() {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn native_pbs_context_valid(context: *const NativePbsContext) -> i32 {
     if context.is_null() {
         0
@@ -1573,6 +1731,52 @@ mod tests {
         assert!(context.export_ksk(&mut restored_ksk));
         assert_eq!(restored_ksk, ksk);
         assert!(context.resident_bytes() > coefficient_count * std::mem::size_of::<u32>());
+    }
+
+    #[test]
+    fn native_pbs_context_streams_controls_without_a_coefficient_bsk() {
+        let polynomial_size = 32usize;
+        let input_dimension = 3usize;
+        let glwe_dimension = 1usize;
+        let pbs_level = 4usize;
+        let columns = glwe_dimension + 1;
+        let control_size = pbs_level * columns * columns * polynomial_size;
+        let ksk_input_dimension = glwe_dimension * polynomial_size;
+        let ksk_output_dimension = input_dimension;
+        let ksk_level = 4usize;
+        let ksk = vec![0u32; ksk_input_dimension * ksk_level * (ksk_output_dimension + 1)];
+        let mut context = NativePbsContext::new_empty(
+            polynomial_size,
+            input_dimension,
+            glwe_dimension,
+            8,
+            pbs_level,
+            ksk_input_dimension,
+            ksk_output_dimension,
+            8,
+            ksk_level,
+            1,
+            &ksk,
+        )
+        .unwrap();
+        assert!(!context.ready());
+        let input = vec![0u32; input_dimension + 1];
+        let accumulator = vec![0u32; columns * polynomial_size];
+        let mut output = vec![0u32; ksk_output_dimension + 1];
+        assert_eq!(
+            context.evaluate(&input, &accumulator, &mut output),
+            FFT_INVALID_SIZE
+        );
+        let control = vec![0u32; control_size];
+        for index in 0..input_dimension {
+            assert!(context.set_control(index, &control));
+            assert!(!context.set_control(index, &control));
+        }
+        assert!(context.ready());
+        assert_eq!(context.evaluate(&input, &accumulator, &mut output), FFT_OK);
+        let mut restored = vec![1u32; input_dimension * control_size];
+        assert!(context.export_coefficients(&mut restored));
+        assert_eq!(restored, vec![0u32; input_dimension * control_size]);
     }
 
     #[test]

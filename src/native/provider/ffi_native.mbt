@@ -102,6 +102,34 @@ extern "c" fn pbs_context_new_ffi(
 ) -> NativePbsContext = "moonbit_tfhe_pbs_context_new"
 
 ///|
+#borrow(ksk)
+extern "c" fn pbs_context_new_empty_ffi(
+  polynomial_size : Int,
+  input_dimension : Int,
+  glwe_dimension : Int,
+  pbs_base_log : Int,
+  pbs_level : Int,
+  ksk_input_dimension : Int,
+  ksk_output_dimension : Int,
+  ksk_base_log : Int,
+  ksk_level : Int,
+  order : Int,
+  ksk : FixedArray[UInt],
+) -> NativePbsContext = "moonbit_tfhe_pbs_context_new_empty"
+
+///|
+#borrow(context, coefficients)
+extern "c" fn pbs_context_set_control_ffi(
+  context : NativePbsContext,
+  index : Int,
+  coefficients : FixedArray[UInt],
+) -> Int = "moonbit_tfhe_pbs_context_set_control"
+
+///|
+#borrow(context)
+extern "c" fn pbs_context_ready_ffi(context : NativePbsContext) -> Bool = "moonbit_tfhe_pbs_context_ready"
+
+///|
 #borrow(context)
 extern "c" fn pbs_context_valid_ffi(context : NativePbsContext) -> Bool = "moonbit_tfhe_pbs_context_valid"
 

@@ -20,6 +20,8 @@ pub fn fourier_bsk_new(FftPlan, FixedArray[UInt], Int, Int, Int) -> Result[Fouri
 
 pub fn pbs_context_new(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, FixedArray[UInt], FixedArray[UInt]) -> Result[PbsContext, NativeProviderError]
 
+pub fn pbs_context_new_empty(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, FixedArray[UInt]) -> Result[PbsContext, NativeProviderError]
+
 // Errors
 pub suberror NativeProviderError {
   UnsupportedBackend
@@ -67,7 +69,9 @@ pub struct PbsContext {
 pub fn PbsContext::evaluate_lut_into(Self, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
 pub fn PbsContext::export_coefficients(Self) -> Result[FixedArray[UInt], NativeProviderError]
 pub fn PbsContext::export_ksk(Self) -> Result[FixedArray[UInt], NativeProviderError]
+pub fn PbsContext::is_ready(Self) -> Bool
 pub fn PbsContext::resident_bytes(Self) -> Int64
+pub fn PbsContext::set_control(Self, Int, FixedArray[UInt]) -> Result[Unit, NativeProviderError]
 
 // Type aliases
 

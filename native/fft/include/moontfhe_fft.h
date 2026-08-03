@@ -98,6 +98,17 @@ moontfhe_native_pbs_context *native_pbs_context_new(
     uint32_t ksk_base_log, uint32_t ksk_level, uint32_t order,
     const uint32_t *coefficients, size_t coefficient_count,
     const uint32_t *ksk, size_t ksk_count);
+moontfhe_native_pbs_context *native_pbs_context_new_empty(
+    uint32_t polynomial_size, uint32_t input_dimension,
+    uint32_t glwe_dimension, uint32_t pbs_base_log, uint32_t pbs_level,
+    uint32_t ksk_input_dimension, uint32_t ksk_output_dimension,
+    uint32_t ksk_base_log, uint32_t ksk_level, uint32_t order,
+    const uint32_t *ksk, size_t ksk_count);
+int32_t native_pbs_context_set_control(
+    moontfhe_native_pbs_context *context, uint32_t index,
+    const uint32_t *coefficients, size_t coefficient_count);
+int32_t native_pbs_context_ready(
+    const moontfhe_native_pbs_context *context);
 int32_t native_pbs_context_valid(const moontfhe_native_pbs_context *context);
 size_t native_pbs_context_input_size(const moontfhe_native_pbs_context *context);
 size_t native_pbs_context_output_size(const moontfhe_native_pbs_context *context);

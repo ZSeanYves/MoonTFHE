@@ -282,6 +282,94 @@ pub fn pbs_context_new(
 }
 
 ///|
+pub fn pbs_context_new_empty(
+  polynomial_size : Int,
+  input_dimension : Int,
+  glwe_dimension : Int,
+  pbs_base_log : Int,
+  pbs_level : Int,
+  ksk_input_dimension : Int,
+  ksk_output_dimension : Int,
+  ksk_base_log : Int,
+  ksk_level : Int,
+  order : Int,
+  ksk : FixedArray[UInt],
+) -> Result[PbsContext, NativeProviderError] {
+  if polynomial_size <= 0 ||
+    (polynomial_size & (polynomial_size - 1)) != 0 ||
+    input_dimension <= 0 ||
+    glwe_dimension <= 0 ||
+    pbs_base_log <= 0 ||
+    pbs_level <= 0 ||
+    pbs_base_log * pbs_level > 32 ||
+    ksk_input_dimension <= 0 ||
+    ksk_output_dimension <= 0 ||
+    ksk_base_log <= 0 ||
+    ksk_level <= 0 ||
+    ksk_base_log * ksk_level > 32 ||
+    order < 0 ||
+    order > 1 ||
+    ksk_input_dimension > 2_000_000_000 / ksk_level ||
+    ksk_input_dimension * ksk_level > 2_000_000_000 / (ksk_output_dimension + 1) {
+    return Err(InvalidLength)
+  }
+  let columns = glwe_dimension + 1
+  let digit_count = pbs_level * columns
+  if digit_count <= 0 ||
+    input_dimension > 2_000_000_000 / digit_count ||
+    input_dimension * digit_count > 2_000_000_000 / columns ||
+    input_dimension * digit_count * columns > 2_000_000_000 / polynomial_size {
+    return Err(InvalidLength)
+  }
+  let coefficient_count = input_dimension *
+    digit_count *
+    columns *
+    polynomial_size
+  let ksk_count = ksk_input_dimension * ksk_level * (ksk_output_dimension + 1)
+  if ksk.length() != ksk_count {
+    return Err(InvalidLength)
+  }
+  let handle = pbs_context_new_empty_ffi(
+    polynomial_size, input_dimension, glwe_dimension, pbs_base_log, pbs_level, ksk_input_dimension,
+    ksk_output_dimension, ksk_base_log, ksk_level, order, ksk,
+  )
+  if !pbs_context_valid_ffi(handle) {
+    return Err(ProviderFailure(status=-1))
+  }
+  Ok({
+    handle,
+    input_size: if order == 0 {
+      ksk_input_dimension + 1
+    } else {
+      input_dimension + 1
+    },
+    output_size: if order == 0 {
+      ksk_input_dimension + 1
+    } else {
+      ksk_output_dimension + 1
+    },
+    coefficient_count,
+    ksk_count,
+  })
+}
+
+///|
+pub fn PbsContext::set_control(
+  self : PbsContext,
+  index : Int,
+  coefficients : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  decode_fft_status(
+    pbs_context_set_control_ffi(self.handle, index, coefficients),
+  )
+}
+
+///|
+pub fn PbsContext::is_ready(self : PbsContext) -> Bool {
+  pbs_context_ready_ffi(self.handle)
+}
+
+///|
 pub fn PbsContext::evaluate_lut_into(
   self : PbsContext,
   input : FixedArray[UInt],
