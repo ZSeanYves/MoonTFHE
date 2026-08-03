@@ -48,6 +48,32 @@ extern int32_t indexed_ggsw_external_product_u32(
     size_t digit_count,
     uint32_t *output,
     size_t output_count);
+extern int32_t fourier_bsk_external_product_batch(
+    const moontfhe_fft_plan *plan,
+    const moontfhe_fourier_bsk *key,
+    moontfhe_fft_scratch *scratch,
+    const uint32_t *ggsw_indices,
+    size_t batch_count,
+    const uint32_t *digits,
+    size_t digit_count,
+    uint32_t *output,
+    size_t output_count);
+extern int32_t fourier_blind_rotation_step(
+    const moontfhe_fft_plan *plan,
+    const moontfhe_fourier_bsk *key,
+    moontfhe_fft_scratch *scratch,
+    uint32_t ggsw_index,
+    const uint32_t *digits,
+    size_t digit_count,
+    const uint32_t *addend,
+    size_t addend_count,
+    uint32_t *output,
+    size_t output_count);
+extern int32_t fourier_accumulator_add_in_place(uint32_t *accumulator,
+                                                size_t accumulator_count,
+                                                const uint32_t *addend,
+                                                size_t addend_count);
+extern int32_t fourier_workspace_reset(moontfhe_fft_scratch *scratch);
 extern void fourier_bsk_free(moontfhe_fourier_bsk *key);
 extern void fft_scratch_free(moontfhe_fft_scratch *scratch);
 extern void fft_plan_free(moontfhe_fft_plan *plan);
@@ -291,6 +317,99 @@ MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_fourier_bsk_external_product(
       plan->plan, key->key, plan->scratch, (uint32_t)ggsw_index,
       (const uint32_t *)digits, expected_digits, (uint32_t *)output,
       expected_output);
+}
+
+MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_fourier_bsk_external_product_batch(
+    moonbit_tfhe_fft_plan *plan,
+    moonbit_tfhe_fourier_bsk *key,
+    int32_t *ggsw_indices,
+    int32_t *digits,
+    int32_t *output) {
+  if (plan == NULL || plan->plan == NULL || plan->scratch == NULL ||
+      key == NULL || key->key == NULL || ggsw_indices == NULL ||
+      digits == NULL || output == NULL) {
+    return 1;
+  }
+  int32_t batch_count = Moonbit_array_length(ggsw_indices);
+  if (batch_count <= 0) {
+    return 2;
+  }
+  size_t digits_per_batch = 0;
+  size_t output_per_batch = 0;
+  size_t expected_digits = 0;
+  size_t expected_output = 0;
+  if (!checked_mul_size((size_t)key->digit_count,
+                        (size_t)key->polynomial_size, &digits_per_batch) ||
+      !checked_mul_size((size_t)key->output_count,
+                        (size_t)key->polynomial_size, &output_per_batch) ||
+      !checked_mul_size((size_t)batch_count, digits_per_batch,
+                        &expected_digits) ||
+      !checked_mul_size((size_t)batch_count, output_per_batch,
+                        &expected_output) ||
+      expected_digits > INT32_MAX || expected_output > INT32_MAX ||
+      (size_t)Moonbit_array_length(digits) != expected_digits ||
+      (size_t)Moonbit_array_length(output) != expected_output) {
+    return 2;
+  }
+  return fourier_bsk_external_product_batch(
+      plan->plan, key->key, plan->scratch, (const uint32_t *)ggsw_indices,
+      (size_t)batch_count, (const uint32_t *)digits, expected_digits,
+      (uint32_t *)output, expected_output);
+}
+
+MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_fourier_blind_rotation_step(
+    moonbit_tfhe_fft_plan *plan,
+    moonbit_tfhe_fourier_bsk *key,
+    int32_t ggsw_index,
+    int32_t *digits,
+    int32_t *addend,
+    int32_t *output) {
+  if (plan == NULL || plan->plan == NULL || plan->scratch == NULL ||
+      key == NULL || key->key == NULL || digits == NULL || addend == NULL ||
+      output == NULL || ggsw_index < 0 ||
+      (uint32_t)ggsw_index >= key->ggsw_count) {
+    return 1;
+  }
+  size_t expected_digits = 0;
+  size_t expected_output = 0;
+  if (!checked_mul_size((size_t)key->digit_count,
+                        (size_t)key->polynomial_size, &expected_digits) ||
+      !checked_mul_size((size_t)key->output_count,
+                        (size_t)key->polynomial_size, &expected_output) ||
+      expected_digits > INT32_MAX || expected_output > INT32_MAX ||
+      (size_t)Moonbit_array_length(digits) != expected_digits ||
+      (size_t)Moonbit_array_length(addend) != expected_output ||
+      (size_t)Moonbit_array_length(output) != expected_output) {
+    return 2;
+  }
+  return fourier_blind_rotation_step(
+      plan->plan, key->key, plan->scratch, (uint32_t)ggsw_index,
+      (const uint32_t *)digits, expected_digits, (const uint32_t *)addend,
+      expected_output, (uint32_t *)output, expected_output);
+}
+
+MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_fourier_accumulator_add_in_place(
+    int32_t *accumulator,
+    int32_t *addend) {
+  if (accumulator == NULL || addend == NULL) {
+    return 1;
+  }
+  int32_t accumulator_count = Moonbit_array_length(accumulator);
+  int32_t addend_count = Moonbit_array_length(addend);
+  if (accumulator_count < 0 || accumulator_count != addend_count) {
+    return 2;
+  }
+  return fourier_accumulator_add_in_place(
+      (uint32_t *)accumulator, (size_t)accumulator_count,
+      (const uint32_t *)addend, (size_t)addend_count);
+}
+
+MOONBIT_FFI_EXPORT int32_t
+moonbit_tfhe_fourier_workspace_reset(moonbit_tfhe_fft_plan *plan) {
+  if (plan == NULL || plan->plan == NULL || plan->scratch == NULL) {
+    return 1;
+  }
+  return fourier_workspace_reset(plan->scratch);
 }
 
 MOONBIT_FFI_EXPORT moonbit_bytes_t moonbit_tfhe_aes256_gcm_encrypt(

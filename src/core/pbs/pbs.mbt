@@ -55,7 +55,6 @@ pub struct PbsWorkspace {
   state_b : FixedArray[UInt]
   rotated : FixedArray[UInt]
   difference : FixedArray[UInt]
-  selected : FixedArray[UInt]
   digits : FixedArray[UInt]
   decomposition_digits : FixedArray[Int]
   extracted : FixedArray[UInt]
@@ -77,7 +76,6 @@ fn pbs_workspace_new(
     state_b: FixedArray::make(glwe_size, 0U),
     rotated: FixedArray::make(glwe_size, 0U),
     difference: FixedArray::make(glwe_size, 0U),
-    selected: FixedArray::make(glwe_size, 0U),
     digits: FixedArray::make(ggsw_parameters.level() * glwe_size, 0U),
     decomposition_digits: FixedArray::make(ggsw_parameters.level(), 0),
     extracted: FixedArray::make(glwe_parameters.glwe_dimension() * n + 1, 0U),
@@ -289,12 +287,14 @@ fn BootstrapKey::control(
 }
 
 ///|
-fn BootstrapKey::fourier_external_product(
+fn BootstrapKey::fourier_external_product_add_into(
   self : BootstrapKey,
   key : @provider.FourierBootstrapKey,
   control_index : Int,
   input : @glwe.GlweCiphertext,
-) -> Result[@glwe.GlweCiphertext, PbsError] {
+  addend : FixedArray[UInt],
+  output : FixedArray[UInt],
+) -> Result[Unit, PbsError] {
   if input.parameters() != self.glwe_parameters {
     return Err(InputDimensionMismatch)
   }
@@ -330,14 +330,8 @@ fn BootstrapKey::fourier_external_product(
       }
     }
   }
-  let output = workspace.selected
-  match key.external_product(control_index, digits, output) {
-    Ok(_) =>
-      match
-        @glwe.glwe_ciphertext_from_owned_flat_u32(self.glwe_parameters, output) {
-        Ok(value) => Ok(value)
-        Err(_) => Err(BlindRotationFailure)
-      }
+  match key.blind_rotation_step(control_index, digits, addend, output) {
+    Ok(_) => Ok(())
     Err(_) => Err(BlindRotationFailure)
   }
 }
@@ -458,25 +452,29 @@ pub fn BootstrapKey::blind_rotate(
         Ok(value) => value
         Err(_) => return Err(BlindRotationFailure)
       }
-      let selected = match self.fourier {
-        Some(key) => self.fourier_external_product(key, index, difference)
-        None =>
-          match self.control(index) {
-            Ok(control) =>
-              match control.external_product(difference) {
-                Ok(value) => Ok(value)
-                Err(_) => Err(BlindRotationFailure)
-              }
-            Err(_) => Err(BootstrapKeyShapeMismatch)
-          }
-      }
-      match selected {
-        Ok(value) =>
-          match current.add_into(value, next_buffer) {
+      match self.fourier {
+        Some(key) =>
+          match
+            self.fourier_external_product_add_into(
+              key, index, difference, current_buffer, next_buffer,
+            ) {
             Ok(_) => ()
             Err(_) => return Err(BlindRotationFailure)
           }
-        Err(_) => return Err(BlindRotationFailure)
+        None => {
+          let selected = match self.control(index) {
+            Ok(control) =>
+              match control.external_product(difference) {
+                Ok(value) => value
+                Err(_) => return Err(BlindRotationFailure)
+              }
+            Err(_) => return Err(BootstrapKeyShapeMismatch)
+          }
+          match current.add_into(selected, next_buffer) {
+            Ok(_) => ()
+            Err(_) => return Err(BlindRotationFailure)
+          }
+        }
       }
       active_a = !active_a
     }

@@ -51,6 +51,20 @@ enum Limb {
     High,
 }
 
+impl FftScratch {
+    fn reset(&mut self) {
+        self.left.fill(Complex::new(0.0, 0.0));
+        self.right.fill(Complex::new(0.0, 0.0));
+        self.fft_scratch.fill(Complex::new(0.0, 0.0));
+        self.convolution_0.fill(0);
+        self.convolution_1.fill(0);
+        self.convolution_2.fill(0);
+        self.temporary_output.fill(0);
+        self.digit_fourier.fill(Complex::new(0.0, 0.0));
+        self.half_accumulator.fill(Complex::new(0.0, 0.0));
+    }
+}
+
 impl FftPlan {
     fn new(polynomial_size: usize) -> Option<Self> {
         if polynomial_size < 2 || !polynomial_size.is_power_of_two() {
@@ -314,6 +328,26 @@ impl FourierBootstrapKey {
         }
         true
     }
+
+    fn external_product_add(
+        &self,
+        plan: &FftPlan,
+        scratch: &mut FftScratch,
+        ggsw_index: usize,
+        digits: &[u32],
+        addend: &[u32],
+        output: &mut [u32],
+    ) -> bool {
+        if addend.len() != output.len()
+            || !self.external_product(plan, scratch, ggsw_index, digits, output)
+        {
+            return false;
+        }
+        for (value, addend) in output.iter_mut().zip(addend.iter()) {
+            *value = value.wrapping_add(*addend);
+        }
+        true
+    }
 }
 
 #[no_mangle]
@@ -535,6 +569,162 @@ pub unsafe extern "C" fn indexed_ggsw_external_product_u32(
         } else {
             FFT_INVALID_SIZE
         }
+    }))
+    .unwrap_or(FFT_PANIC)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fourier_bsk_external_product_into(
+    plan: *const FftPlan,
+    key: *const FourierBootstrapKey,
+    scratch: *mut FftScratch,
+    ggsw_index: u32,
+    digits: *const u32,
+    digit_count: usize,
+    output: *mut u32,
+    output_count: usize,
+) -> i32 {
+    indexed_ggsw_external_product_u32(
+        plan,
+        key,
+        scratch,
+        ggsw_index,
+        digits,
+        digit_count,
+        output,
+        output_count,
+    )
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fourier_bsk_external_product_batch(
+    plan: *const FftPlan,
+    key: *const FourierBootstrapKey,
+    scratch: *mut FftScratch,
+    ggsw_indices: *const u32,
+    batch_count: usize,
+    digits: *const u32,
+    digit_count: usize,
+    output: *mut u32,
+    output_count: usize,
+) -> i32 {
+    if plan.is_null()
+        || key.is_null()
+        || scratch.is_null()
+        || ggsw_indices.is_null()
+        || digits.is_null()
+        || output.is_null()
+    {
+        return FFT_NULL_POINTER;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        let plan = &*plan;
+        let key = &*key;
+        let scratch = &mut *scratch;
+        let digits_per_batch = match key.digit_count.checked_mul(plan.polynomial_size) {
+            Some(value) => value,
+            None => return FFT_INVALID_SIZE,
+        };
+        let output_per_batch = match key.output_count.checked_mul(plan.polynomial_size) {
+            Some(value) => value,
+            None => return FFT_INVALID_SIZE,
+        };
+        if batch_count == 0
+            || digit_count != batch_count.saturating_mul(digits_per_batch)
+            || output_count != batch_count.saturating_mul(output_per_batch)
+        {
+            return FFT_INVALID_SIZE;
+        }
+        let indices = slice::from_raw_parts(ggsw_indices, batch_count);
+        let digits = slice::from_raw_parts(digits, digit_count);
+        let output = slice::from_raw_parts_mut(output, output_count);
+        for batch in 0..batch_count {
+            if !key.external_product(
+                plan,
+                scratch,
+                indices[batch] as usize,
+                &digits[batch * digits_per_batch..(batch + 1) * digits_per_batch],
+                &mut output[batch * output_per_batch..(batch + 1) * output_per_batch],
+            ) {
+                return FFT_INVALID_SIZE;
+            }
+        }
+        FFT_OK
+    }))
+    .unwrap_or(FFT_PANIC)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fourier_blind_rotation_step(
+    plan: *const FftPlan,
+    key: *const FourierBootstrapKey,
+    scratch: *mut FftScratch,
+    ggsw_index: u32,
+    digits: *const u32,
+    digit_count: usize,
+    addend: *const u32,
+    addend_count: usize,
+    output: *mut u32,
+    output_count: usize,
+) -> i32 {
+    if plan.is_null()
+        || key.is_null()
+        || scratch.is_null()
+        || digits.is_null()
+        || addend.is_null()
+        || output.is_null()
+    {
+        return FFT_NULL_POINTER;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        if (&*key).external_product_add(
+            &*plan,
+            &mut *scratch,
+            ggsw_index as usize,
+            slice::from_raw_parts(digits, digit_count),
+            slice::from_raw_parts(addend, addend_count),
+            slice::from_raw_parts_mut(output, output_count),
+        ) {
+            FFT_OK
+        } else {
+            FFT_INVALID_SIZE
+        }
+    }))
+    .unwrap_or(FFT_PANIC)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fourier_accumulator_add_in_place(
+    accumulator: *mut u32,
+    accumulator_count: usize,
+    addend: *const u32,
+    addend_count: usize,
+) -> i32 {
+    if accumulator.is_null() || addend.is_null() {
+        return FFT_NULL_POINTER;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        if accumulator_count != addend_count {
+            return FFT_INVALID_SIZE;
+        }
+        let accumulator = slice::from_raw_parts_mut(accumulator, accumulator_count);
+        let addend = slice::from_raw_parts(addend, addend_count);
+        for (value, addend) in accumulator.iter_mut().zip(addend.iter()) {
+            *value = value.wrapping_add(*addend);
+        }
+        FFT_OK
+    }))
+    .unwrap_or(FFT_PANIC)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fourier_workspace_reset(scratch: *mut FftScratch) -> i32 {
+    if scratch.is_null() {
+        return FFT_NULL_POINTER;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        (&mut *scratch).reset();
+        FFT_OK
     }))
     .unwrap_or(FFT_PANIC)
 }

@@ -125,6 +125,88 @@ pub fn FourierBootstrapKey::external_product(
 }
 
 ///|
+pub fn FourierBootstrapKey::external_product_batch(
+  self : FourierBootstrapKey,
+  ggsw_indices : FixedArray[UInt],
+  digits : FixedArray[UInt],
+  output : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  let batch_count = ggsw_indices.length()
+  let digits_per_batch = self.digit_count * self.plan.size
+  let output_per_batch = self.output_count * self.plan.size
+  if batch_count <= 0 ||
+    digits_per_batch <= 0 ||
+    output_per_batch <= 0 ||
+    batch_count > 2_000_000_000 / digits_per_batch ||
+    batch_count > 2_000_000_000 / output_per_batch ||
+    digits.length() != batch_count * digits_per_batch ||
+    output.length() != batch_count * output_per_batch {
+    return Err(InvalidLength)
+  }
+  for index in 0..<batch_count {
+    if ggsw_indices[index].reinterpret_as_int() < 0 ||
+      ggsw_indices[index].reinterpret_as_int() >= self.ggsw_count {
+      return Err(InvalidLength)
+    }
+  }
+  decode_fft_status(
+    fourier_bsk_external_product_batch_ffi(
+      self.plan.handle,
+      self.handle,
+      ggsw_indices,
+      digits,
+      output,
+    ),
+  )
+}
+
+///|
+/// Fused external product and accumulator add for one blind-rotation step.
+pub fn FourierBootstrapKey::blind_rotation_step(
+  self : FourierBootstrapKey,
+  ggsw_index : Int,
+  digits : FixedArray[UInt],
+  addend : FixedArray[UInt],
+  output : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  if ggsw_index < 0 ||
+    ggsw_index >= self.ggsw_count ||
+    digits.length() != self.digit_count * self.plan.size ||
+    addend.length() != self.output_count * self.plan.size ||
+    output.length() != addend.length() {
+    return Err(InvalidLength)
+  }
+  decode_fft_status(
+    fourier_blind_rotation_step_ffi(
+      self.plan.handle,
+      self.handle,
+      ggsw_index,
+      digits,
+      addend,
+      output,
+    ),
+  )
+}
+
+///|
+pub fn fourier_accumulator_add_in_place(
+  accumulator : FixedArray[UInt],
+  addend : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  if accumulator.length() != addend.length() {
+    return Err(InvalidLength)
+  }
+  decode_fft_status(fourier_accumulator_add_in_place_ffi(accumulator, addend))
+}
+
+///|
+pub fn FftPlan::workspace_reset(
+  self : FftPlan,
+) -> Result[Unit, NativeProviderError] {
+  decode_fft_status(fourier_workspace_reset_ffi(self.handle))
+}
+
+///|
 pub fn aes256_gcm_encrypt(
   key : Bytes,
   nonce : Bytes,

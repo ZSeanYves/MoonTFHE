@@ -57,6 +57,38 @@ int32_t indexed_ggsw_external_product_u32(const moontfhe_fft_plan *plan,
                                           size_t digit_count,
                                           uint32_t *output,
                                           size_t output_count);
+int32_t fourier_bsk_external_product_into(const moontfhe_fft_plan *plan,
+                                          const moontfhe_fourier_bsk *key,
+                                          moontfhe_fft_scratch *scratch,
+                                          uint32_t ggsw_index,
+                                          const uint32_t *digits,
+                                          size_t digit_count,
+                                          uint32_t *output,
+                                          size_t output_count);
+int32_t fourier_bsk_external_product_batch(const moontfhe_fft_plan *plan,
+                                           const moontfhe_fourier_bsk *key,
+                                           moontfhe_fft_scratch *scratch,
+                                           const uint32_t *ggsw_indices,
+                                           size_t batch_count,
+                                           const uint32_t *digits,
+                                           size_t digit_count,
+                                           uint32_t *output,
+                                           size_t output_count);
+int32_t fourier_blind_rotation_step(const moontfhe_fft_plan *plan,
+                                    const moontfhe_fourier_bsk *key,
+                                    moontfhe_fft_scratch *scratch,
+                                    uint32_t ggsw_index,
+                                    const uint32_t *digits,
+                                    size_t digit_count,
+                                    const uint32_t *addend,
+                                    size_t addend_count,
+                                    uint32_t *output,
+                                    size_t output_count);
+int32_t fourier_accumulator_add_in_place(uint32_t *accumulator,
+                                         size_t accumulator_count,
+                                         const uint32_t *addend,
+                                         size_t addend_count);
+int32_t fourier_workspace_reset(moontfhe_fft_scratch *scratch);
 void fourier_bsk_free(moontfhe_fourier_bsk *key);
 void fft_scratch_free(moontfhe_fft_scratch *scratch);
 void fft_plan_free(moontfhe_fft_plan *plan);

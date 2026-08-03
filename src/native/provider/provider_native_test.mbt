@@ -67,6 +67,23 @@ test "native provider: Fourier BSK indexed external product is reusable" {
   key.external_product(1, digits, first).unwrap()
   key.external_product(1, digits, second).unwrap()
   assert_eq(first, second)
+  let addend = FixedArray::make(2 * n, 0x80000001U)
+  let fused = FixedArray::make(2 * n, 0U)
+  key.blind_rotation_step(1, digits, addend, fused).unwrap()
+  for index in 0..<fused.length() {
+    assert_eq(fused[index], first[index] + addend[index])
+  }
+  let batch_digits = FixedArray::makei(digits.length() * 2, fn(index) {
+    digits[index % digits.length()]
+  })
+  let batch_output = FixedArray::make(4 * n, 0U)
+  key.external_product_batch([0U, 1U], batch_digits, batch_output).unwrap()
+  for index in 0..<second.length() {
+    assert_eq(batch_output[second.length() + index], second[index])
+  }
+  fourier_accumulator_add_in_place(first, addend).unwrap()
+  assert_eq(first, fused)
+  plan.workspace_reset().unwrap()
   assert_true(key.external_product(2, digits, second) is Err(InvalidLength))
 }
 

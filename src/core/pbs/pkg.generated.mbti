@@ -119,7 +119,6 @@ pub struct PbsWorkspace {
   state_b : FixedArray[UInt]
   rotated : FixedArray[UInt]
   difference : FixedArray[UInt]
-  selected : FixedArray[UInt]
   digits : FixedArray[UInt]
   decomposition_digits : FixedArray[Int]
   extracted : FixedArray[UInt]

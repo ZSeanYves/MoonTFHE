@@ -14,6 +14,8 @@ pub fn fft_plan_new(Int) -> Result[FftPlan, NativeProviderError]
 
 pub fn fft_plan_new_with_capacity(Int, Int, Int) -> Result[FftPlan, NativeProviderError]
 
+pub fn fourier_accumulator_add_in_place(FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
+
 pub fn fourier_bsk_new(FftPlan, FixedArray[UInt], Int, Int, Int) -> Result[FourierBootstrapKey, NativeProviderError]
 
 // Errors
@@ -34,6 +36,7 @@ pub struct FftPlan {
 }
 pub fn FftPlan::batched_glwe_convolution(Self, FixedArray[UInt], FixedArray[UInt], Int, FixedArray[UInt]) -> Result[Unit, NativeProviderError]
 pub fn FftPlan::negacyclic_mul_u32(Self, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
+pub fn FftPlan::workspace_reset(Self) -> Result[Unit, NativeProviderError]
 
 pub struct FourierBootstrapKey {
   handle : NativeFourierBootstrapKey
@@ -42,7 +45,9 @@ pub struct FourierBootstrapKey {
   digit_count : Int
   output_count : Int
 }
+pub fn FourierBootstrapKey::blind_rotation_step(Self, Int, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
 pub fn FourierBootstrapKey::external_product(Self, Int, FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
+pub fn FourierBootstrapKey::external_product_batch(Self, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
 
 type NativeFftPlan
 

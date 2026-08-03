@@ -53,6 +53,38 @@ extern "c" fn fourier_bsk_external_product_ffi(
 ) -> Int = "moonbit_tfhe_fourier_bsk_external_product"
 
 ///|
+#borrow(plan, key, ggsw_indices, digits, output)
+extern "c" fn fourier_bsk_external_product_batch_ffi(
+  plan : NativeFftPlan,
+  key : NativeFourierBootstrapKey,
+  ggsw_indices : FixedArray[UInt],
+  digits : FixedArray[UInt],
+  output : FixedArray[UInt],
+) -> Int = "moonbit_tfhe_fourier_bsk_external_product_batch"
+
+///|
+#borrow(plan, key, digits, addend, output)
+extern "c" fn fourier_blind_rotation_step_ffi(
+  plan : NativeFftPlan,
+  key : NativeFourierBootstrapKey,
+  ggsw_index : Int,
+  digits : FixedArray[UInt],
+  addend : FixedArray[UInt],
+  output : FixedArray[UInt],
+) -> Int = "moonbit_tfhe_fourier_blind_rotation_step"
+
+///|
+#borrow(accumulator, addend)
+extern "c" fn fourier_accumulator_add_in_place_ffi(
+  accumulator : FixedArray[UInt],
+  addend : FixedArray[UInt],
+) -> Int = "moonbit_tfhe_fourier_accumulator_add_in_place"
+
+///|
+#borrow(plan)
+extern "c" fn fourier_workspace_reset_ffi(plan : NativeFftPlan) -> Int = "moonbit_tfhe_fourier_workspace_reset"
+
+///|
 #borrow(key, nonce, aad, plaintext)
 extern "c" fn aes256_gcm_encrypt_ffi(
   key : Bytes,

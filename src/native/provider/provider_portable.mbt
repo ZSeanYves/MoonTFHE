@@ -55,6 +55,42 @@ pub fn FourierBootstrapKey::external_product(
 }
 
 ///|
+pub fn FourierBootstrapKey::external_product_batch(
+  _self : FourierBootstrapKey,
+  _ggsw_indices : FixedArray[UInt],
+  _digits : FixedArray[UInt],
+  _output : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn FourierBootstrapKey::blind_rotation_step(
+  _self : FourierBootstrapKey,
+  _ggsw_index : Int,
+  _digits : FixedArray[UInt],
+  _addend : FixedArray[UInt],
+  _output : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn fourier_accumulator_add_in_place(
+  _accumulator : FixedArray[UInt],
+  _addend : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn FftPlan::workspace_reset(
+  _self : FftPlan,
+) -> Result[Unit, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
 pub fn aes256_gcm_encrypt(
   _key : Bytes,
   _nonce : Bytes,

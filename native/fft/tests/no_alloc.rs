@@ -1,6 +1,7 @@
 use moontfhe_fft::{
-    fft_plan_free, fft_plan_new, fft_scratch_free, fft_scratch_new, fourier_bsk_convert,
-    fourier_bsk_free, fourier_bsk_new, indexed_ggsw_external_product_u32,
+    fft_plan_free, fft_plan_new, fft_scratch_free, fft_scratch_new, fourier_blind_rotation_step,
+    fourier_bsk_convert, fourier_bsk_free, fourier_bsk_new, fourier_workspace_reset,
+    indexed_ggsw_external_product_u32,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -60,6 +61,7 @@ fn external_product_hot_path_performs_no_allocations() {
         .map(|index| ((index as i32 % 17) - 8) as u32)
         .collect();
     let mut output = vec![0u32; output_count * n];
+    let addend = vec![0x8000_0001u32; output_count * n];
     assert_eq!(
         unsafe {
             fourier_bsk_convert(plan, key, scratch, coefficients.as_ptr(), coefficients.len())
@@ -90,19 +92,22 @@ fn external_product_hot_path_performs_no_allocations() {
     COUNTING.store(true, Ordering::SeqCst);
     for _ in 0..1_000 {
         let status = unsafe {
-            indexed_ggsw_external_product_u32(
+            fourier_blind_rotation_step(
                 plan,
                 key,
                 scratch,
                 1,
                 digits.as_ptr(),
                 digits.len(),
+                addend.as_ptr(),
+                addend.len(),
                 output.as_mut_ptr(),
                 output.len(),
             )
         };
         assert_eq!(status, 0);
     }
+    assert_eq!(unsafe { fourier_workspace_reset(scratch) }, 0);
     COUNTING.store(false, Ordering::SeqCst);
     assert_eq!(ALLOCATIONS.load(Ordering::SeqCst), 0);
 
