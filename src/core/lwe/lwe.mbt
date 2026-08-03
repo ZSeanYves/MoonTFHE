@@ -245,6 +245,22 @@ pub fn LweCiphertext::neg(self : LweCiphertext) -> LweCiphertext {
 }
 
 ///|
+/// Multiply every Torus32 coefficient by a public integer modulo `2^32`.
+/// This is a linear ciphertext operation and does not consume noise-refresh
+/// material.
+pub fn LweCiphertext::scale(
+  self : LweCiphertext,
+  scalar : Int,
+) -> LweCiphertext {
+  {
+    parameters: self.parameters,
+    data: FixedArray::makei(self.data.length(), fn(index) {
+      @torus.Torus32::from_uint(self.data[index]).scale(scalar).to_uint()
+    }),
+  }
+}
+
+///|
 /// Add a public torus constant to the body of an LWE ciphertext.
 pub fn LweCiphertext::add_plain(
   self : LweCiphertext,

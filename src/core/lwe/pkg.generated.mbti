@@ -45,6 +45,7 @@ pub fn LweCiphertext::flat_u32_copy(Self) -> FixedArray[UInt]
 pub fn LweCiphertext::mask_at(Self, Int) -> Result[@torus.Torus32, LweError]
 pub fn LweCiphertext::neg(Self) -> Self
 pub fn LweCiphertext::parameters(Self) -> @params.LweDimension
+pub fn LweCiphertext::scale(Self, Int) -> Self
 pub fn LweCiphertext::sub_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::sub_scaled(Self, Self, Int) -> Result[Self, LweError]
 

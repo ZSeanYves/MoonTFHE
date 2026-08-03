@@ -175,3 +175,17 @@ test "stable Boolean facade: all two-point LUTs are evaluated" {
     server.apply_lut(client.encrypt(true), [true]) is Err(InvalidLutLength),
   )
 }
+
+///|
+test "stable Boolean facade: linear LUT paths reject a foreign key" {
+  let parameters = boolean_test_parameters()
+  let (_client, server) = generate_test_keys(parameters, 0x4C55544B455931UL).unwrap()
+  let (foreign, _foreign_server) = generate_test_keys(
+    parameters, 0x4C55544B455932UL,
+  ).unwrap()
+  for table in [[false, false], [false, true], [true, false], [true, true]] {
+    assert_true(
+      server.apply_lut(foreign.encrypt(true), table) is Err(KeyMismatch),
+    )
+  }
+}

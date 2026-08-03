@@ -43,6 +43,15 @@ pub suberror SerializationError {
 } derive(Debug, Eq)
 
 ///|
+priv enum BinaryLut {
+  NandLut
+  AndLut
+  OrLut
+  XorLut
+  XnorLut
+}
+
+///|
 /// Opaque Boolean ciphertext.
 pub struct Ciphertext {
   inner : @lwe.LweCiphertext
@@ -400,6 +409,107 @@ fn evaluate_check(
 }
 
 ///|
+fn boolean_amplitude() -> @torus.Torus32 {
+  @torus.Torus32::from_int(0x2000_0000)
+}
+
+///|
+fn boolean_nand_table(
+  polynomial_size : Int,
+  magnitude : @torus.Torus32,
+) -> Array[@torus.Torus32] {
+  Array::makei(polynomial_size, fn(rotation) {
+    let first = polynomial_size / 8
+    let third = 3 * polynomial_size / 8
+    let fifth = 5 * polynomial_size / 8
+    let seventh = 7 * polynomial_size / 8
+    if (rotation >= first && rotation < third) ||
+      (rotation >= fifth && rotation < seventh) {
+      magnitude
+    } else {
+      magnitude.neg()
+    }
+  })
+}
+
+///|
+fn ServerKey::binary_nand_encoded(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+  magnitude : @torus.Torus32,
+) -> Result[Ciphertext, EvaluationError] {
+  match evaluate_check(self.parameters, self.key_id, left) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  match evaluate_check(self.parameters, self.key_id, right) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  let combined = match left.inner.add(right.inner) {
+    Ok(value) => value.sub_plain(boolean_amplitude())
+    Err(_) => return Err(InvalidCiphertext)
+  }
+  let table = boolean_nand_table(
+    self.parameters.record.polynomial_size().value(),
+    magnitude,
+  )
+  match self.inner.programmable_bootstrap_table(combined, table) {
+    Ok(value) =>
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
+    Err(_) => Err(InvalidCiphertext)
+  }
+}
+
+///|
+fn ServerKey::binary_and_encoded(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+  magnitude : @torus.Torus32,
+) -> Result[Ciphertext, EvaluationError] {
+  match self.binary_nand_encoded(left, right, magnitude) {
+    Ok(value) =>
+      Ok({
+        inner: value.inner.neg(),
+        key_id: value.key_id,
+        parameters: value.parameters,
+      })
+    Err(error) => Err(error)
+  }
+}
+
+///|
+fn ServerKey::binary_xor(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+) -> Result[Ciphertext, EvaluationError] {
+  match evaluate_check(self.parameters, self.key_id, left) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  match evaluate_check(self.parameters, self.key_id, right) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  let combined = match left.inner.add(right.inner) {
+    Ok(value) => value.scale(2).add_plain(boolean_amplitude())
+    Err(_) => return Err(InvalidCiphertext)
+  }
+  let identity = @pbs.boolean_lut(
+    boolean_amplitude().neg(),
+    boolean_amplitude(),
+  )
+  match self.inner.programmable_bootstrap(combined, identity) {
+    Ok(value) =>
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
+    Err(_) => Err(InvalidCiphertext)
+  }
+}
+
+///|
 pub fn ServerKey::not(
   self : ServerKey,
   ciphertext : Ciphertext,
@@ -416,41 +526,42 @@ pub fn ServerKey::not(
 }
 
 ///|
+fn ServerKey::apply_binary_lut(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+  table : BinaryLut,
+) -> Result[Ciphertext, EvaluationError] {
+  match table {
+    NandLut => self.binary_nand_encoded(left, right, boolean_amplitude())
+    AndLut => self.binary_and_encoded(left, right, boolean_amplitude())
+    OrLut => {
+      let not_left = match self.not(left) {
+        Ok(value) => value
+        Err(error) => return Err(error)
+      }
+      let not_right = match self.not(right) {
+        Ok(value) => value
+        Err(error) => return Err(error)
+      }
+      self.binary_nand_encoded(not_left, not_right, boolean_amplitude())
+    }
+    XorLut => self.binary_xor(left, right)
+    XnorLut =>
+      match self.binary_xor(left, right) {
+        Ok(value) => self.not(value)
+        Err(error) => Err(error)
+      }
+  }
+}
+
+///|
 pub fn ServerKey::nand(
   self : ServerKey,
   left : Ciphertext,
   right : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
-  match evaluate_check(self.parameters, self.key_id, left) {
-    Ok(_) => ()
-    Err(error) => return Err(error)
-  }
-  match evaluate_check(self.parameters, self.key_id, right) {
-    Ok(_) => ()
-    Err(error) => return Err(error)
-  }
-  let combined = match left.inner.add(right.inner) {
-    Ok(value) => value.sub_plain(@torus.Torus32::from_int(0x2000_0000))
-    Err(_) => return Err(InvalidCiphertext)
-  }
-  let n = self.parameters.record.polynomial_size().value()
-  let table = Array::makei(n, fn(rotation) {
-    let first = n / 8
-    let third = 3 * n / 8
-    let fifth = 5 * n / 8
-    let seventh = 7 * n / 8
-    if (rotation >= first && rotation < third) ||
-      (rotation >= fifth && rotation < seventh) {
-      @torus.Torus32::from_int(0x2000_0000)
-    } else {
-      @torus.Torus32::from_int(-0x2000_0000)
-    }
-  })
-  match self.inner.programmable_bootstrap_table(combined, table) {
-    Ok(value) =>
-      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
-    Err(_) => Err(InvalidCiphertext)
-  }
+  self.apply_binary_lut(left, right, NandLut)
 }
 
 ///|
@@ -459,14 +570,7 @@ pub fn ServerKey::and_gate(
   left : Ciphertext,
   right : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
-  let nand = match self.nand(left, right) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  match self.not(nand) {
-    Ok(value) => Ok(value)
-    Err(error) => Err(error)
-  }
+  self.apply_binary_lut(left, right, AndLut)
 }
 
 ///|
@@ -475,46 +579,19 @@ pub fn ServerKey::or_gate(
   left : Ciphertext,
   right : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
-  let not_left = match self.not(left) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  let not_right = match self.not(right) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  match self.nand(not_left, not_right) {
-    Ok(value) => Ok(value)
-    Err(error) => Err(error)
-  }
+  self.apply_binary_lut(left, right, OrLut)
 }
 
 ///|
-/// Evaluate XOR using the Boolean NAND/NOT facade.
+/// Evaluate XOR with one PBS. Doubling the summed phase makes `00` and `11`
+/// coincide half a Torus turn away from the mixed inputs; the public bias keeps
+/// both classes away from the accumulator discontinuity.
 pub fn ServerKey::xor_gate(
   self : ServerKey,
   left : Ciphertext,
   right : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
-  let left_or_right = match self.or_gate(left, right) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  let left_and_right = match self.and_gate(left, right) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  match
-    self.and_gate(
-      left_or_right,
-      match self.not(left_and_right) {
-        Ok(value) => value
-        Err(error) => return Err(error)
-      },
-    ) {
-    Ok(value) => Ok(value)
-    Err(error) => Err(error)
-  }
+  self.apply_binary_lut(left, right, XorLut)
 }
 
 ///|
@@ -523,11 +600,7 @@ pub fn ServerKey::xnor_gate(
   left : Ciphertext,
   right : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
-  let xor = match self.xor_gate(left, right) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  self.not(xor)
+  self.apply_binary_lut(left, right, XnorLut)
 }
 
 ///|
@@ -538,7 +611,12 @@ pub fn ServerKey::mux(
   when_true : Ciphertext,
   when_false : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
-  let selected_true = match self.and_gate(selector, when_true) {
+  // The two PBS results use +/-mu/2. Exactly one branch can be selected, so
+  // `2 * (selected_true + selected_false) + mu` restores the public +/-mu
+  // Boolean encoding without a third PBS.
+  let half_amplitude = @torus.Torus32::from_int(0x1000_0000)
+  let selected_true = match
+    self.binary_and_encoded(selector, when_true, half_amplitude) {
     Ok(value) => value
     Err(error) => return Err(error)
   }
@@ -546,11 +624,20 @@ pub fn ServerKey::mux(
     Ok(value) => value
     Err(error) => return Err(error)
   }
-  let selected_false = match self.and_gate(not_selector, when_false) {
+  let selected_false = match
+    self.binary_and_encoded(not_selector, when_false, half_amplitude) {
     Ok(value) => value
     Err(error) => return Err(error)
   }
-  self.or_gate(selected_true, selected_false)
+  match selected_true.inner.add(selected_false.inner) {
+    Ok(value) =>
+      Ok({
+        inner: value.scale(2).add_plain(boolean_amplitude()),
+        key_id: self.key_id,
+        parameters: self.parameters,
+      })
+    Err(_) => Err(InvalidCiphertext)
+  }
 }
 
 ///|
@@ -564,22 +651,34 @@ pub fn ServerKey::apply_lut(
   if table.length() != 2 {
     return Err(InvalidLutLength)
   }
+  match evaluate_check(self.parameters, self.key_id, ciphertext) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
   match (table[0], table[1]) {
     (false, true) => Ok(ciphertext)
     (true, false) => self.not(ciphertext)
     (false, false) => {
-      let negated = match self.not(ciphertext) {
+      let zero = match ciphertext.inner.add(ciphertext.inner.neg()) {
         Ok(value) => value
-        Err(error) => return Err(error)
+        Err(_) => return Err(InvalidCiphertext)
       }
-      self.and_gate(ciphertext, negated)
+      Ok({
+        inner: zero.add_plain(boolean_amplitude().neg()),
+        key_id: self.key_id,
+        parameters: self.parameters,
+      })
     }
     (true, true) => {
-      let negated = match self.not(ciphertext) {
+      let zero = match ciphertext.inner.add(ciphertext.inner.neg()) {
         Ok(value) => value
-        Err(error) => return Err(error)
+        Err(_) => return Err(InvalidCiphertext)
       }
-      self.or_gate(ciphertext, negated)
+      Ok({
+        inner: zero.add_plain(boolean_amplitude()),
+        key_id: self.key_id,
+        parameters: self.parameters,
+      })
     }
   }
 }
