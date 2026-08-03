@@ -1,7 +1,8 @@
 use moontfhe_fft::{
     fft_plan_free, fft_plan_new, fft_scratch_free, fft_scratch_new, fourier_blind_rotation_step,
     fourier_bsk_convert, fourier_bsk_free, fourier_bsk_new, fourier_workspace_reset,
-    indexed_ggsw_external_product_u32,
+    indexed_ggsw_external_product_u32, native_pbs_context_free, native_pbs_context_new,
+    native_pbs_evaluate_lut,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -29,6 +30,84 @@ unsafe impl GlobalAlloc for CountingAllocator {
         }
         System.realloc(pointer, layout, new_size)
     }
+}
+
+#[test]
+fn native_pbs_hot_path_performs_no_allocations() {
+    let n = 32usize;
+    let input_dimension = 2usize;
+    let glwe_dimension = 1usize;
+    let pbs_level = 8usize;
+    let columns = glwe_dimension + 1;
+    let coefficients = vec![
+        0u32;
+        input_dimension * pbs_level * columns * columns * n
+    ];
+    let ksk_input_dimension = glwe_dimension * n;
+    let ksk_output_dimension = input_dimension;
+    let ksk_level = 8usize;
+    let ksk = vec![
+        0u32;
+        ksk_input_dimension * ksk_level * (ksk_output_dimension + 1)
+    ];
+    let context = unsafe {
+        native_pbs_context_new(
+            n as u32,
+            input_dimension as u32,
+            glwe_dimension as u32,
+            4,
+            pbs_level as u32,
+            ksk_input_dimension as u32,
+            ksk_output_dimension as u32,
+            4,
+            ksk_level as u32,
+            1,
+            coefficients.as_ptr(),
+            coefficients.len(),
+            ksk.as_ptr(),
+            ksk.len(),
+        )
+    };
+    assert!(!context.is_null());
+    let input = vec![0u32; input_dimension + 1];
+    let mut accumulator = vec![0u32; columns * n];
+    accumulator[glwe_dimension * n] = 0x2000_0000;
+    let mut output = vec![0u32; ksk_output_dimension + 1];
+    assert_eq!(
+        unsafe {
+            native_pbs_evaluate_lut(
+                context,
+                input.as_ptr(),
+                input.len(),
+                accumulator.as_ptr(),
+                accumulator.len(),
+                output.as_mut_ptr(),
+                output.len(),
+            )
+        },
+        0
+    );
+    ALLOCATIONS.store(0, Ordering::SeqCst);
+    COUNTING.store(true, Ordering::SeqCst);
+    for _ in 0..1_000 {
+        assert_eq!(
+            unsafe {
+                native_pbs_evaluate_lut(
+                    context,
+                    input.as_ptr(),
+                    input.len(),
+                    accumulator.as_ptr(),
+                    accumulator.len(),
+                    output.as_mut_ptr(),
+                    output.len(),
+                )
+            },
+            0
+        );
+    }
+    COUNTING.store(false, Ordering::SeqCst);
+    assert_eq!(ALLOCATIONS.load(Ordering::SeqCst), 0);
+    unsafe { native_pbs_context_free(context) };
 }
 
 #[global_allocator]

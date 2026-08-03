@@ -59,15 +59,22 @@ fn generate_standard_keys_impl(
   } else {
     @random.gaussian_boolean_128_glwe_fixture()
   }
-  let key_switch = match
-    @keyswitch.keyswitch_keygen(
-      extracted_key,
-      input_key,
-      parameters.record.ks_decomposition(),
-      lwe_noise,
-      bsk_rng,
+  let key_switch_input = extracted_key.parameters()
+  let key_switch_output = input_key.parameters()
+  let key_switch_decomposition = parameters.record.ks_decomposition()
+  let ksk_rows = key_switch_input.value() * key_switch_decomposition.level()
+  if ksk_rows <= 0 || ksk_rows > 2_000_000_000 / (key_switch_output.value() + 1) {
+    return Err(InvalidParameters)
+  }
+  let key_switch_data = FixedArray::make(
+    ksk_rows * (key_switch_output.value() + 1),
+    0U,
+  )
+  match
+    @keyswitch.keyswitch_keygen_into(
+      extracted_key, input_key, key_switch_decomposition, lwe_noise, bsk_rng, key_switch_data,
     ) {
-    Ok(value) => value
+    Ok(_) => ()
     Err(_) => return Err(InvalidParameters)
   }
   let ggsw_parameters = match
@@ -112,26 +119,17 @@ fn generate_standard_keys_impl(
       Err(_) => return Err(InvalidParameters)
     }
   }
-  let fourier = match
-    @provider.fourier_bsk_new(
-      plan,
-      coefficient_bsk,
-      input_dimension.value(),
-      rows,
-      columns,
-    ) {
-    Ok(value) => value
-    Err(_) => return Err(UnsupportedBackend)
-  }
   let bootstrap = match
-    @pbs.bootstrap_key_from_flat_encrypted_parts(
+    @pbs.bootstrap_key_from_flat_native_parts(
       input_dimension,
       glwe,
       ggsw_parameters,
       coefficient_bsk,
-      key_switch,
+      key_switch_input,
+      key_switch_output,
+      key_switch_decomposition,
+      key_switch_data,
       @pbs.bootstrap_keyswitch_order(),
-      Some(fourier),
     ) {
     Ok(value) => value
     Err(_) => return Err(InvalidParameters)

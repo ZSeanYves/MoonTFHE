@@ -18,6 +18,10 @@ type NativeFftPlan
 type NativeFourierBootstrapKey
 
 ///|
+/// Native one-call PBS context backed by a GC-managed external object.
+type NativePbsContext
+
+///|
 /// Reusable FFT plan and workspace with validated capacities retained in
 /// MoonBit.
 pub struct FftPlan {
@@ -36,6 +40,17 @@ pub struct FourierBootstrapKey {
   ggsw_count : Int
   digit_count : Int
   output_count : Int
+}
+
+///|
+/// Reusable native PBS evaluator. The handle owns the Fourier BSK, packed KSK,
+/// FFT plan and all hot-path workspace; no secret key material is retained.
+pub struct PbsContext {
+  handle : NativePbsContext
+  input_size : Int
+  output_size : Int
+  coefficient_count : Int
+  ksk_count : Int
 }
 
 ///|

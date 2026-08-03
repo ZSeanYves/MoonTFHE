@@ -11,12 +11,14 @@ extern "C" {
 typedef struct moontfhe_fft_plan moontfhe_fft_plan;
 typedef struct moontfhe_fft_scratch moontfhe_fft_scratch;
 typedef struct moontfhe_fourier_bsk moontfhe_fourier_bsk;
+typedef struct moontfhe_native_pbs_context moontfhe_native_pbs_context;
 
 enum moontfhe_fft_status {
   MOONTFHE_FFT_OK = 0,
   MOONTFHE_FFT_NULL_POINTER = 1,
   MOONTFHE_FFT_INVALID_SIZE = 2,
   MOONTFHE_FFT_PANIC = 3,
+  MOONTFHE_FFT_BUSY = 4,
 };
 
 moontfhe_fft_plan *fft_plan_new(uint32_t polynomial_size);
@@ -89,6 +91,34 @@ int32_t fourier_accumulator_add_in_place(uint32_t *accumulator,
                                          const uint32_t *addend,
                                          size_t addend_count);
 int32_t fourier_workspace_reset(moontfhe_fft_scratch *scratch);
+moontfhe_native_pbs_context *native_pbs_context_new(
+    uint32_t polynomial_size, uint32_t input_dimension,
+    uint32_t glwe_dimension, uint32_t pbs_base_log, uint32_t pbs_level,
+    uint32_t ksk_input_dimension, uint32_t ksk_output_dimension,
+    uint32_t ksk_base_log, uint32_t ksk_level, uint32_t order,
+    const uint32_t *coefficients, size_t coefficient_count,
+    const uint32_t *ksk, size_t ksk_count);
+int32_t native_pbs_context_valid(const moontfhe_native_pbs_context *context);
+size_t native_pbs_context_input_size(const moontfhe_native_pbs_context *context);
+size_t native_pbs_context_output_size(const moontfhe_native_pbs_context *context);
+size_t native_pbs_context_coefficient_count(
+    const moontfhe_native_pbs_context *context);
+size_t native_pbs_context_ksk_count(
+    const moontfhe_native_pbs_context *context);
+size_t native_pbs_context_resident_bytes(
+    const moontfhe_native_pbs_context *context);
+int32_t native_pbs_evaluate_lut(moontfhe_native_pbs_context *context,
+                                const uint32_t *input, size_t input_count,
+                                const uint32_t *accumulator,
+                                size_t accumulator_count, uint32_t *output,
+                                size_t output_count);
+int32_t native_pbs_context_export_coefficients(
+    moontfhe_native_pbs_context *context, uint32_t *output,
+    size_t output_count);
+int32_t native_pbs_context_export_ksk(
+    const moontfhe_native_pbs_context *context, uint32_t *output,
+    size_t output_count);
+void native_pbs_context_free(moontfhe_native_pbs_context *context);
 void fourier_bsk_free(moontfhe_fourier_bsk *key);
 void fft_scratch_free(moontfhe_fft_scratch *scratch);
 void fft_plan_free(moontfhe_fft_plan *plan);

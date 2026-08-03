@@ -4,12 +4,14 @@ use std::f64::consts::PI;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 use std::slice;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 const FFT_OK: i32 = 0;
 const FFT_NULL_POINTER: i32 = 1;
 const FFT_INVALID_SIZE: i32 = 2;
 const FFT_PANIC: i32 = 3;
+const FFT_BUSY: i32 = 4;
 
 pub struct FftPlan {
     polynomial_size: usize,
@@ -43,6 +45,41 @@ pub struct FourierBootstrapKey {
     output_count: usize,
     // [ggsw][digit][output][N/2], using centered Torus32 coefficients.
     spectra: Vec<Complex<f64>>,
+}
+
+pub struct NativePbsContext {
+    plan: FftPlan,
+    scratch: FftScratch,
+    key: FourierBootstrapKey,
+    ksk: Vec<u32>,
+    input_dimension: usize,
+    glwe_dimension: usize,
+    pbs_base_log: usize,
+    pbs_level: usize,
+    ksk_input_dimension: usize,
+    ksk_output_dimension: usize,
+    ksk_base_log: usize,
+    ksk_level: usize,
+    order: u32,
+    state_a: Vec<u32>,
+    state_b: Vec<u32>,
+    rotated: Vec<u32>,
+    difference: Vec<u32>,
+    digits: Vec<u32>,
+    decomposition_digits: Vec<i32>,
+    extracted: Vec<u32>,
+    ksk_result: Vec<u32>,
+    switched_input: Vec<u32>,
+    busy: AtomicBool,
+}
+
+struct BusyGuard(*const AtomicBool);
+
+impl Drop for BusyGuard {
+    fn drop(&mut self) {
+        // The guard never outlives its context and only touches the atomic flag.
+        unsafe { (&*self.0).store(false, Ordering::Release) };
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -347,6 +384,438 @@ impl FourierBootstrapKey {
             *value = value.wrapping_add(*addend);
         }
         true
+    }
+
+    fn export_coefficients(&self, plan: &FftPlan, scratch: &mut FftScratch, output: &mut [u32]) -> bool {
+        let expected = match self
+            .ggsw_count
+            .checked_mul(self.digit_count)
+            .and_then(|value| value.checked_mul(self.output_count))
+            .and_then(|value| value.checked_mul(self.polynomial_size))
+        {
+            Some(value) => value,
+            None => return false,
+        };
+        if output.len() != expected || plan.polynomial_size != self.polynomial_size {
+            return false;
+        }
+        let half = plan.half_size;
+        for ggsw in 0..self.ggsw_count {
+            for digit in 0..self.digit_count {
+                for component in 0..self.output_count {
+                    let spectrum_offset = self.spectrum_offset(ggsw, digit, component);
+                    for frequency in 0..half {
+                        let value = self.spectra[spectrum_offset + frequency];
+                        scratch.left[frequency] = value;
+                        scratch.left[self.polynomial_size - 1 - frequency] = value.conj();
+                    }
+                    plan.inverse
+                        .process_with_scratch(&mut scratch.left, &mut scratch.fft_scratch);
+                    let scale = self.polynomial_size as f64;
+                    let polynomial = ((ggsw * self.digit_count + digit) * self.output_count
+                        + component)
+                        * self.polynomial_size;
+                    for coefficient in 0..self.polynomial_size {
+                        let centered = ((scratch.left[coefficient]
+                            * plan.inverse_twist[coefficient])
+                            .re
+                            / scale)
+                            .round() as i64;
+                        output[polynomial + coefficient] = centered as u32;
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
+fn checked_product(values: &[usize]) -> Option<usize> {
+    values
+        .iter()
+        .try_fold(1usize, |product, value| product.checked_mul(*value))
+}
+
+fn polynomial_log2(size: usize) -> Option<usize> {
+    if size < 2 || !size.is_power_of_two() {
+        None
+    } else {
+        Some(size.trailing_zeros() as usize)
+    }
+}
+
+fn modulus_switch(value: u32, log_modulus: usize) -> u32 {
+    let modulus = 1u64 << log_modulus;
+    ((((value as u64) * modulus + 0x8000_0000u64) >> 32) % modulus) as u32
+}
+
+fn rotate_negacyclic(input: &[u32], polynomial_size: usize, rotation: i64, output: &mut [u32]) -> bool {
+    if polynomial_size == 0 || input.len() != output.len() || input.len() % polynomial_size != 0 {
+        return false;
+    }
+    let period = (2 * polynomial_size) as i64;
+    let normalized = rotation.rem_euclid(period) as usize;
+    for component in 0..input.len() / polynomial_size {
+        let offset = component * polynomial_size;
+        for source in 0..polynomial_size {
+            let exponent = source + normalized;
+            let wraps = exponent / polynomial_size;
+            let destination = exponent % polynomial_size;
+            output[offset + destination] = if wraps & 1 == 0 {
+                input[offset + source]
+            } else {
+                input[offset + source].wrapping_neg()
+            };
+        }
+    }
+    true
+}
+
+fn signed_gadget_decompose_into(value: u32, base_log: usize, digits: &mut [i32]) -> bool {
+    let total_bits = match base_log.checked_mul(digits.len()) {
+        Some(value) if base_log > 0 && base_log < 31 && !digits.is_empty() && value <= 32 => value,
+        _ => return false,
+    };
+    let discarded_bits = 32 - total_bits;
+    let rounded = if discarded_bits == 0 {
+        value
+    } else {
+        value.wrapping_add(1u32 << (discarded_bits - 1))
+    };
+    let state = if discarded_bits == 0 {
+        rounded
+    } else {
+        rounded >> discarded_bits
+    };
+    let base = 1i32 << base_log;
+    let half = base / 2;
+    let mask = (base - 1) as u32;
+    let mut carry = 0i32;
+    for offset in 0..digits.len() {
+        let index = digits.len() - 1 - offset;
+        let unsigned_digit = ((state >> (offset * base_log)) & mask) as i32 + carry;
+        if unsigned_digit >= half {
+            digits[index] = unsigned_digit - base;
+            carry = 1;
+        } else {
+            digits[index] = unsigned_digit;
+            carry = 0;
+        }
+    }
+    true
+}
+
+impl NativePbsContext {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        polynomial_size: usize,
+        input_dimension: usize,
+        glwe_dimension: usize,
+        pbs_base_log: usize,
+        pbs_level: usize,
+        ksk_input_dimension: usize,
+        ksk_output_dimension: usize,
+        ksk_base_log: usize,
+        ksk_level: usize,
+        order: u32,
+        coefficients: &[u32],
+        ksk: &[u32],
+    ) -> Option<Self> {
+        let columns = glwe_dimension.checked_add(1)?;
+        let digit_count = pbs_level.checked_mul(columns)?;
+        let coefficient_count = checked_product(&[
+            input_dimension,
+            digit_count,
+            columns,
+            polynomial_size,
+        ])?;
+        let ksk_count = checked_product(&[
+            ksk_input_dimension,
+            ksk_level,
+            ksk_output_dimension.checked_add(1)?,
+        ])?;
+        if input_dimension == 0
+            || glwe_dimension == 0
+            || pbs_base_log == 0
+            || pbs_base_log.checked_mul(pbs_level)? > 32
+            || ksk_base_log == 0
+            || ksk_base_log.checked_mul(ksk_level)? > 32
+            || ksk_input_dimension != glwe_dimension.checked_mul(polynomial_size)?
+            || ksk_output_dimension != input_dimension
+            || order > 1
+            || coefficients.len() != coefficient_count
+            || ksk.len() != ksk_count
+        {
+            return None;
+        }
+        let plan = FftPlan::new(polynomial_size)?;
+        let mut scratch = plan.new_scratch(digit_count, columns)?;
+        let mut key = FourierBootstrapKey::new(&plan, input_dimension, digit_count, columns)?;
+        if !key.convert(&plan, coefficients, &mut scratch) {
+            return None;
+        }
+        let glwe_size = columns.checked_mul(polynomial_size)?;
+        Some(Self {
+            plan,
+            scratch,
+            key,
+            ksk: ksk.to_vec(),
+            input_dimension,
+            glwe_dimension,
+            pbs_base_log,
+            pbs_level,
+            ksk_input_dimension,
+            ksk_output_dimension,
+            ksk_base_log,
+            ksk_level,
+            order,
+            state_a: vec![0; glwe_size],
+            state_b: vec![0; glwe_size],
+            rotated: vec![0; glwe_size],
+            difference: vec![0; glwe_size],
+            digits: vec![0; digit_count * polynomial_size],
+            decomposition_digits: vec![0; pbs_level.max(ksk_level)],
+            extracted: vec![0; ksk_input_dimension + 1],
+            ksk_result: vec![0; ksk_output_dimension + 1],
+            switched_input: vec![0; (ksk_input_dimension + 1).max(ksk_output_dimension + 1)],
+            busy: AtomicBool::new(false),
+        })
+    }
+
+    fn input_size(&self) -> usize {
+        if self.order == 0 {
+            self.ksk_input_dimension + 1
+        } else {
+            self.input_dimension + 1
+        }
+    }
+
+    fn output_size(&self) -> usize {
+        if self.order == 0 {
+            self.ksk_input_dimension + 1
+        } else {
+            self.ksk_output_dimension + 1
+        }
+    }
+
+    fn decompose_glwe(&mut self) -> bool {
+        let columns = self.glwe_dimension + 1;
+        let n = self.plan.polynomial_size;
+        for component in 0..columns {
+            for coefficient in 0..n {
+                if !signed_gadget_decompose_into(
+                    self.difference[component * n + coefficient],
+                    self.pbs_base_log,
+                    &mut self.decomposition_digits[..self.pbs_level],
+                ) {
+                    return false;
+                }
+                for level in 0..self.pbs_level {
+                    let row = level * columns + component;
+                    self.digits[row * n + coefficient] =
+                        self.decomposition_digits[level] as u32;
+                }
+            }
+        }
+        true
+    }
+
+    fn key_switch(&mut self, input: &[u32]) -> bool {
+        if input.len() != self.ksk_input_dimension + 1 {
+            return false;
+        }
+        self.ksk_result.fill(0);
+        self.ksk_result[self.ksk_output_dimension] = input[self.ksk_input_dimension];
+        let ciphertext_size = self.ksk_output_dimension + 1;
+        for index in 0..self.ksk_input_dimension {
+            if !signed_gadget_decompose_into(
+                input[index],
+                self.ksk_base_log,
+                &mut self.decomposition_digits[..self.ksk_level],
+            ) {
+                return false;
+            }
+            for level in 0..self.ksk_level {
+                let digit = self.decomposition_digits[level];
+                if digit != 0 {
+                    let offset = (index * self.ksk_level + level) * ciphertext_size;
+                    for word in 0..ciphertext_size {
+                        self.ksk_result[word] = self.ksk_result[word]
+                            .wrapping_sub(self.ksk[offset + word].wrapping_mul(digit as u32));
+                    }
+                }
+            }
+        }
+        true
+    }
+
+    fn blind_rotate(&mut self, input: &[u32], accumulator: &[u32]) -> bool {
+        let n = self.plan.polynomial_size;
+        let log_modulus = match polynomial_log2(n) {
+            Some(value) => value + 1,
+            None => return false,
+        };
+        if input.len() != self.input_dimension + 1 || accumulator.len() != self.state_a.len() {
+            return false;
+        }
+        let initial_rotation = modulus_switch(input[self.input_dimension], log_modulus) as i64;
+        if !rotate_negacyclic(accumulator, n, initial_rotation, &mut self.state_a) {
+            return false;
+        }
+        let mut active_a = true;
+        for index in 0..self.input_dimension {
+            let switched = modulus_switch(input[index], log_modulus);
+            if switched != 0 {
+                if active_a {
+                    if !rotate_negacyclic(
+                        &self.state_a,
+                        n,
+                        -(switched as i64),
+                        &mut self.rotated,
+                    ) {
+                        return false;
+                    }
+                    for word in 0..self.difference.len() {
+                        self.difference[word] =
+                            self.rotated[word].wrapping_sub(self.state_a[word]);
+                    }
+                } else {
+                    if !rotate_negacyclic(
+                        &self.state_b,
+                        n,
+                        -(switched as i64),
+                        &mut self.rotated,
+                    ) {
+                        return false;
+                    }
+                    for word in 0..self.difference.len() {
+                        self.difference[word] =
+                            self.rotated[word].wrapping_sub(self.state_b[word]);
+                    }
+                }
+                if !self.decompose_glwe() {
+                    return false;
+                }
+                let product_ok = if active_a {
+                    self.key.external_product_add(
+                        &self.plan,
+                        &mut self.scratch,
+                        index,
+                        &self.digits,
+                        &self.state_a,
+                        &mut self.state_b,
+                    )
+                } else {
+                    self.key.external_product_add(
+                        &self.plan,
+                        &mut self.scratch,
+                        index,
+                        &self.digits,
+                        &self.state_b,
+                        &mut self.state_a,
+                    )
+                };
+                if !product_ok {
+                    return false;
+                }
+                active_a = !active_a;
+            }
+        }
+        let final_state = if active_a { &self.state_a } else { &self.state_b };
+        for flat_index in 0..self.ksk_input_dimension {
+            let component = flat_index / n;
+            let coefficient = flat_index % n;
+            self.extracted[flat_index] = if coefficient == 0 {
+                final_state[component * n]
+            } else {
+                final_state[component * n + n - coefficient].wrapping_neg()
+            };
+        }
+        self.extracted[self.ksk_input_dimension] =
+            final_state[self.ksk_input_dimension];
+        true
+    }
+
+    fn evaluate(&mut self, input: &[u32], accumulator: &[u32], output: &mut [u32]) -> i32 {
+        if self
+            .busy
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            return FFT_BUSY;
+        }
+        let _guard = BusyGuard(&self.busy);
+        if input.len() != self.input_size()
+            || output.len() != self.output_size()
+            || accumulator.len() != self.state_a.len()
+        {
+            return FFT_INVALID_SIZE;
+        }
+        let ok = if self.order == 0 {
+            if !self.key_switch(input) {
+                false
+            } else {
+                self.switched_input[..self.ksk_result.len()].copy_from_slice(&self.ksk_result);
+                let switched_ptr = self.switched_input.as_ptr();
+                let switched_len = self.ksk_result.len();
+                // The workspace buffer is disjoint from every buffer mutated by blind rotation.
+                let switched = unsafe { slice::from_raw_parts(switched_ptr, switched_len) };
+                self.blind_rotate(switched, accumulator)
+            }
+        } else if !self.blind_rotate(input, accumulator) {
+            false
+        } else {
+            self.switched_input[..self.extracted.len()].copy_from_slice(&self.extracted);
+            let extracted_ptr = self.switched_input.as_ptr();
+            let extracted_len = self.extracted.len();
+            // The workspace buffer is disjoint from KSK output and decomposition storage.
+            let extracted = unsafe { slice::from_raw_parts(extracted_ptr, extracted_len) };
+            self.key_switch(extracted)
+        };
+        if !ok {
+            return FFT_INVALID_SIZE;
+        }
+        if self.order == 0 {
+            output.copy_from_slice(&self.extracted);
+        } else {
+            output.copy_from_slice(&self.ksk_result);
+        }
+        FFT_OK
+    }
+
+    fn coefficient_count(&self) -> usize {
+        self.key.ggsw_count
+            * self.key.digit_count
+            * self.key.output_count
+            * self.key.polynomial_size
+    }
+
+    fn export_coefficients(&mut self, output: &mut [u32]) -> bool {
+        self.key.export_coefficients(&self.plan, &mut self.scratch, output)
+    }
+
+    fn export_ksk(&self, output: &mut [u32]) -> bool {
+        if output.len() != self.ksk.len() {
+            false
+        } else {
+            output.copy_from_slice(&self.ksk);
+            true
+        }
+    }
+
+    fn resident_bytes(&self) -> usize {
+        self.key.spectra.len() * std::mem::size_of::<Complex<f64>>()
+            + self.ksk.len() * std::mem::size_of::<u32>()
+            + (self.state_a.len()
+                + self.state_b.len()
+                + self.rotated.len()
+                + self.difference.len()
+                + self.digits.len()
+                + self.extracted.len()
+                + self.ksk_result.len()
+                + self.switched_input.len())
+                * std::mem::size_of::<u32>()
+            + self.decomposition_digits.len() * std::mem::size_of::<i32>()
     }
 }
 
@@ -730,6 +1199,174 @@ pub unsafe extern "C" fn fourier_workspace_reset(scratch: *mut FftScratch) -> i3
 }
 
 #[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn native_pbs_context_new(
+    polynomial_size: u32,
+    input_dimension: u32,
+    glwe_dimension: u32,
+    pbs_base_log: u32,
+    pbs_level: u32,
+    ksk_input_dimension: u32,
+    ksk_output_dimension: u32,
+    ksk_base_log: u32,
+    ksk_level: u32,
+    order: u32,
+    coefficients: *const u32,
+    coefficient_count: usize,
+    ksk: *const u32,
+    ksk_count: usize,
+) -> *mut NativePbsContext {
+    if coefficients.is_null() || ksk.is_null() {
+        return ptr::null_mut();
+    }
+    match catch_unwind(AssertUnwindSafe(|| {
+        NativePbsContext::new(
+            polynomial_size as usize,
+            input_dimension as usize,
+            glwe_dimension as usize,
+            pbs_base_log as usize,
+            pbs_level as usize,
+            ksk_input_dimension as usize,
+            ksk_output_dimension as usize,
+            ksk_base_log as usize,
+            ksk_level as usize,
+            order,
+            slice::from_raw_parts(coefficients, coefficient_count),
+            slice::from_raw_parts(ksk, ksk_count),
+        )
+    })) {
+        Ok(Some(context)) => Box::into_raw(Box::new(context)),
+        _ => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_valid(context: *const NativePbsContext) -> i32 {
+    if context.is_null() {
+        0
+    } else {
+        1
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_input_size(context: *const NativePbsContext) -> usize {
+    if context.is_null() {
+        0
+    } else {
+        (&*context).input_size()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_output_size(context: *const NativePbsContext) -> usize {
+    if context.is_null() {
+        0
+    } else {
+        (&*context).output_size()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_coefficient_count(
+    context: *const NativePbsContext,
+) -> usize {
+    if context.is_null() {
+        0
+    } else {
+        (&*context).coefficient_count()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_ksk_count(context: *const NativePbsContext) -> usize {
+    if context.is_null() {
+        0
+    } else {
+        (&*context).ksk.len()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_resident_bytes(
+    context: *const NativePbsContext,
+) -> usize {
+    if context.is_null() {
+        0
+    } else {
+        (&*context).resident_bytes()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_evaluate_lut(
+    context: *mut NativePbsContext,
+    input: *const u32,
+    input_count: usize,
+    accumulator: *const u32,
+    accumulator_count: usize,
+    output: *mut u32,
+    output_count: usize,
+) -> i32 {
+    if context.is_null() || input.is_null() || accumulator.is_null() || output.is_null() {
+        return FFT_NULL_POINTER;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        (&mut *context).evaluate(
+            slice::from_raw_parts(input, input_count),
+            slice::from_raw_parts(accumulator, accumulator_count),
+            slice::from_raw_parts_mut(output, output_count),
+        )
+    }))
+    .unwrap_or(FFT_PANIC)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_export_coefficients(
+    context: *mut NativePbsContext,
+    output: *mut u32,
+    output_count: usize,
+) -> i32 {
+    if context.is_null() || output.is_null() {
+        return FFT_NULL_POINTER;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        if (&mut *context).export_coefficients(slice::from_raw_parts_mut(output, output_count)) {
+            FFT_OK
+        } else {
+            FFT_INVALID_SIZE
+        }
+    }))
+    .unwrap_or(FFT_PANIC)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_export_ksk(
+    context: *const NativePbsContext,
+    output: *mut u32,
+    output_count: usize,
+) -> i32 {
+    if context.is_null() || output.is_null() {
+        return FFT_NULL_POINTER;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        if (&*context).export_ksk(slice::from_raw_parts_mut(output, output_count)) {
+            FFT_OK
+        } else {
+            FFT_INVALID_SIZE
+        }
+    }))
+    .unwrap_or(FFT_PANIC)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_free(context: *mut NativePbsContext) {
+    if !context.is_null() {
+        drop(Box::from_raw(context));
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn fourier_bsk_free(key: *mut FourierBootstrapKey) {
     if !key.is_null() {
         drop(Box::from_raw(key));
@@ -868,6 +1505,74 @@ mod tests {
             }
             assert_eq!(&output[output_index * n..(output_index + 1) * n], expected);
         }
+    }
+
+    #[test]
+    fn fourier_bsk_full_width_roundtrip_standard_sizes() {
+        for polynomial_size in [512usize, 1024usize] {
+            let plan = FftPlan::new(polynomial_size).unwrap();
+            let mut scratch = plan.new_scratch(2, 2).unwrap();
+            let mut key = FourierBootstrapKey::new(&plan, 1, 2, 2).unwrap();
+            let mut state = 0x9e37_79b9u32;
+            let coefficients: Vec<u32> = (0..4 * polynomial_size)
+                .map(|_| {
+                    state ^= state << 13;
+                    state ^= state >> 17;
+                    state ^= state << 5;
+                    state
+                })
+                .collect();
+            assert!(key.convert(&plan, &coefficients, &mut scratch));
+            let mut restored = vec![0u32; coefficients.len()];
+            assert!(key.export_coefficients(&plan, &mut scratch, &mut restored));
+            assert_eq!(restored, coefficients);
+        }
+    }
+
+    #[test]
+    fn native_pbs_context_evaluates_and_exports_without_secret_material() {
+        let polynomial_size = 8usize;
+        let input_dimension = 2usize;
+        let glwe_dimension = 1usize;
+        let pbs_level = 8usize;
+        let columns = glwe_dimension + 1;
+        let coefficient_count =
+            input_dimension * pbs_level * columns * columns * polynomial_size;
+        let ksk_input_dimension = glwe_dimension * polynomial_size;
+        let ksk_output_dimension = input_dimension;
+        let ksk_level = 8usize;
+        let ksk_count = ksk_input_dimension * ksk_level * (ksk_output_dimension + 1);
+        let coefficients = vec![0u32; coefficient_count];
+        let ksk = vec![0u32; ksk_count];
+        let mut context = NativePbsContext::new(
+            polynomial_size,
+            input_dimension,
+            glwe_dimension,
+            4,
+            pbs_level,
+            ksk_input_dimension,
+            ksk_output_dimension,
+            4,
+            ksk_level,
+            1,
+            &coefficients,
+            &ksk,
+        )
+        .unwrap();
+        let input = vec![0u32; input_dimension + 1];
+        let mut accumulator = vec![0u32; columns * polynomial_size];
+        accumulator[glwe_dimension * polynomial_size] = 0x2000_0000;
+        let mut output = vec![0u32; ksk_output_dimension + 1];
+        assert_eq!(context.evaluate(&input, &accumulator, &mut output), FFT_OK);
+        assert_eq!(output, vec![0, 0, 0x2000_0000]);
+        assert_eq!(context.evaluate(&input, &accumulator, &mut output), FFT_OK);
+        let mut restored_coefficients = vec![0u32; coefficient_count];
+        assert!(context.export_coefficients(&mut restored_coefficients));
+        assert_eq!(restored_coefficients, coefficients);
+        let mut restored_ksk = vec![0u32; ksk_count];
+        assert!(context.export_ksk(&mut restored_ksk));
+        assert_eq!(restored_ksk, ksk);
+        assert!(context.resident_bytes() > coefficient_count * std::mem::size_of::<u32>());
     }
 
     #[test]

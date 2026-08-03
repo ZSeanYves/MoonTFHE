@@ -18,6 +18,8 @@ pub fn fourier_accumulator_add_in_place(FixedArray[UInt], FixedArray[UInt]) -> R
 
 pub fn fourier_bsk_new(FftPlan, FixedArray[UInt], Int, Int, Int) -> Result[FourierBootstrapKey, NativeProviderError]
 
+pub fn pbs_context_new(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, FixedArray[UInt], FixedArray[UInt]) -> Result[PbsContext, NativeProviderError]
+
 // Errors
 pub suberror NativeProviderError {
   UnsupportedBackend
@@ -52,6 +54,20 @@ pub fn FourierBootstrapKey::external_product_batch(Self, FixedArray[UInt], Fixed
 type NativeFftPlan
 
 type NativeFourierBootstrapKey
+
+type NativePbsContext
+
+pub struct PbsContext {
+  handle : NativePbsContext
+  input_size : Int
+  output_size : Int
+  coefficient_count : Int
+  ksk_count : Int
+}
+pub fn PbsContext::evaluate_lut_into(Self, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt]) -> Result[Unit, NativeProviderError]
+pub fn PbsContext::export_coefficients(Self) -> Result[FixedArray[UInt], NativeProviderError]
+pub fn PbsContext::export_ksk(Self) -> Result[FixedArray[UInt], NativeProviderError]
+pub fn PbsContext::resident_bytes(Self) -> Int64
 
 // Type aliases
 

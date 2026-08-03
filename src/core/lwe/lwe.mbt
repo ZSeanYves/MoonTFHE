@@ -108,6 +108,19 @@ pub fn lwe_ciphertext_from_flat_u32(
 }
 
 ///|
+/// Adopt a validated caller-owned canonical buffer without copying it.
+pub fn lwe_ciphertext_from_owned_flat_u32(
+  parameters : @params.LweDimension,
+  data : FixedArray[UInt],
+) -> Result[LweCiphertext, LweError] {
+  if data.length() != parameters.value() + 1 {
+    Err(CiphertextDimensionMismatch)
+  } else {
+    Ok({ parameters, data })
+  }
+}
+
+///|
 pub fn LweCiphertext::mask_at(
   self : LweCiphertext,
   index : Int,

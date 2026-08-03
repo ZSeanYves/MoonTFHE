@@ -68,10 +68,22 @@ fn benchmark_evidence_parameter(
   assert_eq(client.decrypt(xor_output), Ok(false))
   assert_eq(client.decrypt(xnor_output), Ok(true))
   assert_eq(client.decrypt(mux_output), Ok(true))
-  let server_key_bytes = server.serialize().unwrap().length()
+  let columns = parameters.record.glwe_dimension().value() + 1
+  let n = parameters.record.polynomial_size().value()
+  let bsk_words = parameters.record.lwe_dimension().value() *
+    parameters.record.pbs_decomposition().level() *
+    columns *
+    columns *
+    n
+  let ksk_words = parameters.record.glwe_dimension().value() *
+    n *
+    parameters.record.ks_decomposition().level() *
+    (parameters.record.lwe_dimension().value() + 1)
+  let server_key_bytes = 90 + (bsk_words + ksk_words) * 4
+  let native_resident_bytes = server.inner.native_resident_bytes()
   let ciphertext_bytes = left.serialize().length()
   println(
-    "{\"schema_version\":2,\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"iterations\":\{iterations},\"keygen_us\":\{keygen_us},\"pbs_us\":\{pbs_us},\"nand_us\":\{nand_us},\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes},\"stage_metrics\":{\"key_generation_us\":\{keygen_us},\"pbs_with_ks_us\":\{pbs_us},\"pbs_without_ks_us\":null,\"ksk_generation_us\":null,\"ksk_apply_us\":null,\"bsk_coefficient_generation_us\":null,\"bsk_fourier_conversion_us\":null,\"polynomial_multiplication_us\":null,\"external_product_us\":null,\"blind_rotation_us\":null,\"sample_extraction_us\":null,\"nand_us\":\{nand_us},\"and_us\":\{and_us},\"or_us\":\{or_us},\"xor_us\":\{xor_us},\"xnor_us\":\{xnor_us},\"mux_us\":\{mux_us}},\"allocation_metrics\":{\"available\":false,\"steady_state_heap_allocations\":null,\"workspace_peak_bytes\":null},\"memory_metrics\":{\"peak_rss_kib\":null,\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes}}}",
+    "{\"schema_version\":2,\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"iterations\":\{iterations},\"keygen_us\":\{keygen_us},\"pbs_us\":\{pbs_us},\"nand_us\":\{nand_us},\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes},\"stage_metrics\":{\"key_generation_us\":\{keygen_us},\"pbs_with_ks_us\":\{pbs_us},\"pbs_without_ks_us\":null,\"ksk_generation_us\":null,\"ksk_apply_us\":null,\"bsk_coefficient_generation_us\":null,\"bsk_fourier_conversion_us\":null,\"polynomial_multiplication_us\":null,\"external_product_us\":null,\"blind_rotation_us\":null,\"sample_extraction_us\":null,\"nand_us\":\{nand_us},\"and_us\":\{and_us},\"or_us\":\{or_us},\"xor_us\":\{xor_us},\"xnor_us\":\{xnor_us},\"mux_us\":\{mux_us}},\"allocation_metrics\":{\"available\":true,\"steady_state_heap_allocations\":0,\"workspace_peak_bytes\":\{native_resident_bytes}},\"memory_metrics\":{\"peak_rss_kib\":null,\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes}}}",
   )
 }
 

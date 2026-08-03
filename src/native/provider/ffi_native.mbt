@@ -85,6 +85,56 @@ extern "c" fn fourier_accumulator_add_in_place_ffi(
 extern "c" fn fourier_workspace_reset_ffi(plan : NativeFftPlan) -> Int = "moonbit_tfhe_fourier_workspace_reset"
 
 ///|
+#borrow(coefficients, ksk)
+extern "c" fn pbs_context_new_ffi(
+  polynomial_size : Int,
+  input_dimension : Int,
+  glwe_dimension : Int,
+  pbs_base_log : Int,
+  pbs_level : Int,
+  ksk_input_dimension : Int,
+  ksk_output_dimension : Int,
+  ksk_base_log : Int,
+  ksk_level : Int,
+  order : Int,
+  coefficients : FixedArray[UInt],
+  ksk : FixedArray[UInt],
+) -> NativePbsContext = "moonbit_tfhe_pbs_context_new"
+
+///|
+#borrow(context)
+extern "c" fn pbs_context_valid_ffi(context : NativePbsContext) -> Bool = "moonbit_tfhe_pbs_context_valid"
+
+///|
+#borrow(context)
+extern "c" fn pbs_context_resident_bytes_ffi(
+  context : NativePbsContext,
+) -> Int64 = "moonbit_tfhe_pbs_context_resident_bytes"
+
+///|
+#borrow(context, input, accumulator, output)
+extern "c" fn pbs_evaluate_lut_ffi(
+  context : NativePbsContext,
+  input : FixedArray[UInt],
+  accumulator : FixedArray[UInt],
+  output : FixedArray[UInt],
+) -> Int = "moonbit_tfhe_pbs_evaluate_lut"
+
+///|
+#borrow(context, output)
+extern "c" fn pbs_context_export_coefficients_ffi(
+  context : NativePbsContext,
+  output : FixedArray[UInt],
+) -> Int = "moonbit_tfhe_pbs_context_export_coefficients"
+
+///|
+#borrow(context, output)
+extern "c" fn pbs_context_export_ksk_ffi(
+  context : NativePbsContext,
+  output : FixedArray[UInt],
+) -> Int = "moonbit_tfhe_pbs_context_export_ksk"
+
+///|
 #borrow(key, nonce, aad, plaintext)
 extern "c" fn aes256_gcm_encrypt_ffi(
   key : Bytes,

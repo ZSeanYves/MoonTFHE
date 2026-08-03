@@ -42,10 +42,14 @@ pub struct BootstrapKey {
   input_dimension : @params.LweDimension
   glwe_parameters : @glwe.GlweParameters
   ggsw_parameters : @ggsw.GgswParameters
-  coefficient_bsk : FixedArray[UInt]
-  key_switch : @keyswitch.KeySwitchKey
+  coefficient_bsk : FixedArray[UInt]?
+  key_switch : @keyswitch.KeySwitchKey?
+  key_switch_input : @params.LweDimension
+  key_switch_output : @params.LweDimension
+  key_switch_decomposition_parameters : @params.DecompositionParameters
   order : PbsOrder
   fourier : @provider.FourierBootstrapKey?
+  native_context : @provider.PbsContext?
   workspace : @ref.Ref[PbsWorkspace]
 }
 
@@ -183,16 +187,93 @@ pub fn bootstrap_key_from_flat_encrypted_parts(
     input_dimension,
     glwe_parameters,
     ggsw_parameters,
-    coefficient_bsk,
-    key_switch,
+    coefficient_bsk: Some(coefficient_bsk),
+    key_switch: Some(key_switch),
+    key_switch_input: extracted_dimension,
+    key_switch_output: input_dimension,
+    key_switch_decomposition_parameters: key_switch.decomposition(),
     order,
     fourier,
+    native_context: None,
     workspace: @ref.Ref(
       pbs_workspace_new(
         glwe_parameters,
         ggsw_parameters,
         key_switch.output_dimension(),
         key_switch.decomposition().level(),
+      ),
+    ),
+  })
+}
+
+///|
+/// Construct the native production representation. Coefficient BSK and KSK
+/// buffers are consumed during context creation and are not retained by the
+/// MoonBit evaluation key.
+pub fn bootstrap_key_from_flat_native_parts(
+  input_dimension : @params.LweDimension,
+  glwe_parameters : @glwe.GlweParameters,
+  ggsw_parameters : @ggsw.GgswParameters,
+  coefficient_bsk : FixedArray[UInt],
+  key_switch_input : @params.LweDimension,
+  key_switch_output : @params.LweDimension,
+  key_switch_decomposition_parameters : @params.DecompositionParameters,
+  key_switch_data : FixedArray[UInt],
+  order : PbsOrder,
+) -> Result[BootstrapKey, PbsError] {
+  if ggsw_parameters.glwe() != glwe_parameters ||
+    coefficient_bsk.length() !=
+    input_dimension.value() * ggsw_parameters.flat_size() ||
+    key_switch_input.value() !=
+    glwe_parameters.glwe_dimension() * glwe_parameters.polynomial_size() ||
+    key_switch_output != input_dimension {
+    return Err(BootstrapKeyShapeMismatch)
+  }
+  let expected_ksk = key_switch_input.value() *
+    key_switch_decomposition_parameters.level() *
+    (key_switch_output.value() + 1)
+  if key_switch_data.length() != expected_ksk {
+    return Err(BootstrapKeyShapeMismatch)
+  }
+  let native_context = match
+    @provider.pbs_context_new(
+      glwe_parameters.polynomial_size(),
+      input_dimension.value(),
+      glwe_parameters.glwe_dimension(),
+      ggsw_parameters.base_log(),
+      ggsw_parameters.level(),
+      key_switch_input.value(),
+      key_switch_output.value(),
+      key_switch_decomposition_parameters.base_log(),
+      key_switch_decomposition_parameters.level(),
+      match order {
+        KeyswitchBootstrap => 0
+        BootstrapKeyswitch => 1
+      },
+      coefficient_bsk,
+      key_switch_data,
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(BootstrapKeyShapeMismatch)
+  }
+  Ok({
+    input_dimension,
+    glwe_parameters,
+    ggsw_parameters,
+    coefficient_bsk: None,
+    key_switch: None,
+    key_switch_input,
+    key_switch_output,
+    key_switch_decomposition_parameters,
+    order,
+    fourier: None,
+    native_context: Some(native_context),
+    workspace: @ref.Ref(
+      pbs_workspace_new(
+        glwe_parameters,
+        ggsw_parameters,
+        key_switch_output,
+        key_switch_decomposition_parameters.level(),
       ),
     ),
   })
@@ -227,36 +308,66 @@ pub fn BootstrapKey::control_count(self : BootstrapKey) -> Int {
 ///|
 pub fn BootstrapKey::coefficient_bsk_copy(
   self : BootstrapKey,
-) -> FixedArray[UInt] {
-  self.coefficient_bsk.copy()
+) -> Result[FixedArray[UInt], PbsError] {
+  match self.coefficient_bsk {
+    Some(value) => Ok(value.copy())
+    None =>
+      match self.native_context {
+        Some(context) =>
+          match context.export_coefficients() {
+            Ok(value) => Ok(value)
+            Err(_) => Err(BootstrapKeyShapeMismatch)
+          }
+        None => Err(BootstrapKeyShapeMismatch)
+      }
+  }
 }
 
 ///|
 pub fn BootstrapKey::key_switch_input_dimension(
   self : BootstrapKey,
 ) -> @params.LweDimension {
-  self.key_switch.input_dimension()
+  self.key_switch_input
 }
 
 ///|
 pub fn BootstrapKey::key_switch_output_dimension(
   self : BootstrapKey,
 ) -> @params.LweDimension {
-  self.key_switch.output_dimension()
+  self.key_switch_output
 }
 
 ///|
 pub fn BootstrapKey::key_switch_decomposition(
   self : BootstrapKey,
 ) -> @params.DecompositionParameters {
-  self.key_switch.decomposition()
+  self.key_switch_decomposition_parameters
 }
 
 ///|
 pub fn BootstrapKey::key_switch_flat_copy(
   self : BootstrapKey,
-) -> FixedArray[UInt] {
-  self.key_switch.flat_u32_copy()
+) -> Result[FixedArray[UInt], PbsError] {
+  match self.key_switch {
+    Some(value) => Ok(value.flat_u32_copy())
+    None =>
+      match self.native_context {
+        Some(context) =>
+          match context.export_ksk() {
+            Ok(value) => Ok(value)
+            Err(_) => Err(BootstrapKeyShapeMismatch)
+          }
+        None => Err(BootstrapKeyShapeMismatch)
+      }
+  }
+}
+
+///|
+pub fn BootstrapKey::native_resident_bytes(self : BootstrapKey) -> Int64 {
+  match self.native_context {
+    Some(context) => context.resident_bytes()
+    None => 0L
+  }
 }
 
 ///|
@@ -274,12 +385,14 @@ fn BootstrapKey::control(
   }
   let flat_size = self.ggsw_parameters.flat_size()
   let offset = index * flat_size
+  let coefficient_bsk = match self.coefficient_bsk {
+    Some(value) => value
+    None => return Err(BootstrapKeyShapeMismatch)
+  }
   match
     @ggsw.ggsw_from_flat_u32(
       self.ggsw_parameters,
-      FixedArray::makei(flat_size, fn(word) {
-        self.coefficient_bsk[offset + word]
-      }),
+      FixedArray::makei(flat_size, fn(word) { coefficient_bsk[offset + word] }),
     ) {
     Ok(value) => Ok(value)
     Err(_) => Err(BootstrapKeyShapeMismatch)
@@ -518,6 +631,38 @@ fn BootstrapKey::bootstrap_without_keyswitch(
 }
 
 ///|
+fn BootstrapKey::native_programmable_bootstrap(
+  self : BootstrapKey,
+  context : @provider.PbsContext,
+  accumulator : @glwe.GlweCiphertext,
+  input : @lwe.LweCiphertext,
+) -> Result[@lwe.LweCiphertext, PbsError] {
+  let expected_input = match self.order {
+    BootstrapKeyswitch => self.input_dimension
+    KeyswitchBootstrap => self.key_switch_input
+  }
+  let output_dimension = match self.order {
+    BootstrapKeyswitch => self.key_switch_output
+    KeyswitchBootstrap => self.key_switch_input
+  }
+  if input.parameters() != expected_input ||
+    accumulator.parameters() != self.glwe_parameters {
+    return Err(InputDimensionMismatch)
+  }
+  let input_data = input.flat_u32_copy()
+  let accumulator_data = accumulator.flat_u32_copy()
+  let output = FixedArray::make(output_dimension.value() + 1, 0U)
+  match context.evaluate_lut_into(input_data, accumulator_data, output) {
+    Ok(_) =>
+      match @lwe.lwe_ciphertext_from_owned_flat_u32(output_dimension, output) {
+        Ok(value) => Ok(value)
+        Err(_) => Err(SampleExtractionFailure)
+      }
+    Err(_) => Err(BlindRotationFailure)
+  }
+}
+
+///|
 pub fn BootstrapKey::programmable_bootstrap(
   self : BootstrapKey,
   input : @lwe.LweCiphertext,
@@ -527,6 +672,11 @@ pub fn BootstrapKey::programmable_bootstrap(
     Ok(value) => value
     Err(error) => return Err(error)
   }
+  match self.native_context {
+    Some(context) =>
+      return self.native_programmable_bootstrap(context, accumulator, input)
+    None => ()
+  }
   match self.order {
     BootstrapKeyswitch => {
       let extracted = match
@@ -535,8 +685,12 @@ pub fn BootstrapKey::programmable_bootstrap(
         Err(error) => return Err(error)
       }
       let workspace = self.workspace.val
+      let key_switch = match self.key_switch {
+        Some(value) => value
+        None => return Err(KeyswitchFailure)
+      }
       match
-        self.key_switch.apply_into(
+        key_switch.apply_into(
           extracted,
           workspace.ksk_result,
           workspace.ksk_digits,
@@ -544,7 +698,7 @@ pub fn BootstrapKey::programmable_bootstrap(
         Ok(_) =>
           match
             @lwe.lwe_ciphertext_from_flat_u32(
-              self.key_switch.output_dimension(),
+              self.key_switch_output,
               workspace.ksk_result,
             ) {
             Ok(value) => Ok(value)
@@ -554,7 +708,11 @@ pub fn BootstrapKey::programmable_bootstrap(
       }
     }
     KeyswitchBootstrap => {
-      let switched = match self.key_switch.apply(input) {
+      let key_switch = match self.key_switch {
+        Some(value) => value
+        None => return Err(KeyswitchFailure)
+      }
+      let switched = match key_switch.apply(input) {
         Ok(value) => value
         Err(_) => return Err(KeyswitchFailure)
       }
@@ -579,6 +737,11 @@ pub fn BootstrapKey::programmable_bootstrap_table(
     Ok(value) => value
     Err(_) => return Err(InvalidLut)
   }
+  match self.native_context {
+    Some(context) =>
+      return self.native_programmable_bootstrap(context, accumulator, input)
+    None => ()
+  }
   match self.order {
     BootstrapKeyswitch => {
       let extracted = match
@@ -586,13 +749,21 @@ pub fn BootstrapKey::programmable_bootstrap_table(
         Ok(value) => value
         Err(error) => return Err(error)
       }
-      match self.key_switch.apply(extracted) {
+      let key_switch = match self.key_switch {
+        Some(value) => value
+        None => return Err(KeyswitchFailure)
+      }
+      match key_switch.apply(extracted) {
         Ok(value) => Ok(value)
         Err(_) => Err(KeyswitchFailure)
       }
     }
     KeyswitchBootstrap => {
-      let switched = match self.key_switch.apply(input) {
+      let key_switch = match self.key_switch {
+        Some(value) => value
+        None => return Err(KeyswitchFailure)
+      }
+      let switched = match key_switch.apply(input) {
         Ok(value) => value
         Err(_) => return Err(KeyswitchFailure)
       }

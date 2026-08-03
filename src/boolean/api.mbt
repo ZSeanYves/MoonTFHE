@@ -1114,8 +1114,14 @@ pub fn ClientKey::import_secret(
 pub fn ServerKey::serialize(
   self : ServerKey,
 ) -> Result[Bytes, SerializationError] {
-  let bsk = self.inner.coefficient_bsk_copy()
-  let ksk = self.inner.key_switch_flat_copy()
+  let bsk = match self.inner.coefficient_bsk_copy() {
+    Ok(value) => value
+    Err(_) => return Err(InvalidServerKey)
+  }
+  let ksk = match self.inner.key_switch_flat_copy() {
+    Ok(value) => value
+    Err(_) => return Err(InvalidServerKey)
+  }
   let word_count = match
     boolean_checked_add(bsk.length(), ksk.length(), 96 * 1024 * 1024) {
     Some(value) => value
@@ -1299,23 +1305,10 @@ pub fn ServerKey::deserialize(
   let key_switch_data = FixedArray::makei(ksk_words, fn(index) {
     boolean_read_u32(bytes, ksk_offset + index * 4)
   })
-  let key_switch = match
-    @keyswitch.keyswitch_key_from_flat_u32(
-      extracted_dimension,
-      input_dimension,
-      parameters.record.ks_decomposition(),
-      key_switch_data,
-    ) {
-    Ok(value) => value
-    Err(_) => return Err(InvalidServerKey)
-  }
-  let fourier = match rebuild_fourier_cache(parameters, ggsw, coefficient_bsk) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
   let bootstrap = match
-    @pbs.bootstrap_key_from_flat_encrypted_parts(
-      input_dimension, glwe, ggsw, coefficient_bsk, key_switch, order, fourier,
+    rebuild_bootstrap_key(
+      parameters, input_dimension, glwe, ggsw, coefficient_bsk, extracted_dimension,
+      key_switch_data, order,
     ) {
     Ok(value) => value
     Err(_) => return Err(InvalidServerKey)

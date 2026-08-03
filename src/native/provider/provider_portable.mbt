@@ -91,6 +91,53 @@ pub fn FftPlan::workspace_reset(
 }
 
 ///|
+pub fn pbs_context_new(
+  _polynomial_size : Int,
+  _input_dimension : Int,
+  _glwe_dimension : Int,
+  _pbs_base_log : Int,
+  _pbs_level : Int,
+  _ksk_input_dimension : Int,
+  _ksk_output_dimension : Int,
+  _ksk_base_log : Int,
+  _ksk_level : Int,
+  _order : Int,
+  _coefficients : FixedArray[UInt],
+  _ksk : FixedArray[UInt],
+) -> Result[PbsContext, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn PbsContext::evaluate_lut_into(
+  _self : PbsContext,
+  _input : FixedArray[UInt],
+  _accumulator : FixedArray[UInt],
+  _output : FixedArray[UInt],
+) -> Result[Unit, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn PbsContext::export_coefficients(
+  _self : PbsContext,
+) -> Result[FixedArray[UInt], NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn PbsContext::export_ksk(
+  _self : PbsContext,
+) -> Result[FixedArray[UInt], NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
+pub fn PbsContext::resident_bytes(_self : PbsContext) -> Int64 {
+  0L
+}
+
+///|
 pub fn aes256_gcm_encrypt(
   _key : Bytes,
   _nonce : Bytes,
