@@ -12,7 +12,7 @@ Core constructors validate the complete expected length before accepting a flat
 buffer. Public copy accessors are intended for serialization, fixtures, and the
 native ABI; they do not expose mutable aliases to owned key material.
 
-`KeyId` is now a non-secret 128-bit value. MBCT v2, MBKS v1, and MTSK v1 carry
+`KeyId` is now a non-secret 128-bit value. MBCT v3, MBKS v2, and MTSK v2 carry
 all 16 bytes. Test key generation uses a deterministic namespace and seed;
 production key generation must fill both words from the key-generation CSPRNG.
 

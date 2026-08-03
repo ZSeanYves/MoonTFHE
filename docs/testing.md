@@ -34,13 +34,13 @@ observable assertion; historical print-only probes were removed.
   ciphertext round trips, checksum rejection, and the explicit unsupported LUT
   contract.
 
-## Current B6 serialization contract
+## Current serialization contract
 
-`src/boolean` ciphertexts use an `MBCT` envelope containing a format version,
-parameter code, LWE dimension, key tag, payload length, and an FNV-style
-checksum. The checksum detects accidental corruption; it is not an
-authenticated encryption scheme. Client and server key serialization remains
-intentionally unavailable until a secret-safe format and audit are completed.
+`src/boolean` writes packed `MBCT v3` ciphertexts and public `MBKS v2` server
+keys with CRC32C integrity. Client secrets are available only through explicit
+`MTSK v2` AES-256-GCM export with a caller-provided 32-byte key. Every format
+includes the parameter structure, full KeyId, packed-layout identifier and
+bounded payload length. Earlier versions return `UnsupportedVersion`.
 
 The P1 suite replaces self-referential legacy checks with independent
 reference arithmetic, boundary cases, pinned fixtures, and circuit properties.

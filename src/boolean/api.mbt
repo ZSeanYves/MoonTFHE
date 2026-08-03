@@ -414,6 +414,11 @@ fn boolean_amplitude() -> @torus.Torus32 {
 }
 
 ///|
+fn boolean_packed_layout_id() -> Byte {
+  b'\x02'
+}
+
+///|
 fn boolean_nand_table(
   polynomial_size : Int,
   magnitude : @torus.Torus32,
@@ -699,8 +704,8 @@ pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes {
   output[1] = b'B'
   output[2] = b'C'
   output[3] = b'T'
-  output[4] = b'\x02'
-  output[5] = b'\x01'
+  output[4] = b'\x03'
+  output[5] = boolean_packed_layout_id()
   boolean_write_parameter_fields(output, self.parameters)
   boolean_write_key_id(output, 46, self.key_id)
   boolean_write_u32(output, 62, payload.length().reinterpret_as_uint())
@@ -737,8 +742,11 @@ pub fn ClientKey::deserialize(
   let mut payload_length = 0
   let mut payload = Bytes::make(0, 0)
   let mut checksum_ok = false
-  if version != b'\x02' || bytes.length() < header_length || bytes[5] != b'\x01' {
+  if version != b'\x03' || bytes.length() < header_length {
     return Err(UnsupportedVersion)
+  }
+  if bytes[5] != boolean_packed_layout_id() {
+    return Err(InvalidCiphertext)
   }
   parameter_code = boolean_read_u32(bytes, 6).reinterpret_as_int()
   dimension = boolean_read_u32(bytes, 10).reinterpret_as_int()
@@ -1043,8 +1051,8 @@ pub fn ClientKey::export_secret(
   header[1] = b'T'
   header[2] = b'S'
   header[3] = b'K'
-  header[4] = b'\x01'
-  header[5] = b'\x01'
+  header[4] = b'\x02'
+  header[5] = boolean_packed_layout_id()
   boolean_write_parameter_fields(header, self.parameters)
   boolean_write_key_id(header, 46, self.key_id)
   boolean_write_u32(header, 62, payload_length.reinterpret_as_uint())
@@ -1092,7 +1100,7 @@ pub fn ClientKey::export_secret(
 }
 
 ///|
-/// Import an explicitly encrypted `MTSK v1` client key. The caller supplies
+/// Import an explicitly encrypted `MTSK v2` client key. The caller supplies
 /// both the expected parameter set and the 256-bit serialization key; neither
 /// is inferred from passwords, timestamps, or KeyId metadata.
 pub fn ClientKey::import_secret(
@@ -1115,10 +1123,10 @@ pub fn ClientKey::import_secret(
     bytes[3] != b'K' {
     return Err(InvalidMagic)
   }
-  if bytes[4] != b'\x01' {
+  if bytes[4] != b'\x02' {
     return Err(UnsupportedVersion)
   }
-  if bytes[5] != b'\x01' {
+  if bytes[5] != boolean_packed_layout_id() {
     return Err(InvalidCiphertext)
   }
   let dimension = boolean_read_u32(bytes, 10).reinterpret_as_int()
@@ -1242,8 +1250,8 @@ pub fn ServerKey::serialize(
   output[1] = b'B'
   output[2] = b'K'
   output[3] = b'S'
-  output[4] = b'\x01'
-  output[5] = b'\x01'
+  output[4] = b'\x02'
+  output[5] = boolean_packed_layout_id()
   boolean_write_parameter_fields(output, self.parameters)
   boolean_write_key_id(output, 46, self.key_id)
   boolean_write_u32(
@@ -1283,7 +1291,7 @@ pub fn ServerKey::serialize(
 }
 
 ///|
-/// Deserialize complete, public MBKS v1 evaluation material. Fourier state is
+/// Deserialize complete, public MBKS v2 evaluation material. Fourier state is
 /// intentionally absent from the format and rebuilt by the active backend.
 pub fn ServerKey::deserialize(
   bytes : Bytes,
@@ -1298,10 +1306,10 @@ pub fn ServerKey::deserialize(
     bytes[3] != b'S' {
     return Err(InvalidMagic)
   }
-  if bytes[4] != b'\x01' {
+  if bytes[4] != b'\x02' {
     return Err(UnsupportedVersion)
   }
-  if bytes[5] != b'\x01' {
+  if bytes[5] != boolean_packed_layout_id() {
     return Err(InvalidServerKey)
   }
   let parameters = match

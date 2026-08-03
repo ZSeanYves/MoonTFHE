@@ -35,7 +35,7 @@ reference records. Portable standard construction requires trusted host entropy.
 The old root package and `MTFH`/`MBCT v1` formats were removed in C7.
 `BootstrappingKey` contains only encrypted GGSW data, dimensions, and an
 encrypted key-switching key; it is the typed evaluation object used by the
-current reference PBS path. `MBCT v2` is the only ciphertext format currently
+current reference PBS path. `MBCT v3` is the only ciphertext format currently
 written. Authenticated ClientKey import is available; complete ServerKey import
 remains an RC blocker.
 

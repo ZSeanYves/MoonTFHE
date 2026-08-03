@@ -37,12 +37,13 @@ test "stable Boolean facade: serialization checksum rejects tampering" {
 }
 
 ///|
-test "stable Boolean facade: v2 CRC32C and secret export boundary" {
+test "stable Boolean facade: v3 CRC32C and v2 secret export boundary" {
   let parameters = boolean_test_parameters()
   let (client, _server) = generate_test_keys(parameters, 0x43524332).unwrap()
   let encoded = client.encrypt(false).serialize()
   assert_eq(encoded[0], b'M')
-  assert_eq(encoded[4], b'\x02')
+  assert_eq(encoded[4], b'\x03')
+  assert_eq(encoded[5], b'\x02')
   let short_key = serialization_key_from_bytes(Bytes::make(31, 0))
   assert_true(short_key is Err(InvalidLength))
   let key = serialization_key_from_bytes(Bytes::make(32, 0))
@@ -67,12 +68,31 @@ test "stable Boolean facade: server key roundtrip restores evaluation material" 
   assert_eq(encoded[1], b'B')
   assert_eq(encoded[2], b'K')
   assert_eq(encoded[3], b'S')
+  assert_eq(encoded[4], b'\x02')
+  assert_eq(encoded[5], b'\x02')
   assert_true(encoded.length() > 90)
   let restored = ServerKey::deserialize(encoded).unwrap()
   let result = restored
     .nand(client.encrypt(true), client.encrypt(true))
     .unwrap()
   assert_eq(client.decrypt(result), Ok(false))
+}
+
+///|
+test "stable Boolean facade: legacy serialization versions are rejected" {
+  let parameters = boolean_test_parameters()
+  let (client, server) = generate_test_keys(parameters, 0x4C4547414359UL).unwrap()
+  let ciphertext = client.encrypt(true).serialize().to_array()
+  ciphertext[4] = b'\x02'
+  assert_true(
+    client.deserialize(Bytes::from_array(ciphertext)) is Err(UnsupportedVersion),
+  )
+  let server_key = server.serialize().unwrap().to_array()
+  server_key[4] = b'\x01'
+  assert_true(
+    ServerKey::deserialize(Bytes::from_array(server_key))
+    is Err(UnsupportedVersion),
+  )
 }
 
 ///|

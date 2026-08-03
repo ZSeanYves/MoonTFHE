@@ -11,8 +11,23 @@ test "stable Boolean facade: native SecretExport uses fresh AES-GCM nonces" {
   assert_eq(first[1], b'T')
   assert_eq(first[2], b'S')
   assert_eq(first[3], b'K')
+  assert_eq(first[4], b'\x02')
+  assert_eq(first[5], b'\x02')
   assert_true(first[66:78].to_owned() != second[66:78].to_owned())
   assert_true(first != second)
+}
+
+///|
+test "stable Boolean facade: native rejects legacy MTSK before authentication" {
+  let parameters = boolean_test_parameters()
+  let (client, _server) = generate_test_keys(parameters, 0x4C45474D54534BUL).unwrap()
+  let key = serialization_key_from_bytes(Bytes::make(32, 0x51)).unwrap()
+  let legacy = client.export_secret(key).unwrap().to_array()
+  legacy[4] = b'\x01'
+  assert_true(
+    ClientKey::import_secret(parameters, key, Bytes::from_array(legacy))
+    is Err(UnsupportedVersion),
+  )
 }
 
 ///|
