@@ -22,6 +22,7 @@ options(
   targets: {
     "api_native_test.mbt": [ "native" ],
     "api_portable_test.mbt": [ "wasm", "wasm-gc" ],
+    "portable_standard_smoke_test.mbt": [ "wasm", "wasm-gc", "js" ],
     "fourier_import_native.mbt": [ "native" ],
     "fourier_import_portable.mbt": [ "wasm", "wasm-gc", "js" ],
     "standard_keygen_native.mbt": [ "native" ],

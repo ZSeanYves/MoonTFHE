@@ -25,6 +25,18 @@ test "stable Boolean facade: serialization round trip" {
 }
 
 ///|
+test "stable Boolean facade: packed ciphertext fixture is backend invariant" {
+  let parameters = boolean_test_parameters()
+  let (client, _server) = generate_test_keys(parameters, 0x5041434B4544UL).unwrap()
+  inspect(
+    client.encrypt(false).serialize(),
+    content=(
+      #|b"MBCT\x03\x02\x00\x00\x00\x00\x04\x00\x00\x00\x01\x00\x00\x00 \x00\x00\x00\x04\x00\x00\x00\x08\x00\x00\x00\x04\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00TSETHFTMDEKCAP\x00\x00\x14\x00\x00\x00O\xe6\x1f\xf6\xf2I\xe8\xa8\xf6 J \xe0J\xa0\xa4\xf4\x88Y!\xf6 J\x00"
+    ),
+  )
+}
+
+///|
 test "stable Boolean facade: serialization checksum rejects tampering" {
   let parameters = boolean_test_parameters()
   let (client, _server) = generate_test_keys(parameters, 0x43484B).unwrap()

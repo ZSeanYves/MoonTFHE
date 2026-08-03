@@ -104,3 +104,21 @@ jobs:
         run: >-
           moon test --target native --release --no-parallelize
           --include-skipped src/boolean/standard_stress_native_test.mbt
+
+  portable-standard-smoke:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Run host-enabled JS reference smoke
+        run: >-
+          moon test --target js --release --no-parallelize
+          --include-skipped src/boolean/portable_standard_smoke_test.mbt
