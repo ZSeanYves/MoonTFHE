@@ -55,7 +55,12 @@ The comparison artifact is accepted only after
 `tools/benchmark/check.py --require-rc-performance` verifies real positive
 measurements, 110/128 memory ceilings and the 5x NAND gate. Until that artifact
 and its Cargo lockfile are committed, `tools/rc-gate/check.sh` intentionally
-blocks RC publication. The first committed native comparison is measured
-evidence, but it currently fails those ceilings: NAND is 30.25x/30.24x and peak
-RSS is approximately 4.29 GiB/530 MiB for 110/128-bit parameters. The PBS
-field measures a non-trivial NOT LUT and is therefore a real PBS datapoint.
+blocks RC publication. The O1 packed-workspace evidence is committed as
+`docs/performance/o1-packed-workspace.json`. The workflow prebuilds the native
+test harness before `/usr/bin/time` starts, so peak RSS measures the benchmark
+process rather than the first release compilation. O1 reduced PBS to about
+277.7/407.3 ms and NAND to about 279.3/413.7 ms for 110/128-bit parameters.
+NAND remains 25.24x/25.47x slower than tfhe-rs and peak RSS is about
+462.5/529.1 MiB, so the release still fails the final performance and memory
+ceilings. The PBS field measures a non-trivial NOT LUT and is therefore a real
+PBS datapoint.
