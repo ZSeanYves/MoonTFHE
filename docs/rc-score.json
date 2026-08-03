@@ -19,6 +19,6 @@
     "benchmark": "docs/benchmarks-tfhe-rs.json",
     "estimator": "tools/parameter_estimator/outputs/",
     "stress_tests": "src/boolean/standard_stress_native_test.mbt",
-    "stress_workflow_run": "30191924719"
+    "stress_workflow_run": "30789949471"
   }
 }

@@ -25,7 +25,8 @@ release therefore remains research-only. These failures are optimization work
 items, not reasons to weaken the gate.
 
 The same workflow's standard-circuits job completed successfully for both
-1,000-step random Boolean workloads (run `30191924719`). This establishes the
+1,000-step random Boolean workloads after O3 (run `30789949471`). This
+establishes the
 correctness evidence gate, but does not change the performance or memory
 requirements.
 
