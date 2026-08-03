@@ -73,3 +73,11 @@ as a code regression; each artifact remains internally same-runner and
 interleaved. O2 confirms that temporary GGSW/KSK objects were not the dominant
 steady-state memory cost. The coefficient and Fourier bootstrap-key
 representations must not both remain resident in the optimized runtime.
+
+The O3 fused-Fourier artifact is
+`docs/performance/o3-fused-fourier.json`. On the same EPYC 7763 model used by
+O2, fusing external product and accumulator addition reduced PBS to about
+322.4/458.6 ms and NAND to 25.59x/24.70x tfhe-rs. Peak RSS remained about
+463.4/530.1 MiB. This triggers the plan's `>10x` and `>512 MiB` stop rule.
+Further O4-O7 work is paused in favor of
+`docs/adr/0001-full-rust-pbs-backend.md`.

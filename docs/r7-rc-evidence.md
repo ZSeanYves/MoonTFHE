@@ -28,3 +28,11 @@ The same workflow's standard-circuits job completed successfully for both
 1,000-step random Boolean workloads (run `30191924719`). This establishes the
 correctness evidence gate, but does not change the performance or memory
 requirements.
+
+O3 fused the native Fourier external product and accumulator add without
+moving decomposition or the blind-rotation state machine out of MoonBit. The
+result remained 25.59x/24.70x slower than tfhe-rs, and 128-bit RSS remained
+530.1 MiB. These measurements activate the optimization stop rule documented
+in `docs/adr/0001-full-rust-pbs-backend.md`; O4-O7 and RC publication remain
+paused until a one-call native PBS backend passes the 10x/512 MiB continuation
+gate.
