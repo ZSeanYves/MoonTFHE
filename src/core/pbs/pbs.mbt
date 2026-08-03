@@ -400,8 +400,8 @@ pub fn BootstrapKey::blind_rotate(
     Err(_) => return Err(BlindRotationFailure)
   }
   let workspace = self.workspace.val
-  let initial = accumulator.rotate_negacyclic(initial_rotation)
-  match initial.rotate_negacyclic_into(0, workspace.state_a) {
+  match
+    accumulator.rotate_negacyclic_into(initial_rotation, workspace.state_a) {
     Ok(_) => ()
     Err(_) => return Err(BlindRotationFailure)
   }

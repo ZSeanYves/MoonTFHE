@@ -71,6 +71,8 @@ fn measure(parameter_name: &str, parameters: &BooleanParameters) {
         ITERATIONS,
         keygen_us,
         nand_us,
+        server_key_bytes,
+        ciphertext_bytes,
         keygen_us,
         nand_us,
         and_us,
