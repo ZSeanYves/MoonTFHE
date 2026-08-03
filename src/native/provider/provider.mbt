@@ -1,4 +1,5 @@
 ///|
+#warnings("-unused_constructor")
 pub suberror NativeProviderError {
   UnsupportedBackend
   InvalidLength
@@ -24,6 +25,7 @@ type NativePbsContext
 ///|
 /// Reusable FFT plan and workspace with validated capacities retained in
 /// MoonBit.
+#warnings("-struct_never_constructed")
 pub struct FftPlan {
   handle : NativeFftPlan
   size : Int
@@ -34,6 +36,7 @@ pub struct FftPlan {
 ///|
 /// Coefficient BSK converted to the provider's half-spectrum representation.
 /// Retaining `plan` keeps its Rust plan and workspace alive for every call.
+#warnings("-struct_never_constructed")
 pub struct FourierBootstrapKey {
   handle : NativeFourierBootstrapKey
   plan : FftPlan
@@ -45,6 +48,7 @@ pub struct FourierBootstrapKey {
 ///|
 /// Reusable native PBS evaluator. The handle owns the Fourier BSK, packed KSK,
 /// FFT plan and all hot-path workspace; no secret key material is retained.
+#warnings("-struct_never_constructed")
 pub struct PbsContext {
   handle : NativePbsContext
   input_size : Int
@@ -60,6 +64,46 @@ pub struct PbsStageMetrics {
   external_product_count : Int64
   blind_rotation_ns : Int64
   sample_extraction_ns : Int64
+}
+
+///|
+/// Provider-owned memory tracked without counting allocator metadata or
+/// opaque allocations retained inside RustFFT plans.
+pub struct PbsMemoryMetrics {
+  tracked_resident_bytes : Int64
+  coefficient_bsk_bytes : Int64
+  fourier_bsk_bytes : Int64
+  ksk_bytes : Int64
+  workspace_bytes : Int64
+}
+
+///|
+pub fn PbsMemoryMetrics::tracked_resident_bytes(
+  self : PbsMemoryMetrics,
+) -> Int64 {
+  self.tracked_resident_bytes
+}
+
+///|
+pub fn PbsMemoryMetrics::coefficient_bsk_bytes(
+  self : PbsMemoryMetrics,
+) -> Int64 {
+  self.coefficient_bsk_bytes
+}
+
+///|
+pub fn PbsMemoryMetrics::fourier_bsk_bytes(self : PbsMemoryMetrics) -> Int64 {
+  self.fourier_bsk_bytes
+}
+
+///|
+pub fn PbsMemoryMetrics::ksk_bytes(self : PbsMemoryMetrics) -> Int64 {
+  self.ksk_bytes
+}
+
+///|
+pub fn PbsMemoryMetrics::workspace_bytes(self : PbsMemoryMetrics) -> Int64 {
+  self.workspace_bytes
 }
 
 ///|
@@ -88,6 +132,7 @@ pub fn PbsStageMetrics::sample_extraction_ns(self : PbsStageMetrics) -> Int64 {
 }
 
 ///|
+#warnings("-unused_value")
 fn decode_fft_status(status : Int) -> Result[Unit, NativeProviderError] {
   if status == 0 {
     Ok(())
@@ -99,6 +144,7 @@ fn decode_fft_status(status : Int) -> Result[Unit, NativeProviderError] {
 }
 
 ///|
+#warnings("-unused_value")
 fn decode_aead_result(raw : Bytes) -> Result[Bytes, NativeProviderError] {
   if raw.length() < 1 {
     return Err(ProviderFailure(status=-1))

@@ -21,6 +21,7 @@ pub suberror DecryptionError {
 } derive(Debug, Eq)
 
 ///|
+#warnings("-unused_constructor")
 pub suberror EvaluationError {
   KeyMismatch
   InvalidCiphertext
@@ -228,6 +229,7 @@ pub fn generate_test_keys(
 ///|
 /// Correct portable standard construction. It intentionally uses the
 /// coefficient reference backend and is only exercised by scheduled smoke.
+#warnings("-unused_value")
 fn generate_standard_reference_keys(
   parameters : BooleanParameters,
 ) -> Result[(ClientKey, ServerKey), KeyGenerationError] {
@@ -1072,16 +1074,11 @@ pub fn ClientKey::export_secret(
       payload,
     ) {
     Ok(value) => value
-    Err(@provider.NativeProviderError::UnsupportedBackend) =>
-      return Err(UnsupportedBackend)
-    Err(@provider.NativeProviderError::InvalidLength) =>
-      return Err(InvalidLength)
-    Err(@provider.NativeProviderError::InvalidPolynomialSize) =>
-      return Err(InvalidLength)
-    Err(@provider.NativeProviderError::AuthenticationFailed) =>
-      return Err(AuthenticationFailed)
-    Err(@provider.NativeProviderError::ProviderFailure(status~)) =>
-      return Err(UnsupportedBackend)
+    Err(UnsupportedBackend) => return Err(UnsupportedBackend)
+    Err(InvalidLength) => return Err(InvalidLength)
+    Err(InvalidPolynomialSize) => return Err(InvalidLength)
+    Err(AuthenticationFailed) => return Err(AuthenticationFailed)
+    Err(ProviderFailure(_)) => return Err(UnsupportedBackend)
   }
   if encrypted.length() != payload_length + 16 {
     return Err(InvalidLength)
@@ -1147,18 +1144,11 @@ pub fn ClientKey::import_secret(
   let payload = match
     @provider.aes256_gcm_decrypt(key.bytes, nonce, aad, encrypted) {
     Ok(value) => value
-    Err(@provider.NativeProviderError::AuthenticationFailed) =>
-      return Err(AuthenticationFailed)
-    Err(@provider.NativeProviderError::InvalidLength) =>
-      return Err(InvalidLength)
-    Err(@provider.NativeProviderError::InvalidPolynomialSize) =>
-      return Err(InvalidLength)
-    Err(@provider.NativeProviderError::UnsupportedBackend) =>
-      return Err(UnsupportedBackend)
-    Err(@provider.NativeProviderError::ProviderFailure(status~)) => {
-      let _ = status
-      return Err(UnsupportedBackend)
-    }
+    Err(AuthenticationFailed) => return Err(AuthenticationFailed)
+    Err(InvalidLength) => return Err(InvalidLength)
+    Err(InvalidPolynomialSize) => return Err(InvalidLength)
+    Err(UnsupportedBackend) => return Err(UnsupportedBackend)
+    Err(ProviderFailure(_)) => return Err(UnsupportedBackend)
   }
   if payload.length() != payload_length ||
     payload[0] != b'M' ||
@@ -1258,8 +1248,8 @@ pub fn ServerKey::serialize(
     output,
     62,
     match self.inner.order() {
-      @pbs.KeyswitchBootstrap => 0U
-      @pbs.BootstrapKeyswitch => 1U
+      KeyswitchBootstrap => 0U
+      BootstrapKeyswitch => 1U
     },
   )
   boolean_write_u32(

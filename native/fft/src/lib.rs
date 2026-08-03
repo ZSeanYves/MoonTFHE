@@ -8,6 +8,57 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
+#[cfg(feature = "allocation-counter")]
+mod allocation_counter {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    pub struct CountingAllocator;
+
+    static ENABLED: AtomicBool = AtomicBool::new(false);
+    static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe impl GlobalAlloc for CountingAllocator {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            if ENABLED.load(Ordering::Relaxed) {
+                ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+            }
+            System.alloc(layout)
+        }
+
+        unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+            System.dealloc(pointer, layout)
+        }
+
+        unsafe fn realloc(
+            &self,
+            pointer: *mut u8,
+            layout: Layout,
+            new_size: usize,
+        ) -> *mut u8 {
+            if ENABLED.load(Ordering::Relaxed) {
+                ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+            }
+            System.realloc(pointer, layout, new_size)
+        }
+    }
+
+    pub fn start() {
+        ALLOCATIONS.store(0, Ordering::SeqCst);
+        ENABLED.store(true, Ordering::SeqCst);
+    }
+
+    pub fn stop() -> usize {
+        ENABLED.store(false, Ordering::SeqCst);
+        ALLOCATIONS.load(Ordering::SeqCst)
+    }
+}
+
+#[cfg(feature = "allocation-counter")]
+#[global_allocator]
+static ALLOCATOR: allocation_counter::CountingAllocator =
+    allocation_counter::CountingAllocator;
+
 const FFT_OK: i32 = 0;
 const FFT_NULL_POINTER: i32 = 1;
 const FFT_INVALID_SIZE: i32 = 2;
@@ -107,6 +158,20 @@ impl FftScratch {
         self.digit_fourier.fill(Complex::new(0.0, 0.0));
         self.half_accumulator.fill(Complex::new(0.0, 0.0));
     }
+
+    fn resident_bytes(&self) -> usize {
+        (self.left.len()
+            + self.right.len()
+            + self.fft_scratch.len()
+            + self.digit_fourier.len()
+            + self.half_accumulator.len())
+            * std::mem::size_of::<Complex<f64>>()
+            + (self.convolution_0.len()
+                + self.convolution_1.len()
+                + self.convolution_2.len())
+                * std::mem::size_of::<i64>()
+            + self.temporary_output.len() * std::mem::size_of::<u32>()
+    }
 }
 
 impl FftPlan {
@@ -135,6 +200,11 @@ impl FftPlan {
             inverse_twist,
             fft_scratch_len,
         })
+    }
+
+    fn resident_bytes(&self) -> usize {
+        (self.forward_twist.len() + self.inverse_twist.len())
+            * std::mem::size_of::<Complex<f64>>()
     }
 
     fn new_scratch(&self, digit_capacity: usize, output_capacity: usize) -> Option<FftScratch> {
@@ -920,9 +990,17 @@ impl NativePbsContext {
         }
     }
 
-    fn resident_bytes(&self) -> usize {
+    fn fourier_key_bytes(&self) -> usize {
         self.key.spectra.len() * std::mem::size_of::<Complex<f64>>()
-            + self.ksk.len() * std::mem::size_of::<u32>()
+    }
+
+    fn ksk_bytes(&self) -> usize {
+        self.ksk.len() * std::mem::size_of::<u32>()
+    }
+
+    fn workspace_bytes(&self) -> usize {
+        self.plan.resident_bytes()
+            + self.scratch.resident_bytes()
             + (self.state_a.len()
                 + self.state_b.len()
                 + self.rotated.len()
@@ -934,6 +1012,41 @@ impl NativePbsContext {
                 * std::mem::size_of::<u32>()
             + self.decomposition_digits.len() * std::mem::size_of::<i32>()
             + self.initialized_controls.len() * std::mem::size_of::<bool>()
+    }
+
+    fn resident_bytes(&self) -> usize {
+        self.fourier_key_bytes() + self.ksk_bytes() + self.workspace_bytes()
+    }
+
+    fn memory_metric(&self, metric: u32) -> usize {
+        match metric {
+            0 => self.resident_bytes(),
+            1 => self.fourier_key_bytes(),
+            2 => self.ksk_bytes(),
+            3 => self.workspace_bytes(),
+            _ => 0,
+        }
+    }
+
+    #[cfg(feature = "allocation-counter")]
+    fn measure_allocations(
+        &mut self,
+        input: &[u32],
+        accumulator: &[u32],
+        output: &mut [u32],
+        iterations: usize,
+    ) -> Option<usize> {
+        if iterations == 0 {
+            return None;
+        }
+        allocation_counter::start();
+        for _ in 0..iterations {
+            if self.evaluate(input, accumulator, output) != FFT_OK {
+                allocation_counter::stop();
+                return None;
+            }
+        }
+        Some(allocation_counter::stop())
     }
 
     fn stage_metric(&self, metric: u32) -> u64 {
@@ -1499,6 +1612,64 @@ pub unsafe extern "C" fn native_pbs_context_resident_bytes(
         0
     } else {
         (&*context).resident_bytes()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_memory_metric(
+    context: *const NativePbsContext,
+    metric: u32,
+) -> usize {
+    if context.is_null() {
+        0
+    } else {
+        (&*context).memory_metric(metric)
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_measure_allocations(
+    context: *mut NativePbsContext,
+    input: *const u32,
+    input_count: usize,
+    accumulator: *const u32,
+    accumulator_count: usize,
+    output: *mut u32,
+    output_count: usize,
+    iterations: usize,
+) -> u64 {
+    if context.is_null()
+        || input.is_null()
+        || accumulator.is_null()
+        || output.is_null()
+        || iterations == 0
+    {
+        return u64::MAX;
+    }
+    #[cfg(feature = "allocation-counter")]
+    {
+        return catch_unwind(AssertUnwindSafe(|| {
+            (&mut *context).measure_allocations(
+                slice::from_raw_parts(input, input_count),
+                slice::from_raw_parts(accumulator, accumulator_count),
+                slice::from_raw_parts_mut(output, output_count),
+                iterations,
+            )
+        }))
+        .ok()
+        .flatten()
+        .and_then(|value| u64::try_from(value).ok())
+        .unwrap_or(u64::MAX);
+    }
+    #[cfg(not(feature = "allocation-counter"))]
+    {
+        let _ = (
+            input_count,
+            accumulator_count,
+            output_count,
+            iterations,
+        );
+        u64::MAX
     }
 }
 

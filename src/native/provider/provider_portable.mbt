@@ -169,6 +169,28 @@ pub fn PbsContext::resident_bytes(_self : PbsContext) -> Int64 {
 }
 
 ///|
+pub fn PbsContext::memory_metrics(_self : PbsContext) -> PbsMemoryMetrics {
+  {
+    tracked_resident_bytes: 0L,
+    coefficient_bsk_bytes: 0L,
+    fourier_bsk_bytes: 0L,
+    ksk_bytes: 0L,
+    workspace_bytes: 0L,
+  }
+}
+
+///|
+pub fn PbsContext::measure_kernel_allocations(
+  _self : PbsContext,
+  _input : FixedArray[UInt],
+  _accumulator : FixedArray[UInt],
+  _output : FixedArray[UInt],
+  _iterations : Int,
+) -> Result[Int64, NativeProviderError] {
+  Err(UnsupportedBackend)
+}
+
+///|
 pub fn PbsContext::stage_metrics(_self : PbsContext) -> PbsStageMetrics {
   {
     key_switch_ns: 0L,

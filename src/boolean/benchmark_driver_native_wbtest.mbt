@@ -1,5 +1,22 @@
 ///|
-fn benchmark_evidence_parameter(
+fn measure_ciphertext_operation(
+  operation : () -> Ciphertext,
+  warmup : Int,
+  iterations : Int,
+) -> (Double, Ciphertext) {
+  let mut output = operation()
+  for _ in 0..<warmup {
+    output = operation()
+  }
+  let start = @bench.monotonic_clock_start()
+  for _ in 0..<iterations {
+    output = operation()
+  }
+  (@bench.monotonic_clock_end(start) / iterations.to_double(), output)
+}
+
+///|
+fn benchmark_performance_batch(
   parameter_name : String,
   parameters : BooleanParameters,
 ) -> Unit raise {
@@ -13,55 +30,49 @@ fn benchmark_evidence_parameter(
     @torus.Torus32::from_int(0x2000_0000),
     @torus.Torus32::from_int(-0x2000_0000),
   )
-  let iterations = 10
-  let pbs_start = @bench.monotonic_clock_start()
-  let mut pbs_output = left
-  for _ in 0..<iterations {
-    pbs_output = {
-      inner: server.inner
-      .programmable_bootstrap(pbs_output.inner, pbs_lut)
-      .unwrap(),
-      key_id: server.key_id,
-      parameters: server.parameters,
-    }
-  }
-  let pbs_us = @bench.monotonic_clock_end(pbs_start) / iterations.to_double()
-  let nand_start = @bench.monotonic_clock_start()
-  let mut nand_output = left
-  for _ in 0..<iterations {
-    nand_output = server.nand(left, right).unwrap()
-  }
-  let nand_us = @bench.monotonic_clock_end(nand_start) / iterations.to_double()
-  let and_start = @bench.monotonic_clock_start()
-  let mut and_output = left
-  for _ in 0..<iterations {
-    and_output = server.and_gate(left, right).unwrap()
-  }
-  let and_us = @bench.monotonic_clock_end(and_start) / iterations.to_double()
-  let or_start = @bench.monotonic_clock_start()
-  let mut or_output = left
-  for _ in 0..<iterations {
-    or_output = server.or_gate(left, right).unwrap()
-  }
-  let or_us = @bench.monotonic_clock_end(or_start) / iterations.to_double()
-  let xor_start = @bench.monotonic_clock_start()
-  let mut xor_output = left
-  for _ in 0..<iterations {
-    xor_output = server.xor_gate(left, right).unwrap()
-  }
-  let xor_us = @bench.monotonic_clock_end(xor_start) / iterations.to_double()
-  let xnor_start = @bench.monotonic_clock_start()
-  let mut xnor_output = left
-  for _ in 0..<iterations {
-    xnor_output = server.xnor_gate(left, right).unwrap()
-  }
-  let xnor_us = @bench.monotonic_clock_end(xnor_start) / iterations.to_double()
-  let mux_start = @bench.monotonic_clock_start()
-  let mut mux_output = left
-  for _ in 0..<iterations {
-    mux_output = server.mux(left, right, pbs_output).unwrap()
-  }
-  let mux_us = @bench.monotonic_clock_end(mux_start) / iterations.to_double()
+  let warmup = 100
+  let iterations = 100
+  let (pbs_us, pbs_output) = measure_ciphertext_operation(
+    fn() {
+      {
+        inner: server.inner.programmable_bootstrap(left.inner, pbs_lut).unwrap(),
+        key_id: server.key_id,
+        parameters: server.parameters,
+      }
+    },
+    warmup,
+    iterations,
+  )
+  let (nand_us, nand_output) = measure_ciphertext_operation(
+    fn() { server.nand(left, right).unwrap() },
+    warmup,
+    iterations,
+  )
+  let (and_us, and_output) = measure_ciphertext_operation(
+    fn() { server.and_gate(left, right).unwrap() },
+    warmup,
+    iterations,
+  )
+  let (or_us, or_output) = measure_ciphertext_operation(
+    fn() { server.or_gate(left, right).unwrap() },
+    warmup,
+    iterations,
+  )
+  let (xor_us, xor_output) = measure_ciphertext_operation(
+    fn() { server.xor_gate(left, right).unwrap() },
+    warmup,
+    iterations,
+  )
+  let (xnor_us, xnor_output) = measure_ciphertext_operation(
+    fn() { server.xnor_gate(left, right).unwrap() },
+    warmup,
+    iterations,
+  )
+  let (mux_us, mux_output) = measure_ciphertext_operation(
+    fn() { server.mux(left, right, pbs_output).unwrap() },
+    warmup,
+    iterations,
+  )
   let pbs_stages = server.inner.native_stage_metrics().unwrap()
   let ksk_apply_us = pbs_stages.key_switch_ns().to_double() / 1000.0
   let external_product_total_us = pbs_stages.external_product_ns().to_double() /
@@ -72,14 +83,14 @@ fn benchmark_evidence_parameter(
   let sample_extraction_us = pbs_stages.sample_extraction_ns().to_double() /
     1000.0
   let pbs_without_ks_us = blind_rotation_us + sample_extraction_us
-  assert_eq(client.decrypt(pbs_output), Ok(true))
+  // This LUT intentionally maps the encrypted true phase to the false output.
+  assert_eq(client.decrypt(pbs_output), Ok(false))
   assert_eq(client.decrypt(nand_output), Ok(false))
   assert_eq(client.decrypt(and_output), Ok(true))
   assert_eq(client.decrypt(or_output), Ok(true))
   assert_eq(client.decrypt(xor_output), Ok(false))
   assert_eq(client.decrypt(xnor_output), Ok(true))
   assert_eq(client.decrypt(mux_output), Ok(true))
-  let columns = parameters.record.glwe_dimension().value() + 1
   let n = parameters.record.polynomial_size().value()
   let polynomial_plan = @provider.fft_plan_new(n).unwrap()
   let polynomial_left = FixedArray::makei(n, fn(index) {
@@ -102,31 +113,79 @@ fn benchmark_evidence_parameter(
       polynomial_start,
     ) /
     iterations.to_double()
-  let bsk_words = parameters.record.lwe_dimension().value() *
-    parameters.record.pbs_decomposition().level() *
-    columns *
-    columns *
-    n
-  let ksk_words = parameters.record.glwe_dimension().value() *
-    n *
-    parameters.record.ks_decomposition().level() *
-    (parameters.record.lwe_dimension().value() + 1)
-  let server_key_bytes = 90 + (bsk_words + ksk_words) * 4
-  let native_resident_bytes = server.inner.native_resident_bytes()
-  let ciphertext_bytes = left.serialize().length()
+  let memory = server.inner.native_memory_metrics().unwrap()
   println(
-    "{\"schema_version\":2,\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"iterations\":\{iterations},\"keygen_us\":\{keygen_us},\"pbs_us\":\{pbs_us},\"nand_us\":\{nand_us},\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes},\"stage_metrics\":{\"key_generation_us\":\{keygen_us},\"pbs_with_ks_us\":\{pbs_us},\"pbs_without_ks_us\":\{pbs_without_ks_us},\"ksk_generation_us\":\{keygen_stages.ksk_generation_us},\"ksk_apply_us\":\{ksk_apply_us},\"bsk_coefficient_generation_us\":\{keygen_stages.bsk_coefficient_generation_us},\"bsk_fourier_conversion_us\":\{keygen_stages.bsk_fourier_conversion_us},\"polynomial_multiplication_us\":\{polynomial_multiplication_us},\"external_product_us\":\{external_product_us},\"blind_rotation_us\":\{blind_rotation_us},\"sample_extraction_us\":\{sample_extraction_us},\"nand_us\":\{nand_us},\"and_us\":\{and_us},\"or_us\":\{or_us},\"xor_us\":\{xor_us},\"xnor_us\":\{xnor_us},\"mux_us\":\{mux_us}},\"allocation_metrics\":{\"available\":true,\"steady_state_heap_allocations\":0,\"workspace_peak_bytes\":\{native_resident_bytes}},\"memory_metrics\":{\"peak_rss_kib\":null,\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes}}}",
+    "{\"schema_version\":3,\"kind\":\"performance\",\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"warmup\":\{warmup},\"iterations\":\{iterations},\"keygen_us\":\{keygen_us},\"pbs_us\":\{pbs_us},\"nand_us\":\{nand_us},\"stage_metrics\":{\"key_generation_us\":\{keygen_us},\"pbs_with_ks_us\":\{pbs_us},\"pbs_without_ks_us\":\{pbs_without_ks_us},\"ksk_generation_us\":\{keygen_stages.ksk_generation_us},\"ksk_apply_us\":\{ksk_apply_us},\"bsk_coefficient_generation_us\":\{keygen_stages.bsk_coefficient_generation_us},\"bsk_fourier_conversion_us\":\{keygen_stages.bsk_fourier_conversion_us},\"polynomial_multiplication_us\":\{polynomial_multiplication_us},\"external_product_us\":\{external_product_us},\"blind_rotation_us\":\{blind_rotation_us},\"sample_extraction_us\":\{sample_extraction_us},\"nand_us\":\{nand_us},\"and_us\":\{and_us},\"or_us\":\{or_us},\"xor_us\":\{xor_us},\"xnor_us\":\{xnor_us},\"mux_us\":\{mux_us}},\"tracked_memory\":{\"resident_bytes\":\{memory.tracked_resident_bytes()},\"coefficient_bsk_bytes\":\{memory.coefficient_bsk_bytes()},\"fourier_bsk_bytes\":\{memory.fourier_bsk_bytes()},\"ksk_bytes\":\{memory.ksk_bytes()},\"workspace_bytes\":\{memory.workspace_bytes()}}}",
+  )
+}
+
+///|
+fn benchmark_allocation_evidence(
+  parameter_name : String,
+  parameters : BooleanParameters,
+) -> Unit {
+  let (client, server) = generate_keys(parameters).unwrap()
+  let input = client.encrypt(true)
+  let lut = @pbs.boolean_lut(
+    @torus.Torus32::from_int(0x2000_0000),
+    @torus.Torus32::from_int(-0x2000_0000),
+  )
+  let iterations = 1000
+  let allocations = server.inner
+    .native_kernel_allocation_count(input.inner, lut, iterations)
+    .unwrap()
+  let memory = server.inner.native_memory_metrics().unwrap()
+  println(
+    "{\"schema_version\":3,\"kind\":\"allocation\",\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"iterations\":\{iterations},\"native_kernel_heap_allocations\":\{allocations},\"tracked_memory\":{\"resident_bytes\":\{memory.tracked_resident_bytes()},\"coefficient_bsk_bytes\":\{memory.coefficient_bsk_bytes()},\"fourier_bsk_bytes\":\{memory.fourier_bsk_bytes()},\"ksk_bytes\":\{memory.ksk_bytes()},\"workspace_bytes\":\{memory.workspace_bytes()}}}",
+  )
+}
+
+///|
+fn benchmark_serialized_size(
+  parameter_name : String,
+  parameters : BooleanParameters,
+) -> Unit {
+  let (client, server) = generate_keys(parameters).unwrap()
+  let ciphertext = client.encrypt(true)
+  let server_key_bytes = server.serialize().unwrap().length()
+  let ciphertext_bytes = ciphertext.serialize().length()
+  println(
+    "{\"schema_version\":3,\"kind\":\"serialized-size\",\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"server_key_bytes\":\{server_key_bytes},\"ciphertext_bytes\":\{ciphertext_bytes}}",
   )
 }
 
 ///|
 #skip("nightly production benchmark evidence")
-test "benchmark evidence boolean-110" {
-  benchmark_evidence_parameter("boolean-110", boolean_110_parameters())
+test "benchmark performance boolean-110" {
+  benchmark_performance_batch("boolean-110", boolean_110_parameters())
 }
 
 ///|
 #skip("nightly production benchmark evidence")
-test "benchmark evidence boolean-128" {
-  benchmark_evidence_parameter("boolean-128", boolean_128_parameters())
+test "benchmark performance boolean-128" {
+  benchmark_performance_batch("boolean-128", boolean_128_parameters())
+}
+
+///|
+#skip("nightly production benchmark evidence")
+test "benchmark allocation boolean-110" {
+  benchmark_allocation_evidence("boolean-110", boolean_110_parameters())
+}
+
+///|
+#skip("nightly production benchmark evidence")
+test "benchmark allocation boolean-128" {
+  benchmark_allocation_evidence("boolean-128", boolean_128_parameters())
+}
+
+///|
+#skip("nightly production benchmark evidence")
+test "benchmark serialized size boolean-110" {
+  benchmark_serialized_size("boolean-110", boolean_110_parameters())
+}
+
+///|
+#skip("nightly production benchmark evidence")
+test "benchmark serialized size boolean-128" {
+  benchmark_serialized_size("boolean-128", boolean_128_parameters())
 }

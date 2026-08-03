@@ -23,6 +23,7 @@ pub struct BooleanLut {
 } derive(Debug, Eq)
 
 ///|
+#warnings("-unused_constructor")
 pub suberror PbsError {
   InvalidLut
   InvalidPolynomialSize
@@ -195,7 +196,7 @@ pub fn bootstrap_key_from_flat_encrypted_parts(
     order,
     fourier,
     native_context: None,
-    workspace: @ref.Ref(
+    workspace: Ref(
       pbs_workspace_new(
         glwe_parameters,
         ggsw_parameters,
@@ -268,7 +269,7 @@ pub fn bootstrap_key_from_flat_native_parts(
     order,
     fourier: None,
     native_context: Some(native_context),
-    workspace: @ref.Ref(
+    workspace: Ref(
       pbs_workspace_new(
         glwe_parameters,
         ggsw_parameters,
@@ -312,7 +313,7 @@ pub fn bootstrap_key_from_native_context(
     order,
     fourier: None,
     native_context: Some(native_context),
-    workspace: @ref.Ref(
+    workspace: Ref(
       pbs_workspace_new(
         glwe_parameters,
         ggsw_parameters,
@@ -421,6 +422,59 @@ pub fn BootstrapKey::native_stage_metrics(
   match self.native_context {
     Some(context) => Some(context.stage_metrics())
     None => None
+  }
+}
+
+///|
+pub fn BootstrapKey::native_memory_metrics(
+  self : BootstrapKey,
+) -> @provider.PbsMemoryMetrics? {
+  match self.native_context {
+    Some(context) => Some(context.memory_metrics())
+    None => None
+  }
+}
+
+///|
+/// Measure Rust provider allocations while evaluating a standard PBS into a
+/// caller-owned output buffer. Input flattening and result construction happen
+/// outside the measurement window and are intentionally reported separately
+/// from the native kernel.
+pub fn BootstrapKey::native_kernel_allocation_count(
+  self : BootstrapKey,
+  input : @lwe.LweCiphertext,
+  lut : BooleanLut,
+  iterations : Int,
+) -> Result[Int64, PbsError] {
+  let context = match self.native_context {
+    Some(value) => value
+    None => return Err(BlindRotationFailure)
+  }
+  let expected_input = match self.order {
+    BootstrapKeyswitch => self.input_dimension
+    KeyswitchBootstrap => self.key_switch_input
+  }
+  let output_dimension = match self.order {
+    BootstrapKeyswitch => self.key_switch_output
+    KeyswitchBootstrap => self.key_switch_input
+  }
+  if iterations <= 0 || input.parameters() != expected_input {
+    return Err(InputDimensionMismatch)
+  }
+  let accumulator = match lut.accumulator(self.glwe_parameters) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let output = FixedArray::make(output_dimension.value() + 1, 0U)
+  match
+    context.measure_kernel_allocations(
+      input.flat_u32_copy(),
+      accumulator.flat_u32_copy(),
+      output,
+      iterations,
+    ) {
+    Ok(value) => Ok(value)
+    Err(_) => Err(BlindRotationFailure)
   }
 }
 

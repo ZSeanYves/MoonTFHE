@@ -478,7 +478,7 @@ test "random: fixed-point CDT known vector" {
   for _ in 0..<20 {
     actual.push(rng.sample_discrete_gaussian_fixed(distribution).unwrap())
   }
-  inspect(
+  debug_inspect(
     actual,
     content=(
       #|[-2, -1, 2, 2, 1, 4, -2, 0, -1, -2, -4, -3, -2, 1, -1, 0, 1, -2, 6, 2]
@@ -536,10 +536,27 @@ test "random: standard Boolean CDT fixed seed vector" {
     actual.push(rng.sample_discrete_gaussian_fixed(low).unwrap())
     actual.push(rng.sample_discrete_gaussian_fixed(high).unwrap())
   }
-  inspect(
+  debug_inspect(
     actual,
     content=(
-      #|[13990, 32571, 27241, -18993, 16097, -24850, -12036, 38092, -19843, -226, 6573, 5260, 23861, -10408, 15017, -16890]
+      #|[
+      #|  13990,
+      #|  32571,
+      #|  27241,
+      #|  -18993,
+      #|  16097,
+      #|  -24850,
+      #|  -12036,
+      #|  38092,
+      #|  -19843,
+      #|  -226,
+      #|  6573,
+      #|  5260,
+      #|  23861,
+      #|  -10408,
+      #|  15017,
+      #|  -16890,
+      #|]
     ),
   )
 }

@@ -105,6 +105,13 @@ extern size_t native_pbs_context_ksk_count(
     const moontfhe_native_pbs_context *context);
 extern size_t native_pbs_context_resident_bytes(
     const moontfhe_native_pbs_context *context);
+extern size_t native_pbs_context_memory_metric(
+    const moontfhe_native_pbs_context *context, uint32_t metric);
+extern uint64_t native_pbs_context_measure_allocations(
+    moontfhe_native_pbs_context *context, const uint32_t *input,
+    size_t input_count, const uint32_t *accumulator,
+    size_t accumulator_count, uint32_t *output, size_t output_count,
+    size_t iterations);
 extern uint64_t native_pbs_context_stage_metric(
     const moontfhe_native_pbs_context *context, uint32_t metric);
 extern int32_t native_pbs_evaluate_lut(
@@ -627,6 +634,40 @@ moonbit_tfhe_pbs_context_resident_bytes(moonbit_tfhe_pbs_context *self) {
   }
   size_t bytes = native_pbs_context_resident_bytes(self->context);
   return bytes > INT64_MAX ? 0 : (int64_t)bytes;
+}
+
+MOONBIT_FFI_EXPORT int64_t moonbit_tfhe_pbs_context_memory_metric(
+    moonbit_tfhe_pbs_context *self, int32_t metric) {
+  if (self == NULL || self->context == NULL || metric < 0 || metric > 3) {
+    return 0;
+  }
+  size_t bytes = native_pbs_context_memory_metric(
+      self->context, (uint32_t)metric);
+  return bytes > INT64_MAX ? 0 : (int64_t)bytes;
+}
+
+MOONBIT_FFI_EXPORT int64_t moonbit_tfhe_pbs_context_measure_allocations(
+    moonbit_tfhe_pbs_context *self, int32_t *input,
+    int32_t *accumulator, int32_t *output, int32_t iterations) {
+  if (self == NULL || self->context == NULL || input == NULL ||
+      accumulator == NULL || output == NULL || iterations <= 0) {
+    return -1;
+  }
+  int32_t input_count = Moonbit_array_length(input);
+  int32_t accumulator_count = Moonbit_array_length(accumulator);
+  int32_t output_count = Moonbit_array_length(output);
+  if (input_count < 0 || accumulator_count <= 0 || output_count < 0 ||
+      (uint32_t)input_count != self->input_size ||
+      (uint32_t)output_count != self->output_size) {
+    return -1;
+  }
+  uint64_t allocations = native_pbs_context_measure_allocations(
+      self->context, (const uint32_t *)input, (size_t)input_count,
+      (const uint32_t *)accumulator, (size_t)accumulator_count,
+      (uint32_t *)output, (size_t)output_count, (size_t)iterations);
+  return allocations == UINT64_MAX || allocations > INT64_MAX
+             ? -1
+             : (int64_t)allocations;
 }
 
 MOONBIT_FFI_EXPORT int64_t moonbit_tfhe_pbs_context_stage_metric(

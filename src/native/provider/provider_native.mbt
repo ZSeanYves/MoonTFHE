@@ -413,6 +413,44 @@ pub fn PbsContext::resident_bytes(self : PbsContext) -> Int64 {
 }
 
 ///|
+pub fn PbsContext::memory_metrics(self : PbsContext) -> PbsMemoryMetrics {
+  {
+    tracked_resident_bytes: pbs_context_memory_metric_ffi(self.handle, 0),
+    coefficient_bsk_bytes: self.coefficient_count.to_int64() * 4L,
+    fourier_bsk_bytes: pbs_context_memory_metric_ffi(self.handle, 1),
+    ksk_bytes: pbs_context_memory_metric_ffi(self.handle, 2),
+    workspace_bytes: pbs_context_memory_metric_ffi(self.handle, 3),
+  }
+}
+
+///|
+pub fn PbsContext::measure_kernel_allocations(
+  self : PbsContext,
+  input : FixedArray[UInt],
+  accumulator : FixedArray[UInt],
+  output : FixedArray[UInt],
+  iterations : Int,
+) -> Result[Int64, NativeProviderError] {
+  if iterations <= 0 ||
+    input.length() != self.input_size ||
+    output.length() != self.output_size {
+    return Err(InvalidLength)
+  }
+  let count = pbs_context_measure_allocations_ffi(
+    self.handle,
+    input,
+    accumulator,
+    output,
+    iterations,
+  )
+  if count < 0L {
+    Err(UnsupportedBackend)
+  } else {
+    Ok(count)
+  }
+}
+
+///|
 pub fn PbsContext::stage_metrics(self : PbsContext) -> PbsStageMetrics {
   {
     key_switch_ns: pbs_context_stage_metric_ffi(self.handle, 0),

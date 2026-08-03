@@ -25,3 +25,14 @@ test "portable 110: host entropy reference keygen and NAND" {
   assert_eq(client.decrypt(result), Ok(true))
   @random.clear_entropy_provider()
 }
+
+///|
+#skip("scheduled portable standard reference smoke")
+test "portable 128: host entropy reference keygen and NAND" {
+  install_portable_smoke_entropy()
+  let parameters = boolean_128_parameters()
+  let (client, server) = generate_keys(parameters).unwrap()
+  let result = server.nand(client.encrypt(true), client.encrypt(false)).unwrap()
+  assert_eq(client.decrypt(result), Ok(true))
+  @random.clear_entropy_provider()
+}

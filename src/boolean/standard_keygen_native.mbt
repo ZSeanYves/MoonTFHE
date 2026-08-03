@@ -1,4 +1,5 @@
 ///|
+#warnings("-unused_field")
 priv struct StandardKeygenStageMetrics {
   ksk_generation_us : Double
   bsk_coefficient_generation_us : Double
@@ -14,6 +15,7 @@ let last_standard_keygen_stage_metrics : Ref[StandardKeygenStageMetrics] = @ref.
 )
 
 ///|
+#warnings("-unused_value")
 fn standard_keygen_stage_metrics() -> StandardKeygenStageMetrics {
   last_standard_keygen_stage_metrics.val
 }

@@ -58,7 +58,7 @@ test "native provider: Fourier BSK indexed external product is reusable" {
   let n = 4
   let plan = fft_plan_new_with_capacity(n, 2, 2).unwrap()
   let coefficients = FixedArray::makei(2 * 2 * 2 * n, fn(index) {
-    (index.to_uint() * 0x9e3779b9U) ^ 0xf0000001U
+    (index.reinterpret_as_uint() * 0x9e3779b9U) ^ 0xf0000001U
   })
   let key = fourier_bsk_new(plan, coefficients, 2, 2, 2).unwrap()
   let digits : FixedArray[UInt] = [1, 0xffffffff, 2, 0, 3, 0xfffffffe, 1, 0]

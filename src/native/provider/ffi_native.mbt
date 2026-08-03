@@ -141,6 +141,23 @@ extern "c" fn pbs_context_resident_bytes_ffi(
 
 ///|
 #borrow(context)
+extern "c" fn pbs_context_memory_metric_ffi(
+  context : NativePbsContext,
+  metric : Int,
+) -> Int64 = "moonbit_tfhe_pbs_context_memory_metric"
+
+///|
+#borrow(context, input, accumulator, output)
+extern "c" fn pbs_context_measure_allocations_ffi(
+  context : NativePbsContext,
+  input : FixedArray[UInt],
+  accumulator : FixedArray[UInt],
+  output : FixedArray[UInt],
+  iterations : Int,
+) -> Int64 = "moonbit_tfhe_pbs_context_measure_allocations"
+
+///|
+#borrow(context)
 extern "c" fn pbs_context_stage_metric_ffi(
   context : NativePbsContext,
   metric : Int,

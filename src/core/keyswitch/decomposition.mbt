@@ -215,6 +215,7 @@ pub fn keyswitch_key_from_owned_flat_u32(
 }
 
 ///|
+#warnings("-unused_constructor")
 pub suberror KeySwitchError {
   InvalidInputDimension
   InvalidOutputDimension

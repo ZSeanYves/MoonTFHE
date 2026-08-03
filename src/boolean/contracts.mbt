@@ -1,5 +1,6 @@
 ///|
 /// Backend selected by the Boolean facade.
+#warnings("-unused_constructor")
 pub enum Backend {
   Native
   JavaScript
@@ -58,6 +59,7 @@ pub fn clear_aead_encrypt_provider() -> Unit {
 }
 
 ///|
+#warnings("-unused_constructor")
 pub suberror BackendError {
   UnsupportedBackend(backend~ : Backend)
   EntropyUnavailable

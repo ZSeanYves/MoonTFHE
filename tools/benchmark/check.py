@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate benchmark evidence without accepting placeholder measurements."""
+"""Validate measured Boolean benchmark evidence and release thresholds."""
 
 from __future__ import annotations
 
@@ -19,140 +19,149 @@ STAGE_NAMES = {
 }
 
 
-def positive_number(value: object, field: str) -> float:
+def positive(value: object, field: str) -> float:
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ValueError(f"{field} is not numeric")
     result = float(value)
-    if not math.isfinite(result) or result <= 0.0:
+    if not math.isfinite(result) or result <= 0:
         raise ValueError(f"{field} must be finite and positive")
     return result
 
 
-def validate(path: Path, require_rc_performance: bool) -> None:
+def validate_summary(summary: object, field: str, expected_samples: int) -> None:
+    if not isinstance(summary, dict) or summary.get("samples") != expected_samples:
+        raise ValueError(f"{field} does not contain {expected_samples} samples")
+    median = positive(summary.get("median"), f"{field}.median")
+    p95 = positive(summary.get("p95"), f"{field}.p95")
+    mad = summary.get("mad")
+    if not isinstance(mad, (int, float)) or isinstance(mad, bool) or not math.isfinite(mad) or mad < 0:
+        raise ValueError(f"{field}.mad must be finite and non-negative")
+    if p95 < median:
+        raise ValueError(f"{field}.p95 is below its median")
+
+
+def validate(path: Path, require_rc: bool, baseline: Path | None, max_regression: float) -> None:
     data = json.loads(path.read_text())
-    schema_version = data.get("schema_version")
-    if schema_version not in (1, 2) or data.get("status") != "measured":
-        raise ValueError("benchmark status must be measured schema v1 or v2")
+    if data.get("schema_version") != 3 or data.get("status") != "measured":
+        raise ValueError("benchmark status must be measured schema v3")
     if data.get("tfhe_rs_commit") != TFHE_RS_COMMIT:
         raise ValueError("tfhe-rs commit is not pinned to the approved revision")
     method = data.get("method", {})
-    if method.get("same_runner") is not True or method.get("interleaved_by_parameter") is not True:
-        raise ValueError("benchmark is not a same-runner interleaved comparison")
+    expected_method = {
+        "same_runner": True,
+        "interleaved_by_parameter": True,
+        "gate_batches": 7,
+        "keygen_batches": 10,
+        "warmup_per_batch": 100,
+        "iterations_per_batch": 100,
+    }
+    if any(method.get(key) != value for key, value in expected_method.items()):
+        raise ValueError("benchmark does not use the required interleaved 7/10 batch protocol")
     measurements = data.get("measurements")
     if not isinstance(measurements, list):
         raise ValueError("measurements must be an array")
-    seen = set()
-    maximum_nand_ratio = 0.0
-    maximum_pbs_ratio = 0.0
-    maximum_comparable_stage_ratio = 0.0
+    seen: set[str] = set()
+    max_nand = max_pbs = max_keygen = max_other = 0.0
     for item in measurements:
         parameter = item.get("parameter")
         if parameter not in EXPECTED_PARAMETERS or parameter in seen:
             raise ValueError(f"unexpected or duplicate parameter {parameter!r}")
         seen.add(parameter)
-        moon = item.get("moontfhe", {})
-        rust = item.get("tfhe_rs", {})
+        moon, rust = item.get("moontfhe", {}), item.get("tfhe_rs", {})
         for implementation, record in (("moontfhe", moon), ("tfhe_rs", rust)):
-            for field in (
-                "keygen_us",
-                "nand_us",
-                "server_key_bytes",
-                "ciphertext_bytes",
-                "peak_rss_kib",
-            ):
-                positive_number(record.get(field), f"{parameter}.{implementation}.{field}")
-            if implementation == "moontfhe":
-                positive_number(record.get("pbs_us"), f"{parameter}.moontfhe.pbs_us")
-            if schema_version >= 2:
-                stages = record.get("stage_metrics")
-                if not isinstance(stages, dict) or set(stages) != STAGE_NAMES:
-                    raise ValueError(f"{parameter}.{implementation}.stage_metrics has the wrong shape")
-                for stage, value in stages.items():
-                    if implementation == "moontfhe" or value is not None:
-                        positive_number(value, f"{parameter}.{implementation}.{stage}")
-                allocations = record.get("allocation_metrics")
-                if not isinstance(allocations, dict) or not isinstance(allocations.get("available"), bool):
-                    raise ValueError(f"{parameter}.{implementation}.allocation_metrics is missing")
-                if require_rc_performance and implementation == "moontfhe":
-                    if allocations["available"] is not True:
-                        raise ValueError(f"{parameter} has no MoonTFHE allocation evidence")
-                    if allocations.get("steady_state_heap_allocations") != 0:
-                        raise ValueError(f"{parameter} steady-state PBS allocates on the heap")
-                    positive_number(
-                        allocations.get("workspace_peak_bytes"),
-                        f"{parameter}.moontfhe.workspace_peak_bytes",
-                    )
-        if require_rc_performance and moon["peak_rss_kib"] > RSS_LIMIT_KIB[parameter]:
-            raise ValueError(f"{parameter} exceeds the production peak RSS limit")
-        reported = positive_number(item.get("ratios", {}).get("nand"), "ratios.nand")
-        computed = moon["nand_us"] / rust["nand_us"]
-        if not math.isclose(reported, computed, rel_tol=1e-9, abs_tol=1e-12):
-            raise ValueError(f"{parameter} NAND ratio is inconsistent")
-        maximum_nand_ratio = max(maximum_nand_ratio, computed)
-        reported_pbs = positive_number(item.get("ratios", {}).get("pbs"), "ratios.pbs")
-        computed_pbs = moon["pbs_us"] / rust["nand_us"]
-        if not math.isclose(reported_pbs, computed_pbs, rel_tol=1e-9, abs_tol=1e-12):
-            raise ValueError(f"{parameter} PBS ratio is inconsistent")
-        maximum_pbs_ratio = max(maximum_pbs_ratio, computed_pbs)
-        if schema_version >= 2:
-            reported_stage_ratios = item.get("stage_ratios")
-            if not isinstance(reported_stage_ratios, dict):
-                raise ValueError(f"{parameter}.stage_ratios is missing")
-            moon_stages = moon["stage_metrics"]
-            rust_stages = rust["stage_metrics"]
-            for stage in STAGE_NAMES:
-                rust_value = rust_stages[stage]
-                if rust_value is None:
-                    if stage in reported_stage_ratios:
-                        raise ValueError(f"{parameter}.{stage} has a ratio without a baseline")
-                    continue
-                computed_stage = moon_stages[stage] / rust_value
-                reported_stage = positive_number(
-                    reported_stage_ratios.get(stage),
-                    f"{parameter}.stage_ratios.{stage}",
-                )
-                if not math.isclose(reported_stage, computed_stage, rel_tol=1e-9, abs_tol=1e-12):
-                    raise ValueError(f"{parameter}.{stage} ratio is inconsistent")
-                maximum_comparable_stage_ratio = max(
-                    maximum_comparable_stage_ratio, computed_stage
-                )
+            if record.get("schema_version") != 3 or record.get("kind") != "performance":
+                raise ValueError(f"{parameter}.{implementation} is not schema-v3 performance evidence")
+            if record.get("warmup") != 100 or record.get("iterations") != 100:
+                raise ValueError(f"{parameter}.{implementation} timing protocol is wrong")
+            for field in ("keygen_us", "pbs_us", "nand_us", "server_key_bytes", "ciphertext_bytes", "peak_rss_kib"):
+                positive(record.get(field), f"{parameter}.{implementation}.{field}")
+            stats = record.get("statistics", {})
+            validate_summary(stats.get("keygen_us"), f"{parameter}.{implementation}.keygen", 10)
+            validate_summary(stats.get("pbs_us"), f"{parameter}.{implementation}.pbs", 7)
+            validate_summary(stats.get("nand_us"), f"{parameter}.{implementation}.nand", 7)
+            stages = record.get("stage_metrics")
+            if not isinstance(stages, dict) or set(stages) != STAGE_NAMES:
+                raise ValueError(f"{parameter}.{implementation}.stage_metrics has the wrong shape")
+            for stage, value in stages.items():
+                if implementation == "moontfhe" or value is not None:
+                    positive(value, f"{parameter}.{implementation}.{stage}")
+        allocations = moon.get("allocation_metrics", {})
+        if allocations.get("available") is not True or allocations.get("iterations") != 1000:
+            raise ValueError(f"{parameter} lacks 1,000-call allocator evidence")
+        count = allocations.get("steady_state_heap_allocations")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise ValueError(f"{parameter} allocator count is not a measured integer")
+        positive(allocations.get("workspace_peak_bytes"), f"{parameter}.workspace_peak_bytes")
+        memory = moon.get("memory_metrics", {})
+        for field in ("resident_bytes", "coefficient_bsk_bytes", "fourier_bsk_bytes", "ksk_bytes", "workspace_bytes"):
+            positive(memory.get(field), f"{parameter}.memory_metrics.{field}")
+        ratios = item.get("ratios", {})
+        computed = {
+            "keygen": moon["keygen_us"] / rust["keygen_us"],
+            "pbs": moon["pbs_us"] / rust["nand_us"],
+            "nand": moon["nand_us"] / rust["nand_us"],
+            "server_key_size": moon["server_key_bytes"] / rust["server_key_bytes"],
+            "ciphertext_size": moon["ciphertext_bytes"] / rust["ciphertext_bytes"],
+        }
+        for name, value in computed.items():
+            reported = positive(ratios.get(name), f"{parameter}.ratios.{name}")
+            if not math.isclose(reported, value, rel_tol=1e-9, abs_tol=1e-12):
+                raise ValueError(f"{parameter}.{name} ratio is inconsistent")
+        stage_ratios = item.get("stage_ratios", {})
+        for stage, rust_value in rust["stage_metrics"].items():
+            if rust_value is None:
+                if stage in stage_ratios:
+                    raise ValueError(f"{parameter}.{stage} has no comparable tfhe-rs baseline")
+                continue
+            computed_stage = moon["stage_metrics"][stage] / rust_value
+            if not math.isclose(positive(stage_ratios.get(stage), f"{parameter}.{stage}"), computed_stage, rel_tol=1e-9, abs_tol=1e-12):
+                raise ValueError(f"{parameter}.{stage} ratio is inconsistent")
+            if stage not in {"key_generation_us", "pbs_with_ks_us", "nand_us", "mux_us"}:
+                max_other = max(max_other, computed_stage)
+        max_keygen = max(max_keygen, computed["keygen"])
+        max_pbs = max(max_pbs, computed["pbs"])
+        max_nand = max(max_nand, computed["nand"])
+        if require_rc:
+            if count != 0:
+                raise ValueError(f"{parameter} steady-state PBS made {count} heap allocations")
+            if moon["peak_rss_kib"] > RSS_LIMIT_KIB[parameter]:
+                raise ValueError(f"{parameter} exceeds the production peak RSS limit")
+            mux_ratio = moon["stage_metrics"]["mux_us"] / rust["stage_metrics"]["mux_us"]
+            if mux_ratio > 3:
+                raise ValueError(f"{parameter} MUX ratio {mux_ratio:.3f} exceeds 3x")
     if seen != EXPECTED_PARAMETERS:
         raise ValueError(f"missing parameter measurements: {EXPECTED_PARAMETERS - seen}")
     performance = data.get("performance", {})
-    if not math.isclose(
-        positive_number(performance.get("maximum_nand_ratio"), "maximum_nand_ratio"),
-        maximum_nand_ratio,
-        rel_tol=1e-9,
-        abs_tol=1e-12,
-    ):
-        raise ValueError("maximum NAND ratio is inconsistent")
-    if require_rc_performance and maximum_nand_ratio > 5.0:
-        raise ValueError(f"NAND ratio {maximum_nand_ratio:.3f} exceeds the RC 5x gate")
-    reported_pbs = positive_number(performance.get("maximum_pbs_ratio"), "maximum_pbs_ratio")
-    if not math.isclose(reported_pbs, maximum_pbs_ratio, rel_tol=1e-9, abs_tol=1e-12):
-        raise ValueError("maximum PBS ratio is inconsistent")
-    maximum_execution_ratio = max(maximum_nand_ratio, maximum_pbs_ratio)
-    reported_execution = positive_number(
-        performance.get("maximum_execution_ratio"), "maximum_execution_ratio"
-    )
-    if not math.isclose(
-        reported_execution, maximum_execution_ratio, rel_tol=1e-9, abs_tol=1e-12
-    ):
-        raise ValueError("maximum execution ratio is inconsistent")
-    if require_rc_performance and maximum_pbs_ratio > 5.0:
-        raise ValueError(f"PBS ratio {maximum_pbs_ratio:.3f} exceeds the RC 5x gate")
-    if require_rc_performance and maximum_comparable_stage_ratio > 10.0:
-        raise ValueError(
-            f"comparable stage ratio {maximum_comparable_stage_ratio:.3f} exceeds 10x"
-        )
+    for name, value in (("maximum_nand_ratio", max_nand), ("maximum_pbs_ratio", max_pbs), ("maximum_execution_ratio", max(max_nand, max_pbs))):
+        if not math.isclose(positive(performance.get(name), name), value, rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError(f"{name} is inconsistent")
+    if require_rc:
+        if max(max_nand, max_pbs, max_keygen) > 2:
+            raise ValueError(f"PBS/NAND/keygen maximum ratio {max(max_nand, max_pbs, max_keygen):.3f} exceeds 2x")
+        if max_other > 3:
+            raise ValueError(f"comparable core-stage ratio {max_other:.3f} exceeds 3x")
+    if baseline is not None:
+        previous = json.loads(baseline.read_text())
+        previous_by_parameter = {item["parameter"]: item for item in previous.get("measurements", [])}
+        for item in measurements:
+            old = previous_by_parameter.get(item["parameter"])
+            if old is None:
+                continue
+            for metric in ("keygen", "pbs", "nand"):
+                old_ratio = positive(old.get("ratios", {}).get(metric), f"baseline.{metric}")
+                new_ratio = item["ratios"][metric]
+                if new_ratio > old_ratio * (1 + max_regression):
+                    raise ValueError(f"{item['parameter']}.{metric} regressed more than {max_regression:.0%}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("evidence", type=Path)
     parser.add_argument("--require-rc-performance", action="store_true")
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--max-regression", type=float, default=0.10)
     args = parser.parse_args()
-    validate(args.evidence, args.require_rc_performance)
+    validate(args.evidence, args.require_rc_performance, args.baseline, args.max_regression)
     print(f"benchmark evidence verified: {args.evidence}")
 
 

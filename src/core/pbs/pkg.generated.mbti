@@ -87,6 +87,8 @@ pub fn BootstrapKey::key_switch_decomposition(Self) -> @params.DecompositionPara
 pub fn BootstrapKey::key_switch_flat_copy(Self) -> Result[FixedArray[UInt], PbsError]
 pub fn BootstrapKey::key_switch_input_dimension(Self) -> @params.LweDimension
 pub fn BootstrapKey::key_switch_output_dimension(Self) -> @params.LweDimension
+pub fn BootstrapKey::native_kernel_allocation_count(Self, @lwe.LweCiphertext, BooleanLut, Int) -> Result[Int64, PbsError]
+pub fn BootstrapKey::native_memory_metrics(Self) -> @provider.PbsMemoryMetrics?
 pub fn BootstrapKey::native_resident_bytes(Self) -> Int64
 pub fn BootstrapKey::native_stage_metrics(Self) -> @provider.PbsStageMetrics?
 pub fn BootstrapKey::order(Self) -> PbsOrder

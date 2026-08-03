@@ -70,9 +70,24 @@ pub fn PbsContext::evaluate_lut_into(Self, FixedArray[UInt], FixedArray[UInt], F
 pub fn PbsContext::export_coefficients(Self) -> Result[FixedArray[UInt], NativeProviderError]
 pub fn PbsContext::export_ksk(Self) -> Result[FixedArray[UInt], NativeProviderError]
 pub fn PbsContext::is_ready(Self) -> Bool
+pub fn PbsContext::measure_kernel_allocations(Self, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt], Int) -> Result[Int64, NativeProviderError]
+pub fn PbsContext::memory_metrics(Self) -> PbsMemoryMetrics
 pub fn PbsContext::resident_bytes(Self) -> Int64
 pub fn PbsContext::set_control(Self, Int, FixedArray[UInt]) -> Result[Unit, NativeProviderError]
 pub fn PbsContext::stage_metrics(Self) -> PbsStageMetrics
+
+pub struct PbsMemoryMetrics {
+  tracked_resident_bytes : Int64
+  coefficient_bsk_bytes : Int64
+  fourier_bsk_bytes : Int64
+  ksk_bytes : Int64
+  workspace_bytes : Int64
+}
+pub fn PbsMemoryMetrics::coefficient_bsk_bytes(Self) -> Int64
+pub fn PbsMemoryMetrics::fourier_bsk_bytes(Self) -> Int64
+pub fn PbsMemoryMetrics::ksk_bytes(Self) -> Int64
+pub fn PbsMemoryMetrics::tracked_resident_bytes(Self) -> Int64
+pub fn PbsMemoryMetrics::workspace_bytes(Self) -> Int64
 
 pub struct PbsStageMetrics {
   key_switch_ns : Int64

@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  MOONBIT_VERSION: 0.1.20260713
+
 jobs:
   benchmark:
     runs-on: ubuntu-24.04
@@ -18,7 +21,7 @@ jobs:
 
       - name: Install MoonBit
         run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "$MOONBIT_VERSION"
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
 
       - name: Install Rust toolchains
@@ -34,6 +37,8 @@ jobs:
           key: tfhe-rs-bench-${{ runner.os }}-640911eba7a394f0-${{ hashFiles('tools/benchmark/tfhe-rs/Cargo.toml', 'tools/benchmark/tfhe-rs/Cargo.lock') }}
 
       - name: Build native providers
+        env:
+          MOONTFHE_FFT_ALLOCATION_COUNTER: "1"
         run: sh tools/native-providers/build.sh
 
       - name: Build fixed tfhe-rs benchmark harness
@@ -49,17 +54,50 @@ jobs:
         run: |
           mkdir -p benchmark-artifact/raw
           lscpu > benchmark-artifact/runner-lscpu.txt
+          uname -a > benchmark-artifact/runner-kernel.txt
+          printf '%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}" > benchmark-artifact/runner-image.txt
+          if test -r /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor; then
+            cp /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor benchmark-artifact/runner-frequency-policy.txt
+          else
+            printf '%s\n' unavailable > benchmark-artifact/runner-frequency-policy.txt
+          fi
+          for batch in $(seq 1 10); do
+            for parameter in boolean-110 boolean-128; do
+              if test $((batch % 2)) -eq 1; then
+                implementations="moontfhe tfhe-rs"
+              else
+                implementations="tfhe-rs moontfhe"
+              fi
+              for implementation in $implementations; do
+                if test "$implementation" = moontfhe; then
+                  /usr/bin/time -v \
+                    -o "benchmark-artifact/raw/moontfhe-${parameter}-${batch}.time" \
+                    moon test --target native --release --no-parallelize --include-skipped \
+                    --filter "benchmark performance ${parameter}" \
+                    src/boolean/benchmark_driver_native_wbtest.mbt \
+                    > "benchmark-artifact/raw/moontfhe-${parameter}-${batch}.jsonl"
+                else
+                  /usr/bin/time -v \
+                    -o "benchmark-artifact/raw/tfhe-rs-${parameter}-${batch}.time" \
+                    tools/benchmark/tfhe-rs/target/release/moontfhe-tfhe-rs-benchmark \
+                    "${parameter}" performance \
+                    > "benchmark-artifact/raw/tfhe-rs-${parameter}-${batch}.jsonl"
+                fi
+              done
+            done
+          done
           for parameter in boolean-110 boolean-128; do
-            /usr/bin/time -v \
-              -o "benchmark-artifact/raw/moontfhe-${parameter}.time" \
-              moon test --target native --release --no-parallelize --include-skipped \
-              --filter "benchmark evidence ${parameter}" \
+            moon test --target native --release --no-parallelize --include-skipped \
+              --filter "benchmark allocation ${parameter}" \
               src/boolean/benchmark_driver_native_wbtest.mbt \
-              > "benchmark-artifact/raw/moontfhe-${parameter}.jsonl"
-            /usr/bin/time -v \
-              -o "benchmark-artifact/raw/tfhe-rs-${parameter}.time" \
-              tools/benchmark/tfhe-rs/target/release/moontfhe-tfhe-rs-benchmark "${parameter}" \
-              > "benchmark-artifact/raw/tfhe-rs-${parameter}.jsonl"
+              > "benchmark-artifact/raw/moontfhe-${parameter}-allocation.jsonl"
+            moon test --target native --release --no-parallelize --include-skipped \
+              --filter "benchmark serialized size ${parameter}" \
+              src/boolean/benchmark_driver_native_wbtest.mbt \
+              > "benchmark-artifact/raw/moontfhe-${parameter}-serialized-size.jsonl"
+            tools/benchmark/tfhe-rs/target/release/moontfhe-tfhe-rs-benchmark \
+              "${parameter}" serialized-size \
+              > "benchmark-artifact/raw/tfhe-rs-${parameter}-serialized-size.jsonl"
           done
 
       - name: Collect and validate evidence
@@ -69,7 +107,11 @@ jobs:
             --output benchmark-artifact/benchmarks-tfhe-rs.json \
             --repository-commit "${GITHUB_SHA}" \
             --runner "github-actions-ubuntu-24.04"
-          python3 tools/benchmark/check.py benchmark-artifact/benchmarks-tfhe-rs.json
+          python3 tools/benchmark/check.py \
+            benchmark-artifact/benchmarks-tfhe-rs.json \
+            --require-rc-performance \
+            --baseline docs/benchmarks-tfhe-rs.json \
+            --max-regression 0.10
           cp tools/benchmark/tfhe-rs/Cargo.lock benchmark-artifact/tfhe-rs-Cargo.lock
 
       - name: Upload benchmark evidence
@@ -89,7 +131,7 @@ jobs:
 
       - name: Install MoonBit
         run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "$MOONBIT_VERSION"
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
 
       - name: Install Rust 1.82.0
@@ -106,7 +148,6 @@ jobs:
           --include-skipped src/boolean/standard_stress_native_test.mbt
 
   portable-standard-smoke:
-    if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
@@ -115,10 +156,28 @@ jobs:
 
       - name: Install MoonBit
         run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- "$MOONBIT_VERSION"
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
 
       - name: Run host-enabled JS reference smoke
         run: >-
           moon test --target js --release --no-parallelize
           --include-skipped src/boolean/portable_standard_smoke_test.mbt
+
+  rc-gate:
+    needs: [benchmark, standard-circuits, portable-standard-smoke]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download benchmark evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: boolean-rc-benchmark-${{ github.sha }}
+          path: benchmark-artifact
+
+      - name: Enforce complete RC gate on fresh evidence
+        run: |
+          cp benchmark-artifact/benchmarks-tfhe-rs.json docs/benchmarks-tfhe-rs.json
+          sh tools/rc-gate/check.sh

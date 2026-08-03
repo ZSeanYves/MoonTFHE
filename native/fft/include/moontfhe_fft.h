@@ -118,6 +118,13 @@ size_t native_pbs_context_ksk_count(
     const moontfhe_native_pbs_context *context);
 size_t native_pbs_context_resident_bytes(
     const moontfhe_native_pbs_context *context);
+size_t native_pbs_context_memory_metric(
+    const moontfhe_native_pbs_context *context, uint32_t metric);
+uint64_t native_pbs_context_measure_allocations(
+    moontfhe_native_pbs_context *context, const uint32_t *input,
+    size_t input_count, const uint32_t *accumulator,
+    size_t accumulator_count, uint32_t *output, size_t output_count,
+    size_t iterations);
 uint64_t native_pbs_context_stage_metric(
     const moontfhe_native_pbs_context *context, uint32_t metric);
 int32_t native_pbs_evaluate_lut(moontfhe_native_pbs_context *context,

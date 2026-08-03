@@ -25,14 +25,11 @@ pub fn negacyclic_mul_native_u32(
   }
   let plan = match @provider.fft_plan_new(left.length()) {
     Ok(value) => value
-    Err(@provider.UnsupportedBackend) => return Err(UnsupportedBackend)
-    Err(@provider.InvalidLength) => return Err(LengthMismatch)
-    Err(@provider.InvalidPolynomialSize) => return Err(NonPowerOfTwo)
-    Err(@provider.AuthenticationFailed) => return Err(ProviderFailure)
-    Err(@provider.ProviderFailure(status~)) => {
-      let _ = status
-      return Err(ProviderFailure)
-    }
+    Err(UnsupportedBackend) => return Err(UnsupportedBackend)
+    Err(InvalidLength) => return Err(LengthMismatch)
+    Err(InvalidPolynomialSize) => return Err(NonPowerOfTwo)
+    Err(AuthenticationFailed) => return Err(ProviderFailure)
+    Err(ProviderFailure(_)) => return Err(ProviderFailure)
   }
   let left_flat = FixedArray::makei(left.length(), fn(index) {
     left[index].to_uint()
@@ -43,14 +40,11 @@ pub fn negacyclic_mul_native_u32(
   let output = FixedArray::make(left.length(), 0U)
   match plan.negacyclic_mul_u32(left_flat, right_flat, output) {
     Ok(_) => ()
-    Err(@provider.UnsupportedBackend) => return Err(UnsupportedBackend)
-    Err(@provider.InvalidLength) => return Err(LengthMismatch)
-    Err(@provider.InvalidPolynomialSize) => return Err(NonPowerOfTwo)
-    Err(@provider.AuthenticationFailed) => return Err(ProviderFailure)
-    Err(@provider.ProviderFailure(status~)) => {
-      let _ = status
-      return Err(ProviderFailure)
-    }
+    Err(UnsupportedBackend) => return Err(UnsupportedBackend)
+    Err(InvalidLength) => return Err(LengthMismatch)
+    Err(InvalidPolynomialSize) => return Err(NonPowerOfTwo)
+    Err(AuthenticationFailed) => return Err(ProviderFailure)
+    Err(ProviderFailure(_)) => return Err(ProviderFailure)
   }
   Ok(
     Array::makei(output.length(), fn(index) {
