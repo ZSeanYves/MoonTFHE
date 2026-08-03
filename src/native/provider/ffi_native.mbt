@@ -140,6 +140,13 @@ extern "c" fn pbs_context_resident_bytes_ffi(
 ) -> Int64 = "moonbit_tfhe_pbs_context_resident_bytes"
 
 ///|
+#borrow(context)
+extern "c" fn pbs_context_stage_metric_ffi(
+  context : NativePbsContext,
+  metric : Int,
+) -> Int64 = "moonbit_tfhe_pbs_context_stage_metric"
+
+///|
 #borrow(context, input, accumulator, output)
 extern "c" fn pbs_evaluate_lut_ffi(
   context : NativePbsContext,

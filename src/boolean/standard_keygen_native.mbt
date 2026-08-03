@@ -1,4 +1,24 @@
 ///|
+priv struct StandardKeygenStageMetrics {
+  ksk_generation_us : Double
+  bsk_coefficient_generation_us : Double
+  bsk_fourier_conversion_us : Double
+}
+
+///|
+let last_standard_keygen_stage_metrics : Ref[StandardKeygenStageMetrics] = @ref.new({
+    ksk_generation_us: 0.0,
+    bsk_coefficient_generation_us: 0.0,
+    bsk_fourier_conversion_us: 0.0,
+  },
+)
+
+///|
+fn standard_keygen_stage_metrics() -> StandardKeygenStageMetrics {
+  last_standard_keygen_stage_metrics.val
+}
+
+///|
 fn generate_standard_keys_impl(
   parameters : BooleanParameters,
 ) -> Result[(ClientKey, ServerKey), KeyGenerationError] {
@@ -70,6 +90,7 @@ fn generate_standard_keys_impl(
     ksk_rows * (key_switch_output.value() + 1),
     0U,
   )
+  let ksk_generation_start = @bench.monotonic_clock_start()
   match
     @keyswitch.keyswitch_keygen_into(
       extracted_key, input_key, key_switch_decomposition, lwe_noise, bsk_rng, key_switch_data,
@@ -77,6 +98,7 @@ fn generate_standard_keys_impl(
     Ok(_) => ()
     Err(_) => return Err(InvalidParameters)
   }
+  let ksk_generation_us = @bench.monotonic_clock_end(ksk_generation_start)
   let ggsw_parameters = match
     @ggsw.ggsw_parameters(
       glwe,
@@ -97,6 +119,7 @@ fn generate_standard_keys_impl(
   if control_size <= 0 {
     return Err(InvalidParameters)
   }
+  let fourier_allocation_start = @bench.monotonic_clock_start()
   let context = match
     @provider.pbs_context_new_empty(
       glwe.polynomial_size(),
@@ -114,9 +137,14 @@ fn generate_standard_keys_impl(
     Ok(value) => value
     Err(_) => return Err(UnsupportedBackend)
   }
+  let mut bsk_fourier_conversion_us = @bench.monotonic_clock_end(
+    fourier_allocation_start,
+  )
+  let mut bsk_coefficient_generation_us = 0.0
   let coefficient_control = FixedArray::make(control_size, 0U)
   let ggsw_workspace = @ggsw.ggsw_encryption_workspace_new(ggsw_parameters)
   for index in 0..<input_dimension.value() {
+    let coefficient_generation_start = @bench.monotonic_clock_start()
     match
       @ggsw.ggsw_encrypt_boolean_with_fft_into(
         ggsw_parameters,
@@ -132,10 +160,15 @@ fn generate_standard_keys_impl(
       Ok(_) => ()
       Err(_) => return Err(InvalidParameters)
     }
+    bsk_coefficient_generation_us = bsk_coefficient_generation_us +
+      @bench.monotonic_clock_end(coefficient_generation_start)
+    let fourier_conversion_start = @bench.monotonic_clock_start()
     match context.set_control(index, coefficient_control) {
       Ok(_) => ()
       Err(_) => return Err(InvalidParameters)
     }
+    bsk_fourier_conversion_us = bsk_fourier_conversion_us +
+      @bench.monotonic_clock_end(fourier_conversion_start)
   }
   let bootstrap = match
     @pbs.bootstrap_key_from_native_context(
@@ -162,5 +195,10 @@ fn generate_standard_keys_impl(
     key_id,
   }
   let server : ServerKey = { inner: bootstrap, parameters, key_id }
+  last_standard_keygen_stage_metrics.val = {
+    ksk_generation_us,
+    bsk_coefficient_generation_us,
+    bsk_fourier_conversion_us,
+  }
   Ok((client, server))
 }

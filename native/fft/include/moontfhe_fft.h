@@ -118,6 +118,8 @@ size_t native_pbs_context_ksk_count(
     const moontfhe_native_pbs_context *context);
 size_t native_pbs_context_resident_bytes(
     const moontfhe_native_pbs_context *context);
+uint64_t native_pbs_context_stage_metric(
+    const moontfhe_native_pbs_context *context, uint32_t metric);
 int32_t native_pbs_evaluate_lut(moontfhe_native_pbs_context *context,
                                 const uint32_t *input, size_t input_count,
                                 const uint32_t *accumulator,

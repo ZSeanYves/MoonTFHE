@@ -105,6 +105,8 @@ extern size_t native_pbs_context_ksk_count(
     const moontfhe_native_pbs_context *context);
 extern size_t native_pbs_context_resident_bytes(
     const moontfhe_native_pbs_context *context);
+extern uint64_t native_pbs_context_stage_metric(
+    const moontfhe_native_pbs_context *context, uint32_t metric);
 extern int32_t native_pbs_evaluate_lut(
     moontfhe_native_pbs_context *context, const uint32_t *input,
     size_t input_count, const uint32_t *accumulator,
@@ -625,6 +627,16 @@ moonbit_tfhe_pbs_context_resident_bytes(moonbit_tfhe_pbs_context *self) {
   }
   size_t bytes = native_pbs_context_resident_bytes(self->context);
   return bytes > INT64_MAX ? 0 : (int64_t)bytes;
+}
+
+MOONBIT_FFI_EXPORT int64_t moonbit_tfhe_pbs_context_stage_metric(
+    moonbit_tfhe_pbs_context *self, int32_t metric) {
+  if (self == NULL || self->context == NULL || metric < 0 || metric > 4) {
+    return 0;
+  }
+  uint64_t value = native_pbs_context_stage_metric(
+      self->context, (uint32_t)metric);
+  return value > INT64_MAX ? INT64_MAX : (int64_t)value;
 }
 
 MOONBIT_FFI_EXPORT int32_t moonbit_tfhe_pbs_evaluate_lut(

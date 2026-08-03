@@ -415,6 +415,16 @@ pub fn BootstrapKey::native_resident_bytes(self : BootstrapKey) -> Int64 {
 }
 
 ///|
+pub fn BootstrapKey::native_stage_metrics(
+  self : BootstrapKey,
+) -> @provider.PbsStageMetrics? {
+  match self.native_context {
+    Some(context) => Some(context.stage_metrics())
+    None => None
+  }
+}
+
+///|
 pub fn BootstrapKey::order(self : BootstrapKey) -> PbsOrder {
   self.order
 }

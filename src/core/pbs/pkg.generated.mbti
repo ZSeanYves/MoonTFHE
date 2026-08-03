@@ -88,6 +88,7 @@ pub fn BootstrapKey::key_switch_flat_copy(Self) -> Result[FixedArray[UInt], PbsE
 pub fn BootstrapKey::key_switch_input_dimension(Self) -> @params.LweDimension
 pub fn BootstrapKey::key_switch_output_dimension(Self) -> @params.LweDimension
 pub fn BootstrapKey::native_resident_bytes(Self) -> Int64
+pub fn BootstrapKey::native_stage_metrics(Self) -> @provider.PbsStageMetrics?
 pub fn BootstrapKey::order(Self) -> PbsOrder
 pub fn BootstrapKey::programmable_bootstrap(Self, @lwe.LweCiphertext, BooleanLut) -> Result[@lwe.LweCiphertext, PbsError]
 pub fn BootstrapKey::programmable_bootstrap_table(Self, @lwe.LweCiphertext, Array[@torus.Torus32]) -> Result[@lwe.LweCiphertext, PbsError]

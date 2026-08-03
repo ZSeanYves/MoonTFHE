@@ -95,6 +95,10 @@ def main() -> None:
                 stage_ratios[name] = left / right
         ratios = {
             "keygen": moon["keygen_us"] / rust["keygen_us"],
+            # A tfhe-rs Boolean NAND evaluates one bootstrapped gate. Its public
+            # harness does not expose a standalone PBS timer, so it is the
+            # closest stable same-runner baseline for MoonTFHE's direct PBS.
+            "pbs": moon["pbs_us"] / rust["nand_us"],
             "nand": moon["nand_us"] / rust["nand_us"],
             "server_key_size": moon["server_key_bytes"] / rust["server_key_bytes"],
             "ciphertext_size": moon["ciphertext_bytes"] / rust["ciphertext_bytes"],
@@ -126,11 +130,13 @@ def main() -> None:
             }
         )
     max_nand_ratio = max(item["ratios"]["nand"] for item in measurements)
-    if max_nand_ratio <= 2.0:
+    max_pbs_ratio = max(item["ratios"]["pbs"] for item in measurements)
+    max_execution_ratio = max(max_nand_ratio, max_pbs_ratio)
+    if max_execution_ratio <= 2.0:
         performance_score = 15
-    elif max_nand_ratio <= 5.0:
+    elif max_execution_ratio <= 5.0:
         performance_score = 12
-    elif max_nand_ratio <= 10.0:
+    elif max_execution_ratio <= 10.0:
         performance_score = 8
     else:
         performance_score = 0
@@ -151,12 +157,16 @@ def main() -> None:
             "time_unit": "microseconds",
             "memory_unit": "KiB",
             "stage_metrics": "null means the implementation does not expose that internal stage",
+            "pbs_baseline": "tfhe-rs Boolean NAND is one bootstrapped gate",
         },
         "measurements": measurements,
         "performance": {
             "maximum_nand_ratio": max_nand_ratio,
+            "maximum_pbs_ratio": max_pbs_ratio,
+            "maximum_execution_ratio": max_execution_ratio,
             "score": performance_score,
             "nand_within_5x": max_nand_ratio <= 5.0,
+            "pbs_within_5x": max_pbs_ratio <= 5.0,
             "nand_within_10x": max_nand_ratio <= 10.0,
         },
     }

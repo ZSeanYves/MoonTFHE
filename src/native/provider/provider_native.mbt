@@ -413,6 +413,17 @@ pub fn PbsContext::resident_bytes(self : PbsContext) -> Int64 {
 }
 
 ///|
+pub fn PbsContext::stage_metrics(self : PbsContext) -> PbsStageMetrics {
+  {
+    key_switch_ns: pbs_context_stage_metric_ffi(self.handle, 0),
+    external_product_ns: pbs_context_stage_metric_ffi(self.handle, 1),
+    external_product_count: pbs_context_stage_metric_ffi(self.handle, 2),
+    blind_rotation_ns: pbs_context_stage_metric_ffi(self.handle, 3),
+    sample_extraction_ns: pbs_context_stage_metric_ffi(self.handle, 4),
+  }
+}
+
+///|
 pub fn aes256_gcm_encrypt(
   key : Bytes,
   nonce : Bytes,

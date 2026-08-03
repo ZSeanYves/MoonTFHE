@@ -6,6 +6,7 @@ use std::ptr;
 use std::slice;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 const FFT_OK: i32 = 0;
 const FFT_NULL_POINTER: i32 = 1;
@@ -71,6 +72,11 @@ pub struct NativePbsContext {
     ksk_result: Vec<u32>,
     switched_input: Vec<u32>,
     initialized_controls: Vec<bool>,
+    last_key_switch_ns: u64,
+    last_external_product_ns: u64,
+    last_external_product_count: u64,
+    last_blind_rotation_ns: u64,
+    last_sample_extraction_ns: u64,
     busy: AtomicBool,
 }
 
@@ -628,6 +634,11 @@ impl NativePbsContext {
             ksk_result: vec![0; ksk_output_dimension + 1],
             switched_input: vec![0; (ksk_input_dimension + 1).max(ksk_output_dimension + 1)],
             initialized_controls: vec![false; input_dimension],
+            last_key_switch_ns: 0,
+            last_external_product_ns: 0,
+            last_external_product_count: 0,
+            last_blind_rotation_ns: 0,
+            last_sample_extraction_ns: 0,
             busy: AtomicBool::new(false),
         })
     }
@@ -696,7 +707,7 @@ impl NativePbsContext {
         true
     }
 
-    fn key_switch(&mut self, input: &[u32]) -> bool {
+    fn key_switch_inner(&mut self, input: &[u32]) -> bool {
         if input.len() != self.ksk_input_dimension + 1 {
             return false;
         }
@@ -725,7 +736,17 @@ impl NativePbsContext {
         true
     }
 
+    fn key_switch(&mut self, input: &[u32]) -> bool {
+        let start = Instant::now();
+        let result = self.key_switch_inner(input);
+        self.last_key_switch_ns = start.elapsed().as_nanos().min(u64::MAX as u128) as u64;
+        result
+    }
+
     fn blind_rotate(&mut self, input: &[u32], accumulator: &[u32]) -> bool {
+        let blind_rotation_start = Instant::now();
+        let mut external_product_ns = 0u128;
+        let mut external_product_count = 0u64;
         let n = self.plan.polynomial_size;
         let log_modulus = match polynomial_log2(n) {
             Some(value) => value + 1,
@@ -772,6 +793,7 @@ impl NativePbsContext {
                 if !self.decompose_glwe() {
                     return false;
                 }
+                let external_product_start = Instant::now();
                 let product_ok = if active_a {
                     self.key.external_product_add(
                         &self.plan,
@@ -791,12 +813,21 @@ impl NativePbsContext {
                         &mut self.state_a,
                     )
                 };
+                external_product_ns += external_product_start.elapsed().as_nanos();
+                external_product_count += 1;
                 if !product_ok {
                     return false;
                 }
                 active_a = !active_a;
             }
         }
+        self.last_external_product_ns = external_product_ns.min(u64::MAX as u128) as u64;
+        self.last_external_product_count = external_product_count;
+        self.last_blind_rotation_ns = blind_rotation_start
+            .elapsed()
+            .as_nanos()
+            .min(u64::MAX as u128) as u64;
+        let extraction_start = Instant::now();
         let final_state = if active_a { &self.state_a } else { &self.state_b };
         for flat_index in 0..self.ksk_input_dimension {
             let component = flat_index / n;
@@ -809,6 +840,10 @@ impl NativePbsContext {
         }
         self.extracted[self.ksk_input_dimension] =
             final_state[self.ksk_input_dimension];
+        self.last_sample_extraction_ns = extraction_start
+            .elapsed()
+            .as_nanos()
+            .min(u64::MAX as u128) as u64;
         true
     }
 
@@ -899,6 +934,17 @@ impl NativePbsContext {
                 * std::mem::size_of::<u32>()
             + self.decomposition_digits.len() * std::mem::size_of::<i32>()
             + self.initialized_controls.len() * std::mem::size_of::<bool>()
+    }
+
+    fn stage_metric(&self, metric: u32) -> u64 {
+        match metric {
+            0 => self.last_key_switch_ns,
+            1 => self.last_external_product_ns,
+            2 => self.last_external_product_count,
+            3 => self.last_blind_rotation_ns,
+            4 => self.last_sample_extraction_ns,
+            _ => 0,
+        }
     }
 }
 
@@ -1457,6 +1503,18 @@ pub unsafe extern "C" fn native_pbs_context_resident_bytes(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn native_pbs_context_stage_metric(
+    context: *const NativePbsContext,
+    metric: u32,
+) -> u64 {
+    if context.is_null() {
+        0
+    } else {
+        (&*context).stage_metric(metric)
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn native_pbs_evaluate_lut(
     context: *mut NativePbsContext,
     input: *const u32,
@@ -1717,11 +1775,17 @@ mod tests {
             &ksk,
         )
         .unwrap();
-        let input = vec![0u32; input_dimension + 1];
+        let mut input = vec![0u32; input_dimension + 1];
+        input[0] = 0x2000_0000;
         let mut accumulator = vec![0u32; columns * polynomial_size];
         accumulator[glwe_dimension * polynomial_size] = 0x2000_0000;
         let mut output = vec![0u32; ksk_output_dimension + 1];
         assert_eq!(context.evaluate(&input, &accumulator, &mut output), FFT_OK);
+        assert!(context.stage_metric(0) > 0);
+        assert!(context.stage_metric(1) > 0);
+        assert!(context.stage_metric(2) > 0);
+        assert!(context.stage_metric(3) > 0);
+        assert!(context.stage_metric(4) > 0);
         assert_eq!(output, vec![0, 0, 0x2000_0000]);
         assert_eq!(context.evaluate(&input, &accumulator, &mut output), FFT_OK);
         let mut restored_coefficients = vec![0u32; coefficient_count];

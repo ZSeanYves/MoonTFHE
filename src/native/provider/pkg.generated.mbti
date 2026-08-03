@@ -72,6 +72,20 @@ pub fn PbsContext::export_ksk(Self) -> Result[FixedArray[UInt], NativeProviderEr
 pub fn PbsContext::is_ready(Self) -> Bool
 pub fn PbsContext::resident_bytes(Self) -> Int64
 pub fn PbsContext::set_control(Self, Int, FixedArray[UInt]) -> Result[Unit, NativeProviderError]
+pub fn PbsContext::stage_metrics(Self) -> PbsStageMetrics
+
+pub struct PbsStageMetrics {
+  key_switch_ns : Int64
+  external_product_ns : Int64
+  external_product_count : Int64
+  blind_rotation_ns : Int64
+  sample_extraction_ns : Int64
+}
+pub fn PbsStageMetrics::blind_rotation_ns(Self) -> Int64
+pub fn PbsStageMetrics::external_product_count(Self) -> Int64
+pub fn PbsStageMetrics::external_product_ns(Self) -> Int64
+pub fn PbsStageMetrics::key_switch_ns(Self) -> Int64
+pub fn PbsStageMetrics::sample_extraction_ns(Self) -> Int64
 
 // Type aliases
 

@@ -54,6 +54,40 @@ pub struct PbsContext {
 }
 
 ///|
+pub struct PbsStageMetrics {
+  key_switch_ns : Int64
+  external_product_ns : Int64
+  external_product_count : Int64
+  blind_rotation_ns : Int64
+  sample_extraction_ns : Int64
+}
+
+///|
+pub fn PbsStageMetrics::key_switch_ns(self : PbsStageMetrics) -> Int64 {
+  self.key_switch_ns
+}
+
+///|
+pub fn PbsStageMetrics::external_product_ns(self : PbsStageMetrics) -> Int64 {
+  self.external_product_ns
+}
+
+///|
+pub fn PbsStageMetrics::external_product_count(self : PbsStageMetrics) -> Int64 {
+  self.external_product_count
+}
+
+///|
+pub fn PbsStageMetrics::blind_rotation_ns(self : PbsStageMetrics) -> Int64 {
+  self.blind_rotation_ns
+}
+
+///|
+pub fn PbsStageMetrics::sample_extraction_ns(self : PbsStageMetrics) -> Int64 {
+  self.sample_extraction_ns
+}
+
+///|
 fn decode_fft_status(status : Int) -> Result[Unit, NativeProviderError] {
   if status == 0 {
     Ok(())
