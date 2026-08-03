@@ -85,4 +85,3 @@ pub fn RandomGenerator::sample_tuniform(Self, Int) -> Result[Int, RandomError]
 pub type EntropyProvider = (Int) -> Bytes?
 
 // Traits
-

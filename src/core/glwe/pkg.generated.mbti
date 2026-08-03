@@ -78,4 +78,3 @@ pub fn GlweSecretKey::to_extracted_lwe_key(Self) -> Result[@lwe.LweSecretKey, Gl
 // Type aliases
 
 // Traits
-

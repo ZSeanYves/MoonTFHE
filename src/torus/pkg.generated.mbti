@@ -40,4 +40,3 @@ pub fn Torus32::zero() -> Self
 // Type aliases
 
 // Traits
-

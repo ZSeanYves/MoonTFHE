@@ -68,4 +68,3 @@ pub fn GgswParameters::rows(Self) -> Int
 // Type aliases
 
 // Traits
-

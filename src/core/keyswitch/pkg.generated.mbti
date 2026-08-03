@@ -59,4 +59,3 @@ pub fn KeySwitchKey::row_count(Self) -> Int
 // Type aliases
 
 // Traits
-

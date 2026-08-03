@@ -133,4 +133,3 @@ pub fn ServerKey::xor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, E
 pub type AeadEncryptProvider = (Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]
 
 // Traits
-

@@ -124,4 +124,3 @@ pub fn SecurityMetadata::target_security_bits(Self) -> Int
 // Type aliases
 
 // Traits
-
