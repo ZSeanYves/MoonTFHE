@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "research_release",
-  "basis": "R7 native evidence and repository audit; no independent cryptographic audit",
+  "basis": "O3 fused-Fourier native evidence and repository audit; no independent cryptographic audit",
   "categories": {
     "correctness": 31,
     "security": 18,
@@ -11,8 +11,8 @@
   },
   "total": 71,
   "blocking_reasons": [
-    "standard native NAND is about 30.3x the pinned tfhe-rs harness",
-    "standard native peak RSS exceeds the 110-bit and 128-bit production limits",
+    "standard native NAND is 25.59x/24.70x the pinned tfhe-rs harness for 110/128-bit parameters",
+    "standard native peak RSS is 463.4/530.1 MiB and exceeds the 110/128-bit production limits",
     "no independent cryptographic audit has been performed"
   ],
   "evidence": {
