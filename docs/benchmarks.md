@@ -64,3 +64,12 @@ NAND remains 25.24x/25.47x slower than tfhe-rs and peak RSS is about
 462.5/529.1 MiB, so the release still fails the final performance and memory
 ceilings. The PBS field measures a non-trivial NOT LUT and is therefore a real
 PBS datapoint.
+
+The O2 streaming-keygen evidence is committed as
+`docs/performance/o2-streaming-keygen.json`. It records key generation at about
+4.17x/4.08x tfhe-rs and peak RSS at about 463.6/530.1 MiB. The O1 and O2 runs
+landed on different EPYC models, so their absolute gate times are not treated
+as a code regression; each artifact remains internally same-runner and
+interleaved. O2 confirms that temporary GGSW/KSK objects were not the dominant
+steady-state memory cost. The coefficient and Fourier bootstrap-key
+representations must not both remain resident in the optimized runtime.

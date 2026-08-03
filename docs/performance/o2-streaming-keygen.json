@@ -1,0 +1,353 @@
+{
+  "measurements": [
+    {
+      "allocation_metrics": {
+        "moontfhe": {
+          "available": false,
+          "steady_state_heap_allocations": null,
+          "workspace_peak_bytes": null
+        },
+        "tfhe_rs": {
+          "available": false,
+          "steady_state_heap_allocations": null,
+          "workspace_peak_bytes": null
+        }
+      },
+      "memory_metrics": {
+        "moontfhe": {
+          "ciphertext_bytes": 3294,
+          "peak_rss_kib": 474700,
+          "server_key_bytes": 77516890
+        },
+        "tfhe_rs": {
+          "ciphertext_bytes": 3260,
+          "peak_rss_kib": 259004,
+          "server_key_bytes": 130479476
+        }
+      },
+      "moontfhe": {
+        "allocation_metrics": {
+          "available": false,
+          "steady_state_heap_allocations": null,
+          "workspace_peak_bytes": null
+        },
+        "ciphertext_bytes": 3294,
+        "implementation": "moontfhe",
+        "iterations": 10,
+        "keygen_us": 2926421.096,
+        "memory_metrics": {
+          "ciphertext_bytes": 3294,
+          "peak_rss_kib": null,
+          "server_key_bytes": 77516890
+        },
+        "nand_us": 370324.5054,
+        "parameter": "boolean-110",
+        "pbs_us": 372706.7925,
+        "peak_rss_kib": 474700,
+        "schema_version": 2,
+        "server_key_bytes": 77516890,
+        "stage_metrics": {
+          "and_us": 370770.2658,
+          "blind_rotation_us": null,
+          "bsk_coefficient_generation_us": null,
+          "bsk_fourier_conversion_us": null,
+          "external_product_us": null,
+          "key_generation_us": 2926421.096,
+          "ksk_apply_us": null,
+          "ksk_generation_us": null,
+          "mux_us": 1111932.1797,
+          "nand_us": 370324.5054,
+          "or_us": 369057.2277,
+          "pbs_with_ks_us": 372706.7925,
+          "pbs_without_ks_us": null,
+          "polynomial_multiplication_us": null,
+          "sample_extraction_us": null,
+          "xnor_us": 1107744.1603,
+          "xor_us": 1106698.5885
+        }
+      },
+      "parameter": "boolean-110",
+      "ratios": {
+        "ciphertext_size": 1.0104294478527607,
+        "keygen": 4.168498010171906,
+        "nand": 29.26794648147007,
+        "server_key_size": 0.5940925912363413
+      },
+      "stage_metrics": {
+        "moontfhe": {
+          "and_us": 370770.2658,
+          "blind_rotation_us": null,
+          "bsk_coefficient_generation_us": null,
+          "bsk_fourier_conversion_us": null,
+          "external_product_us": null,
+          "key_generation_us": 2926421.096,
+          "ksk_apply_us": null,
+          "ksk_generation_us": null,
+          "mux_us": 1111932.1797,
+          "nand_us": 370324.5054,
+          "or_us": 369057.2277,
+          "pbs_with_ks_us": 372706.7925,
+          "pbs_without_ks_us": null,
+          "polynomial_multiplication_us": null,
+          "sample_extraction_us": null,
+          "xnor_us": 1107744.1603,
+          "xor_us": 1106698.5885
+        },
+        "tfhe_rs": {
+          "and_us": 12678.5033,
+          "blind_rotation_us": null,
+          "bsk_coefficient_generation_us": null,
+          "bsk_fourier_conversion_us": null,
+          "external_product_us": null,
+          "key_generation_us": 702032.504,
+          "ksk_apply_us": null,
+          "ksk_generation_us": null,
+          "mux_us": 12772.7279,
+          "nand_us": 12652.903600000001,
+          "or_us": 12665.9519,
+          "pbs_with_ks_us": null,
+          "pbs_without_ks_us": null,
+          "polynomial_multiplication_us": null,
+          "sample_extraction_us": null,
+          "xnor_us": 12699.069599999999,
+          "xor_us": 12776.4649
+        }
+      },
+      "stage_ratios": {
+        "and_us": 29.244009093723232,
+        "key_generation_us": 4.168498010171906,
+        "mux_us": 87.05518417095537,
+        "nand_us": 29.26794648147007,
+        "or_us": 29.137741135745195,
+        "xnor_us": 87.23034011090074,
+        "xor_us": 86.62009383362373
+      },
+      "tfhe_rs": {
+        "allocation_metrics": {
+          "available": false,
+          "steady_state_heap_allocations": null,
+          "workspace_peak_bytes": null
+        },
+        "ciphertext_bytes": 3260,
+        "implementation": "tfhe-rs",
+        "iterations": 10,
+        "keygen_us": 702032.504,
+        "memory_metrics": {
+          "ciphertext_bytes": 3260,
+          "peak_rss_kib": null,
+          "server_key_bytes": 130479476
+        },
+        "nand_us": 12652.903600000001,
+        "parameter": "boolean-110",
+        "peak_rss_kib": 259004,
+        "schema_version": 2,
+        "server_key_bytes": 130479476,
+        "stage_metrics": {
+          "and_us": 12678.5033,
+          "blind_rotation_us": null,
+          "bsk_coefficient_generation_us": null,
+          "bsk_fourier_conversion_us": null,
+          "external_product_us": null,
+          "key_generation_us": 702032.504,
+          "ksk_apply_us": null,
+          "ksk_generation_us": null,
+          "mux_us": 12772.7279,
+          "nand_us": 12652.903600000001,
+          "or_us": 12665.9519,
+          "pbs_with_ks_us": null,
+          "pbs_without_ks_us": null,
+          "polynomial_multiplication_us": null,
+          "sample_extraction_us": null,
+          "xnor_us": 12699.069599999999,
+          "xor_us": 12776.4649
+        }
+      }
+    },
+    {
+      "allocation_metrics": {
+        "moontfhe": {
+          "available": false,
+          "steady_state_heap_allocations": null,
+          "workspace_peak_bytes": null
+        },
+        "tfhe_rs": {
+          "available": false,
+          "steady_state_heap_allocations": null,
+          "workspace_peak_bytes": null
+        }
+      },
+      "memory_metrics": {
+        "moontfhe": {
+          "ciphertext_bytes": 3422,
+          "peak_rss_kib": 542768,
+          "server_key_bytes": 96034906
+        },
+        "tfhe_rs": {
+          "ciphertext_bytes": 3388,
+          "peak_rss_kib": 312820,
+          "server_key_bytes": 157865796
+        }
+      },
+      "moontfhe": {
+        "allocation_metrics": {
+          "available": false,
+          "steady_state_heap_allocations": null,
+          "workspace_peak_bytes": null
+        },
+        "ciphertext_bytes": 3422,
+        "implementation": "moontfhe",
+        "iterations": 10,
+        "keygen_us": 3976137.052,
+        "memory_metrics": {
+          "ciphertext_bytes": 3422,
+          "peak_rss_kib": null,
+          "server_key_bytes": 96034906
+        },
+        "nand_us": 544320.4837999999,
+        "parameter": "boolean-128",
+        "pbs_us": 552048.9156000001,
+        "peak_rss_kib": 542768,
+        "schema_version": 2,
+        "server_key_bytes": 96034906,
+        "stage_metrics": {
+          "and_us": 543705.1608,
+          "blind_rotation_us": null,
+          "bsk_coefficient_generation_us": null,
+          "bsk_fourier_conversion_us": null,
+          "external_product_us": null,
+          "key_generation_us": 3976137.052,
+          "ksk_apply_us": null,
+          "ksk_generation_us": null,
+          "mux_us": 1641261.4619999998,
+          "nand_us": 544320.4837999999,
+          "or_us": 540747.4659,
+          "pbs_with_ks_us": 552048.9156000001,
+          "pbs_without_ks_us": null,
+          "polynomial_multiplication_us": null,
+          "sample_extraction_us": null,
+          "xnor_us": 1641647.1790999998,
+          "xor_us": 1639022.1356000002
+        }
+      },
+      "parameter": "boolean-128",
+      "ratios": {
+        "ciphertext_size": 1.0100354191263283,
+        "keygen": 4.075456647786938,
+        "nand": 29.287109274599214,
+        "server_key_size": 0.6083325738274553
+      },
+      "stage_metrics": {
+        "moontfhe": {
+          "and_us": 543705.1608,
+          "blind_rotation_us": null,
+          "bsk_coefficient_generation_us": null,
+          "bsk_fourier_conversion_us": null,
+          "external_product_us": null,
+          "key_generation_us": 3976137.052,
+          "ksk_apply_us": null,
+          "ksk_generation_us": null,
+          "mux_us": 1641261.4619999998,
+          "nand_us": 544320.4837999999,
+          "or_us": 540747.4659,
+          "pbs_with_ks_us": 552048.9156000001,
+          "pbs_without_ks_us": null,
+          "polynomial_multiplication_us": null,
+          "sample_extraction_us": null,
+          "xnor_us": 1641647.1790999998,
+          "xor_us": 1639022.1356000002
+        },
+        "tfhe_rs": {
+          "and_us": 18472.8924,
+          "blind_rotation_us": null,
+          "bsk_coefficient_generation_us": null,
+          "bsk_fourier_conversion_us": null,
+          "external_product_us": null,
+          "key_generation_us": 975629.824,
+          "ksk_apply_us": null,
+          "ksk_generation_us": null,
+          "mux_us": 18694.4705,
+          "nand_us": 18585.6678,
+          "or_us": 18534.6747,
+          "pbs_with_ks_us": null,
+          "pbs_without_ks_us": null,
+          "polynomial_multiplication_us": null,
+          "sample_extraction_us": null,
+          "xnor_us": 18724.8481,
+          "xor_us": 18648.8545
+        }
+      },
+      "stage_ratios": {
+        "and_us": 29.432595016901626,
+        "key_generation_us": 4.075456647786938,
+        "mux_us": 87.79395286964666,
+        "nand_us": 29.287109274599214,
+        "or_us": 29.174909981020598,
+        "xnor_us": 87.67212264328062,
+        "xor_us": 87.8886226282692
+      },
+      "tfhe_rs": {
+        "allocation_metrics": {
+          "available": false,
+          "steady_state_heap_allocations": null,
+          "workspace_peak_bytes": null
+        },
+        "ciphertext_bytes": 3388,
+        "implementation": "tfhe-rs",
+        "iterations": 10,
+        "keygen_us": 975629.824,
+        "memory_metrics": {
+          "ciphertext_bytes": 3388,
+          "peak_rss_kib": null,
+          "server_key_bytes": 157865796
+        },
+        "nand_us": 18585.6678,
+        "parameter": "boolean-128",
+        "peak_rss_kib": 312820,
+        "schema_version": 2,
+        "server_key_bytes": 157865796,
+        "stage_metrics": {
+          "and_us": 18472.8924,
+          "blind_rotation_us": null,
+          "bsk_coefficient_generation_us": null,
+          "bsk_fourier_conversion_us": null,
+          "external_product_us": null,
+          "key_generation_us": 975629.824,
+          "ksk_apply_us": null,
+          "ksk_generation_us": null,
+          "mux_us": 18694.4705,
+          "nand_us": 18585.6678,
+          "or_us": 18534.6747,
+          "pbs_with_ks_us": null,
+          "pbs_without_ks_us": null,
+          "polynomial_multiplication_us": null,
+          "sample_extraction_us": null,
+          "xnor_us": 18724.8481,
+          "xor_us": 18648.8545
+        }
+      }
+    }
+  ],
+  "method": {
+    "interleaved_by_parameter": true,
+    "iterations_per_gate": 10,
+    "memory_unit": "KiB",
+    "same_runner": true,
+    "stage_metrics": "null means the implementation does not expose that internal stage",
+    "time_unit": "microseconds"
+  },
+  "performance": {
+    "maximum_nand_ratio": 29.287109274599214,
+    "nand_within_10x": false,
+    "nand_within_5x": false,
+    "score": 0
+  },
+  "repository_commit": "6f3356e2a68247efa64684c0ad8720e9905bc2a7",
+  "runner": {
+    "label": "github-actions-ubuntu-24.04",
+    "machine": "x86_64",
+    "system": "Linux"
+  },
+  "schema_version": 2,
+  "status": "measured",
+  "tfhe_rs_commit": "640911eba7a394f078fa5d7d14e146105757e34f"
+}
