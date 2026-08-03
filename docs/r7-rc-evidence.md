@@ -14,8 +14,8 @@ R7 separates inexpensive pull-request checks from production evidence:
   model, stable API/import surface, standard circuit tests, locked tfhe-rs
   harness, committed benchmark evidence and weighted score thresholds.
 
-The original measured artifact is committed as `docs/benchmarks-tfhe-rs.json`;
-the O1 packed-workspace artifact is
+The latest measured artifact is committed as `docs/benchmarks-tfhe-rs.json`;
+phase snapshots remain under `docs/performance/`, including the O1 artifact
 `docs/performance/o1-packed-workspace.json`. The programmable-bootstrap
 measurement uses a non-trivial NOT LUT so that it cannot be satisfied by an
 identity-copy fast path. After separating release compilation from runtime
