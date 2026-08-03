@@ -6,11 +6,13 @@ use moontfhe_fft::{
 };
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 struct CountingAllocator;
 
 static COUNTING: AtomicBool = AtomicBool::new(false);
 static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
+static MEASUREMENT_LOCK: Mutex<()> = Mutex::new(());
 
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
@@ -34,6 +36,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
 
 #[test]
 fn native_pbs_hot_path_performs_no_allocations() {
+    let _measurement = MEASUREMENT_LOCK.lock().unwrap();
     let n = 32usize;
     let input_dimension = 2usize;
     let glwe_dimension = 1usize;
@@ -115,6 +118,7 @@ static ALLOCATOR: CountingAllocator = CountingAllocator;
 
 #[test]
 fn external_product_hot_path_performs_no_allocations() {
+    let _measurement = MEASUREMENT_LOCK.lock().unwrap();
     let n = 32usize;
     let ggsw_count = 2usize;
     let digit_count = 3usize;

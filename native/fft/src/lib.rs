@@ -601,7 +601,7 @@ impl NativePbsContext {
             return None;
         }
         let plan = FftPlan::new(polynomial_size)?;
-        let mut scratch = plan.new_scratch(digit_count, columns)?;
+        let scratch = plan.new_scratch(digit_count, columns)?;
         let key = FourierBootstrapKey::new(&plan, input_dimension, digit_count, columns)?;
         let glwe_size = columns.checked_mul(polynomial_size)?;
         Some(Self {
