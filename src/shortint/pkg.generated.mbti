@@ -1,0 +1,63 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/shortint"
+
+import {
+  "ZSeanYves/MoonTFHE/src/boolean",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn generate_keys(ShortintParameters) -> Result[(ShortintClientKey, ShortintServerKey), ShortintError]
+
+pub fn generate_test_keys(ShortintParameters, UInt64) -> Result[(ShortintClientKey, ShortintServerKey), ShortintError]
+
+pub fn shortint_parameters(@boolean.BooleanParameters, UInt, UInt) -> Result[ShortintParameters, ShortintError]
+
+// Errors
+pub suberror ShortintError {
+  InvalidModulus
+  InvalidMessage
+  InvalidCiphertext
+  KeyMismatch
+  BooleanFailure
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct Degree {
+  // private fields
+}
+pub fn Degree::value(Self) -> UInt
+
+pub struct NoiseLevel {
+  // private fields
+}
+pub fn NoiseLevel::value(Self) -> UInt
+
+pub struct ShortintCiphertext {
+  // private fields
+}
+pub fn ShortintCiphertext::degree(Self) -> Degree
+pub fn ShortintCiphertext::noise_level(Self) -> NoiseLevel
+
+pub struct ShortintClientKey {
+  // private fields
+}
+pub fn ShortintClientKey::decrypt(Self, ShortintCiphertext) -> Result[UInt, ShortintError]
+pub fn ShortintClientKey::encrypt(Self, UInt) -> Result[ShortintCiphertext, ShortintError]
+
+pub struct ShortintParameters {
+  // private fields
+}
+pub fn ShortintParameters::block_count(Self) -> Int
+pub fn ShortintParameters::carry_modulus(Self) -> UInt
+pub fn ShortintParameters::message_modulus(Self) -> UInt
+
+pub struct ShortintServerKey {
+  // private fields
+}
+pub fn ShortintServerKey::add(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
+pub fn ShortintServerKey::unchecked_add(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
+
+// Type aliases
+
+// Traits

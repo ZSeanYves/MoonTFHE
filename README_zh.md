@@ -21,6 +21,8 @@ PBS->KS，以及稳定的 NAND/NOT/AND/OR/XOR/XNOR/MUX 和 Boolean LUT API。
 - portable 标准路径只承诺 reference 语义，不承诺性能；
 - 尚不能作出经过外部审计的 110 位或 128 位安全声明；
 - 侧信道攻击防护。
+- Shortint 目前只有明确标记的 Boolean block 研究层，并非与 tfhe-rs
+  兼容的 Shortint 实现。
 
 维护中的 `src/boolean` 门面提供不透明的 `ClientKey`、`ServerKey`、`Ciphertext`
 和布尔门 API。native `generate_keys` 支持固定的 110/128 参数；portable 需要可信

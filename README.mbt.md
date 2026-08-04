@@ -27,6 +27,8 @@ The following limits remain:
   performance commitment;
 - no externally audited 110-bit or 128-bit security claim is made;
 - resistance to side-channel attacks.
+- Shortint currently has only a clearly marked Boolean-block research layer;
+  it is not tfhe-rs-compatible Shortint.
 
 The maintained `src/boolean` facade exposes opaque `ClientKey`, `ServerKey`,
 and `Ciphertext` types, versioned `MBCT` ciphertext envelopes, complete `MBKS`
