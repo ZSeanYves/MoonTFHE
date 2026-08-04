@@ -191,6 +191,14 @@ impl FftPlan {
             })
             .collect();
         let inverse_twist = forward_twist.iter().map(|value| value.conj()).collect();
+        // RustFFT can lazily initialize CPU-specific kernels on the first
+        // transform. Perform that initialization while building the plan so
+        // every subsequent external product is allocation-free on all
+        // supported toolchains.
+        let mut warmup = vec![Complex::new(0.0, 0.0); polynomial_size];
+        let mut warmup_scratch = vec![Complex::new(0.0, 0.0); fft_scratch_len];
+        forward.process_with_scratch(&mut warmup, &mut warmup_scratch);
+        inverse.process_with_scratch(&mut warmup, &mut warmup_scratch);
         Some(Self {
             polynomial_size,
             half_size: polynomial_size / 2,
