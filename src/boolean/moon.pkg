@@ -34,6 +34,7 @@ options(
     "standard_keygen_portable.mbt": [ "wasm", "wasm-gc", "js" ],
     "standard_benchmark.mbt": [ "native" ],
     "standard_stress_native_test.mbt": [ "native" ],
+    "serialization_mutation_native_test.mbt": [ "native" ],
     "benchmark_driver_native_wbtest.mbt": [ "native" ],
   },
 )

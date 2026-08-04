@@ -17,6 +17,14 @@ assert data["status"] == "scalar-contract-only"
 assert data["signed_decomposition"]["digit_order"] == "largest-gadget-weight-first"
 assert len(data["signed_decomposition"]["vectors"]) >= 6
 assert data["sample_extraction"]["lwe_mask"] == [1, -4, -3, -2]
+assert data["sample_extraction"]["body"] == 10
 assert data["pbs_orders"] == ["bootstrap-keyswitch", "keyswitch-bootstrap"]
+assert data["torus32"] == {"true": 536870912, "false": -536870912, "modulus": "2^32"}
+vectors = data["signed_decomposition"]["vectors"]
+assert [item["raw"] for item in vectors] == [
+    "0x00000000", "0x00000001", "0x7fffffff", "0x80000000",
+    "0xffffffff", "0x12345678",
+]
+assert vectors[-1]["digits"] == [1, -3, -4, 3, 2]
 print("Boolean scalar oracle fixture is canonical")
 PY

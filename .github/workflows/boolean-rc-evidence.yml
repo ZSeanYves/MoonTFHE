@@ -140,9 +140,9 @@ jobs:
         run: sh tools/native-providers/build.sh
 
       - name: Run 110/128 standard circuit evidence
-        run: >-
-          moon test --target native --release --no-parallelize
-          --include-skipped src/boolean/standard_stress_native_test.mbt
+        run: |
+          moon test --target native --release --no-parallelize --include-skipped src/boolean/standard_stress_native_test.mbt
+          moon test --target native --release --no-parallelize --include-skipped src/boolean/serialization_mutation_native_test.mbt
 
   portable-standard-smoke:
     runs-on: ubuntu-24.04
