@@ -3,8 +3,10 @@ import {
 }
 
 options(
-  "native-stub": [ "entropy_native.c" ],
+  "native-stub": [ "entropy_native.c", "secret_words_native.c" ],
   targets: {
+    "secret_words_native.mbt": [ "native" ],
+    "secret_words_portable.mbt": [ "wasm", "wasm-gc", "js" ],
     "entropy_native.mbt": [ "native" ],
     "entropy_native_test.mbt": [ "native" ],
     "entropy_js.mbt": [ "js" ],

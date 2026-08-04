@@ -15,14 +15,49 @@ if rg -n 'Gaussian\(Double\)|sample_discrete_gaussian\(' \
   exit 1
 fi
 
-if rg -n 'panic\(' $production_paths --glob '*.mbt' --glob '!**/*_test.mbt'; then
-  echo "panic found in a maintained production package" >&2
-  exit 1
-fi
-
 python3 - <<'PY'
 import re
 from pathlib import Path
+
+
+def production_source(path: Path) -> str:
+    """Remove MoonBit test blocks before checking production control flow."""
+    lines = path.read_text().splitlines()
+    output = []
+    skipping = False
+    depth = 0
+    for line in lines:
+        if not skipping and re.match(r"\s*test(?:\s+|\s*\()", line):
+            skipping = True
+            depth = line.count("{") - line.count("}")
+            continue
+        if skipping:
+            depth += line.count("{") - line.count("}")
+            if depth <= 0:
+                skipping = False
+            continue
+        output.append(line)
+    return "\n".join(output)
+
+
+production_roots = "src/boolean src/core src/params src/polynomial src/random src/torus".split()
+sources = "\n".join(
+    production_source(path)
+    for root in production_roots
+    for path in Path(root).rglob("*.mbt")
+    if not path.name.endswith(("_test.mbt", "_wbtest.mbt"))
+)
+for pattern, description in (
+    (r"\babort\s*\(", "abort found in production control flow"),
+    (r"\bpanic\s*\(", "panic found in production control flow"),
+    (r"\.unwrap\s*\(", "unwrap found in production control flow"),
+    (r"SystemTime|Instant::now|Date\.now|time_seed", "time-derived seed found in production"),
+):
+    if re.search(pattern, sources):
+        raise SystemExit(description)
+
+if re.search(r"cdt_chunk_from_hex|from_hex", sources):
+    raise SystemExit("runtime CDT parsing found; fixtures must be integer literals")
 
 
 def struct_body(text: str, name: str) -> str:

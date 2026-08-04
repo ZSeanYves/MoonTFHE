@@ -382,13 +382,11 @@ test "keyswitch: encrypted gadget rows preserve an LWE message" {
     @random.gaussian_sigma_3_fixture(),
     @random.test_rng_new(0x4B534B),
   ).unwrap()
-  let ciphertext = input
-    .lwe_encrypt_binary(
-      true,
-      @random.gaussian_sigma_3_fixture(),
-      @random.test_rng_new(9),
-    )
-    .unwrap()
+  let ciphertext = input.lwe_encrypt_binary(
+    true,
+    @random.gaussian_sigma_3_fixture(),
+    @random.test_rng_new(9),
+  )
   let switched = ksk.apply(ciphertext).unwrap()
   assert_eq(target.lwe_decrypt_binary(switched), Ok(true))
 }

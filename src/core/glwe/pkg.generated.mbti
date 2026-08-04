@@ -65,10 +65,10 @@ pub fn GlweParameters::glwe_dimension(Self) -> Int
 pub fn GlweParameters::polynomial_size(Self) -> Int
 
 pub struct GlweSecretKey {
-  parameters : GlweParameters
-  data : FixedArray[UInt]
+  // private fields
 }
 pub fn GlweSecretKey::decrypt(Self, GlweCiphertext) -> Result[Array[@torus.Torus32], GlweError]
+pub fn GlweSecretKey::destroy(Self) -> Unit
 pub fn GlweSecretKey::encrypt(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator) -> Result[GlweCiphertext, GlweError]
 pub fn GlweSecretKey::encrypt_with_fft(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator, @provider.FftPlan) -> Result[GlweCiphertext, GlweError]
 pub fn GlweSecretKey::encrypt_with_fft_into(Self, Array[@torus.Torus32], @random.DiscreteGaussian, @random.RandomGenerator, @provider.FftPlan, FixedArray[UInt], FixedArray[UInt], FixedArray[UInt], Int) -> Result[Unit, GlweError]

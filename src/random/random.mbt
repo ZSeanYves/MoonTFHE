@@ -62,12 +62,13 @@ fn read_entropy(count : Int) -> Result[Bytes, RandomError] {
 /// seeded from the host entropy provider; test instances are explicitly
 /// constructed from a reproducible seed.
 pub struct RandomGenerator {
-  key : Array[UInt]
-  mut counter : UInt
-  nonce : Array[UInt]
-  block : Array[UInt]
-  mut block_index : Int
-  secure_seeded : Bool
+  priv key : SecretWords
+  priv mut counter : UInt
+  priv nonce : SecretWords
+  priv block : SecretWords
+  priv mut block_index : Int
+  priv secure_seeded : Bool
+  priv mut destroyed : Bool
 }
 
 ///|
@@ -100,18 +101,18 @@ fn RandomGenerator::refill(self : RandomGenerator) -> Unit {
     0x3320646eU,
     0x79622d32U,
     0x6b206574U,
-    self.key[0],
-    self.key[1],
-    self.key[2],
-    self.key[3],
-    self.key[4],
-    self.key[5],
-    self.key[6],
-    self.key[7],
+    secret_words_get(self.key, 0),
+    secret_words_get(self.key, 1),
+    secret_words_get(self.key, 2),
+    secret_words_get(self.key, 3),
+    secret_words_get(self.key, 4),
+    secret_words_get(self.key, 5),
+    secret_words_get(self.key, 6),
+    secret_words_get(self.key, 7),
     self.counter,
-    self.nonce[0],
-    self.nonce[1],
-    self.nonce[2],
+    secret_words_get(self.nonce, 0),
+    secret_words_get(self.nonce, 1),
+    secret_words_get(self.nonce, 2),
   ]
   let state = initial.copy()
   for _ in 0..<10 {
@@ -125,7 +126,7 @@ fn RandomGenerator::refill(self : RandomGenerator) -> Unit {
     quarter_round(state, 3, 4, 9, 14)
   }
   for i in 0..<16 {
-    self.block[i] = state[i] + initial[i]
+    secret_words_set(self.block, i, state[i] + initial[i])
   }
   self.counter = self.counter + 1U
   self.block_index = 0
@@ -138,12 +139,13 @@ fn random_generator_from_key(
   secure_seeded : Bool,
 ) -> RandomGenerator {
   {
-    key,
+    key: secret_words_from_array(key),
     counter: 0U,
-    nonce,
-    block: Array::make(16, 0U),
+    nonce: secret_words_from_array(nonce),
+    block: secret_words_from_array(Array::make(16, 0U)),
     block_index: 16,
     secure_seeded,
+    destroyed: false,
   }
 }
 
@@ -236,12 +238,33 @@ pub fn RandomGenerator::is_secure(self : RandomGenerator) -> Bool {
 
 ///|
 pub fn RandomGenerator::next_u32(self : RandomGenerator) -> UInt {
+  if self.destroyed {
+    return 0U
+  }
   if self.block_index >= 16 {
     self.refill()
   }
-  let value = self.block[self.block_index]
+  let value = secret_words_get(self.block, self.block_index)
   self.block_index = self.block_index + 1
   value
+}
+
+///|
+/// Best-effort portable destruction. Native builds replace these arrays with
+/// zeroizing external buffers in the hardened provider path; GC backends can
+/// only overwrite the reachable storage and cannot promise immediate release.
+pub fn RandomGenerator::destroy(self : RandomGenerator) -> Unit {
+  secret_words_destroy(self.key)
+  secret_words_destroy(self.nonce)
+  secret_words_destroy(self.block)
+  self.counter = 0U
+  self.block_index = 16
+  self.destroyed = true
+}
+
+///|
+pub fn RandomGenerator::is_destroyed(self : RandomGenerator) -> Bool {
+  self.destroyed
 }
 
 ///|
@@ -253,12 +276,69 @@ pub fn RandomGenerator::next_u64(self : RandomGenerator) -> UInt64 {
 /// Versioned fixed-point cumulative distribution table. Production fixtures
 /// use three UInt64 words (192 bits); compact toy fixtures retain two words.
 pub struct DiscreteGaussian {
-  sigma_q32 : UInt64
-  tail_bound : Int
-  cdt_length : Int
-  threshold_words : Int
-  cdt_chunks : Array[FixedArray[UInt64]]
-  fixture_hash : String
+  priv sigma_q32 : UInt64
+  priv tail_bound : Int
+  priv cdt_length : Int
+  priv threshold_words : Int
+  priv cdt_chunks : Array[FixedArray[UInt64]]
+  priv fixture_hash : String
+}
+
+///|
+/// Validate caller-provided fixed-point CDT material once. Sampling from the
+/// resulting opaque value is total and performs no structural error handling.
+pub fn discrete_gaussian_from_cdt(
+  sigma_q32 : UInt64,
+  tail_bound : Int,
+  threshold_words : Int,
+  thresholds : FixedArray[UInt64],
+  fixture_hash : String,
+) -> Result[DiscreteGaussian, RandomError] {
+  if sigma_q32 == 0UL ||
+    tail_bound <= 0 ||
+    (threshold_words != 2 && threshold_words != 3) ||
+    thresholds.length() != (tail_bound + 1) * threshold_words ||
+    fixture_hash.length() == 0 {
+    return Err(InvalidDistribution)
+  }
+  let mut previous_top = 0UL
+  let mut previous_high = 0UL
+  let mut previous_low = 0UL
+  for index in 0..<(tail_bound + 1) {
+    let offset = index * threshold_words
+    let top = if threshold_words == 3 { thresholds[offset] } else { 0UL }
+    let high = thresholds[offset + threshold_words - 2]
+    let low = thresholds[offset + threshold_words - 1]
+    if index > 0 &&
+      (
+        top < previous_top ||
+        (
+          top == previous_top &&
+          (
+            high < previous_high ||
+            (high == previous_high && low <= previous_low)
+          )
+        )
+      ) {
+      return Err(InvalidDistribution)
+    }
+    previous_top = top
+    previous_high = high
+    previous_low = low
+  }
+  if previous_high != 0xFFFFFFFFFFFFFFFFUL ||
+    previous_low != 0xFFFFFFFFFFFFFFFFUL ||
+    (threshold_words == 3 && previous_top != 0xFFFFFFFFFFFFFFFFUL) {
+    return Err(InvalidDistribution)
+  }
+  Ok({
+    sigma_q32,
+    tail_bound,
+    cdt_length: tail_bound + 1,
+    threshold_words,
+    cdt_chunks: [thresholds.copy()],
+    fixture_hash,
+  })
 }
 
 ///|
@@ -322,12 +402,7 @@ pub fn DiscreteGaussian::fixture_hash(self : DiscreteGaussian) -> String {
 pub fn RandomGenerator::sample_discrete_gaussian_fixed(
   self : RandomGenerator,
   distribution : DiscreteGaussian,
-) -> Result[Int, RandomError] {
-  if distribution.cdt_length <= 0 ||
-    distribution.cdt_chunks.length() == 0 ||
-    (distribution.threshold_words != 2 && distribution.threshold_words != 3) {
-    return Err(InvalidDistribution)
-  }
+) -> Int {
   let draw_top = if distribution.threshold_words == 3 {
     self.next_u64()
   } else {
@@ -357,9 +432,9 @@ pub fn RandomGenerator::sample_discrete_gaussian_fixed(
   }
   let magnitude = low
   if magnitude == 0 || (self.next_u32() & 1U) == 0U {
-    Ok(magnitude)
+    magnitude
   } else {
-    Ok(-magnitude)
+    -magnitude
   }
 }
 
@@ -379,40 +454,6 @@ fn DiscreteGaussian::cdt_threshold(
 }
 
 ///|
-/// Decode a generated hexadecimal CDT chunk. Whitespace is ignored so each
-/// chunk remains a single compiler constant instead of thousands of AST nodes.
-fn cdt_chunk_from_hex(encoded : String) -> FixedArray[UInt64] {
-  let words : Array[UInt64] = []
-  let mut value = 0UL
-  let mut digits = 0
-  for character in encoded {
-    let code = character.to_int()
-    let nibble = if code >= '0'.to_int() && code <= '9'.to_int() {
-      code - '0'.to_int()
-    } else if code >= 'A'.to_int() && code <= 'F'.to_int() {
-      code - 'A'.to_int() + 10
-    } else if code >= 'a'.to_int() && code <= 'f'.to_int() {
-      code - 'a'.to_int() + 10
-    } else {
-      -1
-    }
-    if nibble >= 0 {
-      value = (value << 4) | nibble.to_uint64()
-      digits = digits + 1
-      if digits == 16 {
-        words.push(value)
-        value = 0UL
-        digits = 0
-      }
-    }
-  }
-  if digits != 0 || words.length() == 0 {
-    abort("invalid generated CDT chunk")
-  }
-  FixedArray::from_array(words)
-}
-
-///|
 pub fn RandomGenerator::sample_tuniform(
   self : RandomGenerator,
   bound : Int,
@@ -421,8 +462,16 @@ pub fn RandomGenerator::sample_tuniform(
     return Err(InvalidDistribution)
   }
   let width = 2 * bound + 1
-  let draw = (self.next_u32() & 0x7FFF_FFFFU).reinterpret_as_int()
-  Ok(draw % width - bound)
+  let width_u64 = width.to_uint64()
+  let range = 0x100000000UL
+  let limit = range - range % width_u64
+  while true {
+    let draw = self.next_u32().to_uint64()
+    if draw < limit {
+      return Ok((draw % width_u64).to_int() - bound)
+    }
+  }
+  Err(InvalidDistribution)
 }
 
 ///|
@@ -461,7 +510,7 @@ test "random: fixed-point CDT has stable moments and support" {
   let mut sum = 0
   let mut squared_sum = 0
   for _ in 0..<20000 {
-    let sample = rng.sample_discrete_gaussian_fixed(distribution).unwrap()
+    let sample = rng.sample_discrete_gaussian_fixed(distribution)
     assert_true(sample >= -24 && sample <= 24)
     sum = sum + sample
     squared_sum = squared_sum + sample * sample
@@ -476,7 +525,7 @@ test "random: fixed-point CDT known vector" {
   let distribution = gaussian_sigma_3_fixture()
   let actual : Array[Int] = []
   for _ in 0..<20 {
-    actual.push(rng.sample_discrete_gaussian_fixed(distribution).unwrap())
+    actual.push(rng.sample_discrete_gaussian_fixed(distribution))
   }
   debug_inspect(
     actual,
@@ -496,9 +545,9 @@ test "random: standard Boolean CDT fixtures are bounded and reproducible" {
   assert_true(high.fixture_hash().has_prefix("sha256:"))
   let rng = test_rng_new(0x5354414E44415244)
   for _ in 0..<128 {
-    let low_sample = rng.sample_discrete_gaussian_fixed(low).unwrap()
+    let low_sample = rng.sample_discrete_gaussian_fixed(low)
     assert_true(low_sample >= -65 && low_sample <= 65)
-    let high_sample = rng.sample_discrete_gaussian_fixed(high).unwrap()
+    let high_sample = rng.sample_discrete_gaussian_fixed(high)
     assert_true(high_sample >= -231909 && high_sample <= 231909)
   }
 }
@@ -515,7 +564,7 @@ test "random: standard Boolean LWE CDT moments match quantized sigma" {
     let mut sum = 0L
     let mut squared_sum = 0L
     for _ in 0..<20000 {
-      let sample = rng.sample_discrete_gaussian_fixed(distribution).unwrap()
+      let sample = rng.sample_discrete_gaussian_fixed(distribution)
       let wide = sample.to_int64()
       sum = sum + wide
       squared_sum = squared_sum + wide * wide
@@ -533,8 +582,8 @@ test "random: standard Boolean CDT fixed seed vector" {
   let low = gaussian_boolean_110_lwe_fixture()
   let high = gaussian_boolean_128_lwe_fixture()
   for _ in 0..<8 {
-    actual.push(rng.sample_discrete_gaussian_fixed(low).unwrap())
-    actual.push(rng.sample_discrete_gaussian_fixed(high).unwrap())
+    actual.push(rng.sample_discrete_gaussian_fixed(low))
+    actual.push(rng.sample_discrete_gaussian_fixed(high))
   }
   debug_inspect(
     actual,
@@ -572,4 +621,49 @@ test "random: entropy provider validates output and separates domains" {
   assert_true(mask.is_secure())
   assert_true(keygen.next_u32() != mask.next_u32())
   clear_entropy_provider()
+}
+
+///|
+test "random: TUniform rejection sampler preserves non-power-of-two support" {
+  let rng = test_rng_new(0x54554E49464F524DUL)
+  let mut seen_low = false
+  let mut seen_high = false
+  for _ in 0..<20000 {
+    let value = rng.sample_tuniform(5).unwrap()
+    assert_true(value >= -5 && value <= 5)
+    if value == -5 {
+      seen_low = true
+    }
+    if value == 5 {
+      seen_high = true
+    }
+  }
+  assert_true(seen_low)
+  assert_true(seen_high)
+}
+
+///|
+test "random: malformed CDT is rejected before sampling" {
+  let malformed : FixedArray[UInt64] = FixedArray::from_array([
+    0UL, 0UL, 0UL, 0xFFFFFFFFFFFFFFFFUL, 0UL, 0UL,
+  ])
+  assert_true(
+    discrete_gaussian_from_cdt(
+      1UL << 32,
+      1,
+      3,
+      malformed,
+      "test-only:malformed",
+    )
+    is Err(InvalidDistribution),
+  )
+}
+
+///|
+test "random: destroy clears the stream and makes reads inert" {
+  let rng = test_rng_new(0x44455354524F59UL)
+  ignore(rng.next_u32())
+  rng.destroy()
+  assert_true(rng.is_destroyed())
+  assert_eq(rng.next_u32(), 0U)
 }

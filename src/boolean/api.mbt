@@ -55,30 +55,41 @@ priv enum BinaryLut {
 ///|
 /// Opaque Boolean ciphertext.
 pub struct Ciphertext {
-  inner : @lwe.LweCiphertext
-  key_id : @params.KeyId
-  parameters : BooleanParameters
+  priv inner : @lwe.LweCiphertext
+  priv key_id : @params.KeyId
+  priv parameters : BooleanParameters
 }
 
 ///|
 /// Client-side secret key. The secret representation is owned by the core
 /// package and is not exposed through this facade.
 pub struct ClientKey {
-  inner : @lwe.LweSecretKey
-  mask_rng : @random.RandomGenerator
-  noise_rng : @random.RandomGenerator
-  serialization_rng : @random.RandomGenerator
-  encryption_noise : @random.DiscreteGaussian
-  parameters : BooleanParameters
-  key_id : @params.KeyId
+  priv inner : @lwe.LweSecretKey
+  priv mask_rng : @random.RandomGenerator
+  priv noise_rng : @random.RandomGenerator
+  priv serialization_rng : @random.RandomGenerator
+  priv encryption_noise : @random.DiscreteGaussian
+  priv parameters : BooleanParameters
+  priv key_id : @params.KeyId
 }
 
 ///|
 /// Secret-free evaluation key.
 pub struct ServerKey {
-  inner : @pbs.BootstrapKey
-  parameters : BooleanParameters
-  key_id : @params.KeyId
+  priv inner : @pbs.BootstrapKey
+  priv parameters : BooleanParameters
+  priv key_id : @params.KeyId
+}
+
+///|
+/// Best-effort destruction of secret material retained by the client key.
+/// Native provider buffers are finalized separately; GC runtimes can only
+/// overwrite currently reachable storage.
+pub fn ClientKey::destroy(self : ClientKey) -> Unit {
+  self.inner.destroy()
+  self.mask_rng.destroy()
+  self.noise_rng.destroy()
+  self.serialization_rng.destroy()
 }
 
 ///|
@@ -161,11 +172,18 @@ pub fn generate_test_keys(
   if parameters.record.validate() is Err(_) {
     return Err(InvalidParameters)
   }
-  let input_dimension = @params.lwe_dimension(parameters.dimension).unwrap()
-  let glwe = @glwe.glwe_parameters(
-    parameters.record.glwe_dimension().value(),
-    parameters.record.polynomial_size().value(),
-  ).unwrap()
+  let input_dimension = match @params.lwe_dimension(parameters.dimension) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidParameters)
+  }
+  let glwe = match
+    @glwe.glwe_parameters(
+      parameters.record.glwe_dimension().value(),
+      parameters.record.polynomial_size().value(),
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidParameters)
+  }
   let key_rng = @random.test_rng_new(seed)
   let input_bits = Array::makei(parameters.dimension, fn(_) {
     (key_rng.next_u32() & 1U) == 1U
@@ -178,40 +196,61 @@ pub fn generate_test_keys(
       (key_rng.next_u32() & 1U) == 1U
     })
   })
-  let glwe_key = @glwe.glwe_key_from_binary_secret(glwe, glwe_data).unwrap()
-  let extracted_key = glwe_key.to_extracted_lwe_key().unwrap()
+  let glwe_key = match @glwe.glwe_key_from_binary_secret(glwe, glwe_data) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidParameters)
+  }
+  let extracted_key = match glwe_key.to_extracted_lwe_key() {
+    Ok(value) => value
+    Err(_) => return Err(InvalidParameters)
+  }
   let noise = @random.test_zero_noise_fixture()
-  let key_switch = @keyswitch.keyswitch_keygen(
-    extracted_key,
-    input_key,
-    parameters.record.ks_decomposition(),
-    noise,
-    @random.test_rng_new(seed ^ 0x4B534BUL),
-  ).unwrap()
-  let ggsw_parameters = @ggsw.ggsw_parameters(
-    glwe,
-    parameters.record.pbs_decomposition().base_log(),
-    parameters.record.pbs_decomposition().level(),
-  ).unwrap()
+  let key_switch = match
+    @keyswitch.keyswitch_keygen(
+      extracted_key,
+      input_key,
+      parameters.record.ks_decomposition(),
+      noise,
+      @random.test_rng_new(seed ^ 0x4B534BUL),
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidParameters)
+  }
+  let ggsw_parameters = match
+    @ggsw.ggsw_parameters(
+      glwe,
+      parameters.record.pbs_decomposition().base_log(),
+      parameters.record.pbs_decomposition().level(),
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidParameters)
+  }
   let controls : Array[@ggsw.GgswCiphertext] = []
   for index in 0..<input_bits.length() {
-    controls.push(
+    let control = match
       @ggsw.ggsw_encrypt_boolean(
         ggsw_parameters,
         glwe_key,
         input_bits[index],
         noise,
         @random.test_rng_new(seed ^ (0x42534B00UL + index.to_uint64())),
-      ).unwrap(),
-    )
+      ) {
+      Ok(value) => value
+      Err(_) => return Err(InvalidParameters)
+    }
+    controls.push(control)
   }
-  let bootstrap = @pbs.bootstrap_key_from_encrypted_parts(
-    input_dimension,
-    glwe,
-    controls,
-    key_switch,
-    @pbs.bootstrap_keyswitch_order(),
-  ).unwrap()
+  let bootstrap = match
+    @pbs.bootstrap_key_from_encrypted_parts(
+      input_dimension,
+      glwe,
+      controls,
+      key_switch,
+      @pbs.bootstrap_keyswitch_order(),
+    ) {
+    Ok(value) => value
+    Err(_) => return Err(InvalidParameters)
+  }
   let key_id = @params.key_id_from_words(0x4D54464854455354UL, seed)
   let client_key : ClientKey = {
     inner: input_key,
@@ -364,20 +403,16 @@ fn generate_standard_reference_keys(
 
 ///|
 pub fn ClientKey::encrypt(self : ClientKey, message : Bool) -> Ciphertext {
-  let inner = match
-    self.inner.lwe_encrypt_torus_with_streams(
-      if message {
-        @torus.Torus32::from_int(0x2000_0000)
-      } else {
-        @torus.Torus32::from_int(-0x2000_0000)
-      },
-      self.encryption_noise,
-      self.mask_rng,
-      self.noise_rng,
-    ) {
-    Ok(value) => value
-    Err(_) => abort("validated ClientKey noise invariant violated")
-  }
+  let inner = self.inner.lwe_encrypt_torus_with_streams(
+    if message {
+      @torus.Torus32::from_int(0x2000_0000)
+    } else {
+      @torus.Torus32::from_int(-0x2000_0000)
+    },
+    self.encryption_noise,
+    self.mask_rng,
+    self.noise_rng,
+  )
   { inner, key_id: self.key_id, parameters: self.parameters }
 }
 
@@ -1065,20 +1100,22 @@ pub fn ClientKey::export_secret(
       nonce[word_index * 4 + byte_index] = (word >> (byte_index * 8)).to_byte()
     }
   }
-  let payload = self.inner.secret_export_payload()
-  let encrypted = match
-    @provider.aes256_gcm_encrypt(
-      key.bytes,
-      Bytes::from_array(nonce),
-      Bytes::from_array(header),
-      payload,
-    ) {
+  let payload_array = self.inner.secret_export_payload_array()
+  let payload = Bytes::from_array(payload_array)
+  let encrypted_result = boolean_aead_encrypt(
+    key.bytes,
+    Bytes::from_array(nonce),
+    Bytes::from_array(header),
+    payload,
+  )
+  // Clear the mutable source immediately after the provider call. The Bytes
+  // view is still subject to GC lifetime rules, so this is best effort.
+  payload_array.fill(b'\x00')
+  let encrypted = match encrypted_result {
     Ok(value) => value
-    Err(UnsupportedBackend) => return Err(UnsupportedBackend)
-    Err(InvalidLength) => return Err(InvalidLength)
-    Err(InvalidPolynomialSize) => return Err(InvalidLength)
-    Err(AuthenticationFailed) => return Err(AuthenticationFailed)
-    Err(ProviderFailure(_)) => return Err(UnsupportedBackend)
+    Err(UnsupportedBackend(_)) => return Err(UnsupportedBackend)
+    Err(EntropyUnavailable) => return Err(UnsupportedBackend)
+    Err(InvalidProviderOutput) => return Err(InvalidLength)
   }
   if encrypted.length() != payload_length + 16 {
     return Err(InvalidLength)
@@ -1141,14 +1178,11 @@ pub fn ClientKey::import_secret(
   let aad = bytes[:header_length].to_owned()
   let nonce = bytes[header_length:header_length + nonce_length].to_owned()
   let encrypted = bytes[header_length + nonce_length:].to_owned()
-  let payload = match
-    @provider.aes256_gcm_decrypt(key.bytes, nonce, aad, encrypted) {
+  let payload = match boolean_aead_decrypt(key.bytes, nonce, aad, encrypted) {
     Ok(value) => value
-    Err(AuthenticationFailed) => return Err(AuthenticationFailed)
-    Err(InvalidLength) => return Err(InvalidLength)
-    Err(InvalidPolynomialSize) => return Err(InvalidLength)
-    Err(UnsupportedBackend) => return Err(UnsupportedBackend)
-    Err(ProviderFailure(_)) => return Err(UnsupportedBackend)
+    Err(UnsupportedBackend(_)) => return Err(UnsupportedBackend)
+    Err(EntropyUnavailable) => return Err(UnsupportedBackend)
+    Err(InvalidProviderOutput) => return Err(AuthenticationFailed)
   }
   if payload.length() != payload_length ||
     payload[0] != b'M' ||

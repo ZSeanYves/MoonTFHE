@@ -932,19 +932,17 @@ test "pbs: typed blind rotation evaluates ID and NOT without a secret key" {
   ).unwrap()
   let amplitude = @torus.Torus32::from_int(0x2000_0000)
   for message in [false, true] {
-    let ciphertext = input_key
-      .lwe_encrypt_binary(
-        message,
-        noise,
-        @random.test_rng_new(
-          if message {
-            0x50425354525545
-          } else {
-            0x50425346414C53
-          },
-        ),
-      )
-      .unwrap()
+    let ciphertext = input_key.lwe_encrypt_binary(
+      message,
+      noise,
+      @random.test_rng_new(
+        if message {
+          0x50425354525545
+        } else {
+          0x50425346414C53
+        },
+      ),
+    )
     let identity = bootstrap_key
       .programmable_bootstrap(
         ciphertext,
@@ -1005,13 +1003,11 @@ test "pbs: key shape failures are explicit and KS-PBS changes key domains" {
     key_switch,
     KeyswitchBootstrap,
   ).unwrap()
-  let ciphertext = extracted_key
-    .lwe_encrypt_binary(
-      true,
-      @random.gaussian_sigma_3_fixture(),
-      @random.test_rng_new(0x5042534F52444552),
-    )
-    .unwrap()
+  let ciphertext = extracted_key.lwe_encrypt_binary(
+    true,
+    @random.gaussian_sigma_3_fixture(),
+    @random.test_rng_new(0x5042534F52444552),
+  )
   let output = bootstrap_key
     .programmable_bootstrap(
       ciphertext,

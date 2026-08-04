@@ -54,15 +54,13 @@ test "pbs oracle: both PBS orders preserve their external key domains" {
       } else {
         big_key
       }
-      let input = input_key
-        .lwe_encrypt_binary(
-          message,
-          @random.test_zero_noise_fixture(),
-          @random.test_rng_new(
-            0x4F5241434C45494E ^ (if message { 1UL } else { 0UL }),
-          ),
-        )
-        .unwrap()
+      let input = input_key.lwe_encrypt_binary(
+        message,
+        @random.test_zero_noise_fixture(),
+        @random.test_rng_new(
+          0x4F5241434C45494E ^ (if message { 1UL } else { 0UL }),
+        ),
+      )
       let output = bootstrap_key
         .programmable_bootstrap(input, identity)
         .unwrap()
@@ -80,13 +78,11 @@ test "pbs oracle: 10000 deterministic toy circuit steps preserve semantics" {
   let negation = boolean_lut(amplitude, amplitude.neg())
   let circuit_rng = @random.test_rng_new(0x3130303030434952)
   let mut expected = true
-  let mut ciphertext = small_key
-    .lwe_encrypt_binary(
-      expected,
-      @random.test_zero_noise_fixture(),
-      @random.test_rng_new(0x3130303030494E50),
-    )
-    .unwrap()
+  let mut ciphertext = small_key.lwe_encrypt_binary(
+    expected,
+    @random.test_zero_noise_fixture(),
+    @random.test_rng_new(0x3130303030494E50),
+  )
   for _ in 0..<10000 {
     if (circuit_rng.next_u32() & 1U) == 0U {
       ciphertext = bootstrap_key

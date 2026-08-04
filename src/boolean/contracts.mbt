@@ -40,13 +40,24 @@ pub fn serialization_key_from_bytes(
 /// Host-provided AES-GCM boundary. The provider must generate a fresh secure
 /// nonce and return a versioned envelope containing nonce||ciphertext||tag.
 /// A missing provider is an explicit error.
-pub type AeadEncryptProvider = (Bytes, Bytes, Bytes) -> Result[
+pub type AeadEncryptProvider = (Bytes, Bytes, Bytes, Bytes) -> Result[
+  Bytes,
+  BackendError,
+]
+
+///|
+/// Host-provided AES-GCM decryption. The final argument is ciphertext||tag;
+/// providers must authenticate before returning plaintext.
+pub type AeadDecryptProvider = (Bytes, Bytes, Bytes, Bytes) -> Result[
   Bytes,
   BackendError,
 ]
 
 ///|
 let aead_encrypt_provider : Ref[AeadEncryptProvider?] = @ref.new(None)
+
+///|
+let aead_decrypt_provider : Ref[AeadDecryptProvider?] = @ref.new(None)
 
 ///|
 pub fn install_aead_encrypt_provider(provider : AeadEncryptProvider) -> Unit {
@@ -59,12 +70,64 @@ pub fn clear_aead_encrypt_provider() -> Unit {
 }
 
 ///|
+pub fn install_aead_decrypt_provider(provider : AeadDecryptProvider) -> Unit {
+  aead_decrypt_provider.val = Some(provider)
+}
+
+///|
+pub fn clear_aead_decrypt_provider() -> Unit {
+  aead_decrypt_provider.val = None
+}
+
+///|
 #warnings("-unused_constructor")
 pub suberror BackendError {
   UnsupportedBackend(backend~ : Backend)
   EntropyUnavailable
   InvalidProviderOutput
 } derive(Debug, Eq)
+
+///|
+fn boolean_aead_encrypt(
+  key : Bytes,
+  nonce : Bytes,
+  aad : Bytes,
+  plaintext : Bytes,
+) -> Result[Bytes, BackendError] {
+  match aead_encrypt_provider.val {
+    Some(provider) => provider(key, nonce, aad, plaintext)
+    None =>
+      match @provider.aes256_gcm_encrypt(key, nonce, aad, plaintext) {
+        Ok(value) => Ok(value)
+        Err(UnsupportedBackend) => Err(UnsupportedBackend(backend=backend()))
+        Err(InvalidLength) => Err(InvalidProviderOutput)
+        Err(InvalidPolynomialSize) => Err(InvalidProviderOutput)
+        Err(AuthenticationFailed) => Err(InvalidProviderOutput)
+        Err(ProviderFailure(_)) => Err(InvalidProviderOutput)
+      }
+  }
+}
+
+///|
+fn boolean_aead_decrypt(
+  key : Bytes,
+  nonce : Bytes,
+  aad : Bytes,
+  ciphertext_and_tag : Bytes,
+) -> Result[Bytes, BackendError] {
+  match aead_decrypt_provider.val {
+    Some(provider) => provider(key, nonce, aad, ciphertext_and_tag)
+    None =>
+      match @provider.aes256_gcm_decrypt(key, nonce, aad, ciphertext_and_tag) {
+        Ok(value) => Ok(value)
+        Err(UnsupportedBackend) => Err(UnsupportedBackend(backend=backend()))
+        Err(InvalidLength) => Err(InvalidProviderOutput)
+        Err(InvalidPolynomialSize) => Err(InvalidProviderOutput)
+        Err(AuthenticationFailed) => Err(InvalidProviderOutput)
+        Err(ProviderFailure(_)) => Err(InvalidProviderOutput)
+      }
+  }
+}
 
 ///|
 pub fn Backend::name(self : Backend) -> String {

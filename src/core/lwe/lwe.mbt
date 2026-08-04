@@ -1,7 +1,7 @@
 ///|
 pub struct LweSecretKey {
-  parameters : @params.LweDimension
-  bits : FixedArray[UInt]
+  priv parameters : @params.LweDimension
+  priv bits : FixedArray[UInt]
 }
 
 ///|
@@ -11,6 +11,7 @@ pub struct LweCiphertext {
 } derive(Debug, Eq)
 
 ///|
+#warnings("-unused_constructor")
 pub suberror LweError {
   InvalidDimension
   InvalidIndex
@@ -138,7 +139,7 @@ pub fn LweSecretKey::lwe_encrypt_binary(
   message : Bool,
   noise : @random.DiscreteGaussian,
   rng : @random.RandomGenerator,
-) -> Result[LweCiphertext, LweError] {
+) -> LweCiphertext {
   let encoded = if message {
     @torus.Torus32::from_int(0x2000_0000)
   } else {
@@ -153,7 +154,7 @@ pub fn LweSecretKey::lwe_encrypt_torus(
   message : @torus.Torus32,
   noise : @random.DiscreteGaussian,
   rng : @random.RandomGenerator,
-) -> Result[LweCiphertext, LweError] {
+) -> LweCiphertext {
   self.lwe_encrypt_torus_with_streams(message, noise, rng, rng)
 }
 
@@ -165,7 +166,7 @@ pub fn LweSecretKey::lwe_encrypt_torus_with_streams(
   noise : @random.DiscreteGaussian,
   mask_rng : @random.RandomGenerator,
   noise_rng : @random.RandomGenerator,
-) -> Result[LweCiphertext, LweError] {
+) -> LweCiphertext {
   let n = self.parameters.value()
   let data = FixedArray::make(n + 1, 0U)
   let mut phase = message
@@ -175,12 +176,9 @@ pub fn LweSecretKey::lwe_encrypt_torus_with_streams(
       phase = phase.add(@torus.Torus32::from_uint(data[i]))
     }
   }
-  let error = match noise_rng.sample_discrete_gaussian_fixed(noise) {
-    Ok(value) => value
-    Err(_) => return Err(NoiseFailure)
-  }
+  let error = noise_rng.sample_discrete_gaussian_fixed(noise)
   data[n] = phase.add(@torus.Torus32::from_int(error)).to_uint()
-  Ok({ parameters: self.parameters, data })
+  { parameters: self.parameters, data }
 }
 
 ///|
@@ -312,10 +310,7 @@ pub fn LweSecretKey::encrypt_secret_gadget_row(
     } else {
       @torus.Torus32::zero()
     }
-    match target.lwe_encrypt_torus(plaintext, noise, rng) {
-      Ok(ciphertext) => result.push(ciphertext)
-      Err(error) => return Err(error)
-    }
+    result.push(target.lwe_encrypt_torus(plaintext, noise, rng))
   }
   Ok(result)
 }
@@ -363,10 +358,7 @@ pub fn LweSecretKey::encrypt_secret_gadget_row_into(
         phase = phase.add(@torus.Torus32::from_uint(mask))
       }
     }
-    let error = match rng.sample_discrete_gaussian_fixed(noise) {
-      Ok(value) => value
-      Err(_) => return Err(NoiseFailure)
-    }
+    let error = rng.sample_discrete_gaussian_fixed(noise)
     output[ciphertext_offset + target.parameters.value()] = phase
       .add(@torus.Torus32::from_int(error))
       .to_uint()
@@ -380,10 +372,19 @@ pub fn LweSecretKey::parameters(self : LweSecretKey) -> @params.LweDimension {
 }
 
 ///|
+/// Best-effort destruction for portable runtimes. Native callers should also
+/// release the owning key object so provider-owned buffers can be finalized.
+pub fn LweSecretKey::destroy(self : LweSecretKey) -> Unit {
+  self.bits.fill(0U)
+}
+
+///|
 /// Pack the binary secret for an explicit authenticated SecretExport flow.
 /// High-level APIs must encrypt this payload immediately and must not expose it
 /// as their default serialization format.
-pub fn LweSecretKey::secret_export_payload(self : LweSecretKey) -> Bytes {
+pub fn LweSecretKey::secret_export_payload_array(
+  self : LweSecretKey,
+) -> Array[Byte] {
   let output = Array::make(9 + (self.bits.length() + 7) / 8, b'\x00')
   output[0] = b'M'
   output[1] = b'S'
@@ -401,7 +402,12 @@ pub fn LweSecretKey::secret_export_payload(self : LweSecretKey) -> Bytes {
       output[byte_index] = output[byte_index] | (1U << (index % 8)).to_byte()
     }
   }
-  Bytes::from_array(output)
+  output
+}
+
+///|
+pub fn LweSecretKey::secret_export_payload(self : LweSecretKey) -> Bytes {
+  Bytes::from_array(self.secret_export_payload_array())
 }
 
 ///|
@@ -449,13 +455,11 @@ pub fn LweCiphertext::flat_u32_copy(self : LweCiphertext) -> FixedArray[UInt] {
 test "lwe core: typed key and ciphertext round trip" {
   let dimension = @params.lwe_dimension(32).unwrap()
   let key = lwe_keygen(dimension, @random.test_rng_new(0x4C5745434F5245))
-  let ciphertext = key
-    .lwe_encrypt_binary(
-      true,
-      @random.gaussian_sigma_3_fixture(),
-      @random.test_rng_new(7),
-    )
-    .unwrap()
+  let ciphertext = key.lwe_encrypt_binary(
+    true,
+    @random.gaussian_sigma_3_fixture(),
+    @random.test_rng_new(7),
+  )
   assert_eq(key.lwe_decrypt_binary(ciphertext), Ok(true))
 }
 
@@ -463,12 +467,10 @@ test "lwe core: typed key and ciphertext round trip" {
 test "lwe core: coefficient negation flips Boolean encoding" {
   let dimension = @params.lwe_dimension(32).unwrap()
   let key = lwe_keygen(dimension, @random.test_rng_new(0x4C57454E4547))
-  let ciphertext = key
-    .lwe_encrypt_binary(
-      true,
-      @random.gaussian_sigma_3_fixture(),
-      @random.test_rng_new(8),
-    )
-    .unwrap()
+  let ciphertext = key.lwe_encrypt_binary(
+    true,
+    @random.gaussian_sigma_3_fixture(),
+    @random.test_rng_new(8),
+  )
   assert_eq(key.lwe_decrypt_binary(ciphertext.neg()), Ok(false))
 }

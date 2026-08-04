@@ -5,6 +5,7 @@ pub struct GlweParameters {
 } derive(Debug, Eq)
 
 ///|
+#warnings("-unused_constructor")
 pub suberror GlweError {
   InvalidDimension
   InvalidPolynomialSize
@@ -19,8 +20,8 @@ pub suberror GlweError {
 
 ///|
 pub struct GlweSecretKey {
-  parameters : GlweParameters
-  data : FixedArray[UInt]
+  priv parameters : GlweParameters
+  priv data : FixedArray[UInt]
 }
 
 ///|
@@ -61,6 +62,12 @@ pub fn GlweCiphertext::parameters(self : GlweCiphertext) -> GlweParameters {
 ///|
 pub fn GlweSecretKey::parameters(self : GlweSecretKey) -> GlweParameters {
   self.parameters
+}
+
+///|
+/// Best-effort destruction for portable runtimes.
+pub fn GlweSecretKey::destroy(self : GlweSecretKey) -> Unit {
+  self.data.fill(0U)
 }
 
 ///|
@@ -320,10 +327,7 @@ pub fn GlweSecretKey::encrypt(
     }
   }
   for i in 0..<n {
-    let noise = match rng.sample_discrete_gaussian_fixed(noise_distribution) {
-      Ok(value) => value
-      Err(_) => return Err(NoiseFailure)
-    }
+    let noise = rng.sample_discrete_gaussian_fixed(noise_distribution)
     body[i] = body[i].add(@torus.Torus32::from_int(noise))
     data[self.parameters.glwe_dimension * n + i] = body[i].to_uint()
   }
@@ -395,10 +399,7 @@ pub fn GlweSecretKey::encrypt_with_fft_into(
     output[output_offset + index] = masks[index]
   }
   for index in 0..<n {
-    let noise = match rng.sample_discrete_gaussian_fixed(noise_distribution) {
-      Ok(value) => value
-      Err(_) => return Err(NoiseFailure)
-    }
+    let noise = rng.sample_discrete_gaussian_fixed(noise_distribution)
     output[output_offset + k * n + index] = message[index]
       .add(@torus.Torus32::from_uint(products[index]))
       .add(@torus.Torus32::from_int(noise))

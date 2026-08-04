@@ -5,7 +5,7 @@
     {
       "chunks": 99,
       "entries": 402807,
-      "generator_version": "moontfhe-cdt-u192-v3",
+      "generator_version": "moontfhe-cdt-u192-v4-integer-literals",
       "name": "boolean_110_lwe",
       "parameter_id": "tfhe-rs-boolean-110-reference",
       "quantization_tv_log2_upper": -172.380269,
@@ -20,7 +20,7 @@
     {
       "chunks": 1,
       "entries": 66,
-      "generator_version": "moontfhe-cdt-u192-v3",
+      "generator_version": "moontfhe-cdt-u192-v4-integer-literals",
       "name": "boolean_110_glwe",
       "parameter_id": "tfhe-rs-boolean-110-reference",
       "quantization_tv_log2_upper": -184.944718,
@@ -35,7 +35,7 @@
     {
       "chunks": 57,
       "entries": 231910,
-      "generator_version": "moontfhe-cdt-u192-v3",
+      "generator_version": "moontfhe-cdt-u192-v4-integer-literals",
       "name": "boolean_128_lwe",
       "parameter_id": "tfhe-rs-boolean-128-reference",
       "quantization_tv_log2_upper": -173.176791,
@@ -50,7 +50,7 @@
     {
       "chunks": 1,
       "entries": 65,
-      "generator_version": "moontfhe-cdt-u192-v3",
+      "generator_version": "moontfhe-cdt-u192-v4-integer-literals",
       "name": "boolean_128_glwe",
       "parameter_id": "tfhe-rs-boolean-128-reference",
       "quantization_tv_log2_upper": -184.966577,
@@ -63,6 +63,6 @@
       "threshold_words": 3
     }
   ],
-  "generator_version": "moontfhe-cdt-u192-v3",
+  "generator_version": "moontfhe-cdt-u192-v4-integer-literals",
   "tail_sigma": 16
 }

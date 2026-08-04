@@ -10,6 +10,8 @@ pub fn bootstrap_key_domain() -> RandomDomain
 
 pub fn clear_entropy_provider() -> Unit
 
+pub fn discrete_gaussian_from_cdt(UInt64, Int, Int, FixedArray[UInt64], String) -> Result[DiscreteGaussian, RandomError]
+
 pub fn gaussian_boolean_110_glwe_fixture() -> DiscreteGaussian
 
 pub fn gaussian_boolean_110_lwe_fixture() -> DiscreteGaussian
@@ -48,12 +50,7 @@ pub suberror RandomError {
 
 // Types and methods
 pub struct DiscreteGaussian {
-  sigma_q32 : UInt64
-  tail_bound : Int
-  cdt_length : Int
-  threshold_words : Int
-  cdt_chunks : Array[FixedArray[UInt64]]
-  fixture_hash : String
+  // private fields
 }
 pub fn DiscreteGaussian::fixture_hash(Self) -> String
 pub fn DiscreteGaussian::sigma_q32(Self) -> UInt64
@@ -68,18 +65,17 @@ pub enum RandomDomain {
 } derive(Eq, @debug.Debug)
 
 pub struct RandomGenerator {
-  key : Array[UInt]
-  mut counter : UInt
-  nonce : Array[UInt]
-  block : Array[UInt]
-  mut block_index : Int
-  secure_seeded : Bool
+  // private fields
 }
+pub fn RandomGenerator::destroy(Self) -> Unit
+pub fn RandomGenerator::is_destroyed(Self) -> Bool
 pub fn RandomGenerator::is_secure(Self) -> Bool
 pub fn RandomGenerator::next_u32(Self) -> UInt
 pub fn RandomGenerator::next_u64(Self) -> UInt64
-pub fn RandomGenerator::sample_discrete_gaussian_fixed(Self, DiscreteGaussian) -> Result[Int, RandomError]
+pub fn RandomGenerator::sample_discrete_gaussian_fixed(Self, DiscreteGaussian) -> Int
 pub fn RandomGenerator::sample_tuniform(Self, Int) -> Result[Int, RandomError]
+
+type SecretWords
 
 // Type aliases
 pub type EntropyProvider = (Int) -> Bytes?

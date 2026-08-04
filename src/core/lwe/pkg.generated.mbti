@@ -50,17 +50,18 @@ pub fn LweCiphertext::sub_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::sub_scaled(Self, Self, Int) -> Result[Self, LweError]
 
 pub struct LweSecretKey {
-  parameters : @params.LweDimension
-  bits : FixedArray[UInt]
+  // private fields
 }
+pub fn LweSecretKey::destroy(Self) -> Unit
 pub fn LweSecretKey::encrypt_secret_gadget_row(Self, Int, Self, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[Array[LweCiphertext], LweError]
 pub fn LweSecretKey::encrypt_secret_gadget_row_into(Self, Int, Self, @params.DecompositionParameters, @random.DiscreteGaussian, @random.RandomGenerator, FixedArray[UInt], Int) -> Result[Unit, LweError]
 pub fn LweSecretKey::lwe_decrypt_binary(Self, LweCiphertext) -> Result[Bool, LweError]
-pub fn LweSecretKey::lwe_encrypt_binary(Self, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
-pub fn LweSecretKey::lwe_encrypt_torus(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
-pub fn LweSecretKey::lwe_encrypt_torus_with_streams(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator, @random.RandomGenerator) -> Result[LweCiphertext, LweError]
+pub fn LweSecretKey::lwe_encrypt_binary(Self, Bool, @random.DiscreteGaussian, @random.RandomGenerator) -> LweCiphertext
+pub fn LweSecretKey::lwe_encrypt_torus(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator) -> LweCiphertext
+pub fn LweSecretKey::lwe_encrypt_torus_with_streams(Self, @torus.Torus32, @random.DiscreteGaussian, @random.RandomGenerator, @random.RandomGenerator) -> LweCiphertext
 pub fn LweSecretKey::parameters(Self) -> @params.LweDimension
 pub fn LweSecretKey::secret_export_payload(Self) -> Bytes
+pub fn LweSecretKey::secret_export_payload_array(Self) -> Array[Byte]
 
 // Type aliases
 

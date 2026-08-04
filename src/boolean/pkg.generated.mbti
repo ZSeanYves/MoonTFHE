@@ -2,10 +2,7 @@
 package "ZSeanYves/MoonTFHE/src/boolean"
 
 import {
-  "ZSeanYves/MoonTFHE/src/core/lwe",
-  "ZSeanYves/MoonTFHE/src/core/pbs",
   "ZSeanYves/MoonTFHE/src/params",
-  "ZSeanYves/MoonTFHE/src/random",
   "moonbitlang/core/debug",
 }
 
@@ -16,13 +13,17 @@ pub fn boolean_128_parameters() -> BooleanParameters
 
 pub fn boolean_test_parameters() -> BooleanParameters
 
+pub fn clear_aead_decrypt_provider() -> Unit
+
 pub fn clear_aead_encrypt_provider() -> Unit
 
 pub fn generate_keys(BooleanParameters) -> Result[(ClientKey, ServerKey), KeyGenerationError]
 
 pub fn generate_test_keys(BooleanParameters, UInt64) -> Result[(ClientKey, ServerKey), KeyGenerationError]
 
-pub fn install_aead_encrypt_provider((Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]) -> Unit
+pub fn install_aead_decrypt_provider((Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]) -> Unit
+
+pub fn install_aead_encrypt_provider((Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]) -> Unit
 
 pub fn serialization_key_from_bytes(Bytes) -> Result[SerializationKey, SerializationKeyError]
 
@@ -88,23 +89,16 @@ pub fn BooleanParameters::is_test_only(Self) -> Bool
 pub fn BooleanParameters::security_bits(Self) -> Int
 
 pub struct Ciphertext {
-  inner : @lwe.LweCiphertext
-  key_id : @params.KeyId
-  parameters : BooleanParameters
+  // private fields
 }
 pub fn Ciphertext::serialize(Self) -> Bytes
 
 pub struct ClientKey {
-  inner : @lwe.LweSecretKey
-  mask_rng : @random.RandomGenerator
-  noise_rng : @random.RandomGenerator
-  serialization_rng : @random.RandomGenerator
-  encryption_noise : @random.DiscreteGaussian
-  parameters : BooleanParameters
-  key_id : @params.KeyId
+  // private fields
 }
 pub fn ClientKey::decrypt(Self, Ciphertext) -> Result[Bool, DecryptionError]
 pub fn ClientKey::deserialize(Self, Bytes) -> Result[Ciphertext, SerializationError]
+pub fn ClientKey::destroy(Self) -> Unit
 pub fn ClientKey::encrypt(Self, Bool) -> Ciphertext
 pub fn ClientKey::export_secret(Self, SerializationKey) -> Result[Bytes, SerializationError]
 pub fn ClientKey::import_secret(BooleanParameters, SerializationKey, Bytes) -> Result[Self, SerializationError]
@@ -114,9 +108,7 @@ pub struct SerializationKey {
 }
 
 pub struct ServerKey {
-  inner : @pbs.BootstrapKey
-  parameters : BooleanParameters
-  key_id : @params.KeyId
+  // private fields
 }
 pub fn ServerKey::and_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::apply_lut(Self, Ciphertext, Array[Bool]) -> Result[Ciphertext, EvaluationError]
@@ -130,6 +122,8 @@ pub fn ServerKey::xnor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, 
 pub fn ServerKey::xor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 
 // Type aliases
-pub type AeadEncryptProvider = (Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]
+pub type AeadDecryptProvider = (Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]
+
+pub type AeadEncryptProvider = (Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]
 
 // Traits
