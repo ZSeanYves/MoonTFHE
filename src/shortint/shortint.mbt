@@ -365,6 +365,17 @@ pub fn ShortintServerKey::add(
 }
 
 ///|
+/// The Boolean-block research backend refreshes every gate, so smart and
+/// default addition currently share the same carry-normalized implementation.
+pub fn ShortintServerKey::smart_add(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  self.unchecked_add(left, right)
+}
+
+///|
 pub fn ShortintServerKey::sub_with_borrow(
   self : ShortintServerKey,
   left : ShortintCiphertext,
@@ -482,11 +493,50 @@ pub fn ShortintServerKey::bitxor(
 }
 
 ///|
+pub fn ShortintServerKey::bitnot(
+  self : ShortintServerKey,
+  input : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if !parameters_match(input.parameters, self.parameters) ||
+    input.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let blocks : Array[@boolean.Ciphertext] = []
+  for block in input.blocks {
+    match self.inner.not(block) {
+      Ok(value) => blocks.push(value)
+      Err(_) => return Err(BooleanFailure)
+    }
+  }
+  Ok({
+    blocks,
+    parameters: self.parameters,
+    degree: { value: self.parameters.message_modulus - 1U },
+    noise: { value: input.noise.value + 1U },
+  })
+}
+
+///|
 pub fn ShortintServerKey::scalar_add(
   self : ShortintServerKey,
   input : ShortintCiphertext,
   scalar : UInt,
 ) -> Result[ShortintCiphertext, ShortintError] {
+  match self.scalar_add_with_carry(input, scalar) {
+    Ok((result, _carry)) => Ok(result)
+    Err(error) => Err(error)
+  }
+}
+
+///|
+/// Adds a plaintext scalar and returns the carry as a one-bit shortint block.
+/// This is a research-layer primitive used by the radix integer facade; the
+/// result is reduced modulo the message modulus.
+pub fn ShortintServerKey::scalar_add_with_carry(
+  self : ShortintServerKey,
+  input : ShortintCiphertext,
+  scalar : UInt,
+) -> Result[(ShortintCiphertext, ShortintCiphertext), ShortintError] {
   if scalar >= self.parameters.message_modulus {
     return Err(InvalidMessage)
   }
@@ -506,18 +556,376 @@ pub fn ShortintServerKey::scalar_add(
   for index in 0..<self.parameters.block_count {
     scalar_blocks.push(if ((scalar >> index) & 1U) == 1U { one } else { zero })
   }
-  self.unchecked_add(
-    {
-      blocks: input.blocks,
-      parameters: self.parameters,
-      degree: input.degree,
-      noise: input.noise,
+  let scalar_cipher = {
+    blocks: scalar_blocks,
+    parameters: self.parameters,
+    degree: { value: scalar },
+    noise: { value: 1U },
+  }
+  self.add_with_carry(input, scalar_cipher)
+}
+
+///|
+fn shortint_constant_like(
+  server : @boolean.ServerKey,
+  input : ShortintCiphertext,
+  parameters : ShortintParameters,
+  value : UInt,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if value >= parameters.message_modulus ||
+    !parameters_match(input.parameters, parameters) ||
+    input.blocks.length() != parameters.block_count {
+    return Err(InvalidMessage)
+  }
+  let zero = match gate_xor(server, input.blocks[0], input.blocks[0]) {
+    Ok(ciphertext) => ciphertext
+    Err(error) => return Err(error)
+  }
+  let one = match server.xnor_gate(zero, zero) {
+    Ok(ciphertext) => ciphertext
+    Err(_) => return Err(BooleanFailure)
+  }
+  let blocks : Array[@boolean.Ciphertext] = []
+  for index in 0..<parameters.block_count {
+    blocks.push(if ((value >> index) & 1U) == 1U { one } else { zero })
+  }
+  Ok({ blocks, parameters, degree: { value, }, noise: { value: 1U } })
+}
+
+///|
+/// Returns one encrypted bit in the least-significant position.
+pub fn ShortintServerKey::bit_at(
+  self : ShortintServerKey,
+  input : ShortintCiphertext,
+  index : Int,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if !parameters_match(input.parameters, self.parameters) ||
+    input.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  if index < 0 || index >= self.parameters.block_count {
+    return Err(InvalidMessage)
+  }
+  let zero = match gate_xor(self.inner, input.blocks[0], input.blocks[0]) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let blocks : Array[@boolean.Ciphertext] = [input.blocks[index]]
+  for _ in 1..<self.parameters.block_count {
+    blocks.push(zero)
+  }
+  Ok({
+    blocks,
+    parameters: self.parameters,
+    degree: { value: 1U },
+    noise: { value: input.noise.value + 1U },
+  })
+}
+
+///|
+/// Selects between two shortint ciphertexts using the selector's low bit.
+pub fn ShortintServerKey::select(
+  self : ShortintServerKey,
+  selector : ShortintCiphertext,
+  when_true : ShortintCiphertext,
+  when_false : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if !parameters_match(selector.parameters, self.parameters) ||
+    !parameters_match(when_true.parameters, self.parameters) ||
+    !parameters_match(when_false.parameters, self.parameters) ||
+    selector.blocks.length() != self.parameters.block_count ||
+    when_true.blocks.length() != self.parameters.block_count ||
+    when_false.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let blocks : Array[@boolean.Ciphertext] = []
+  for index in 0..<self.parameters.block_count {
+    match
+      self.inner.mux(
+        selector.blocks[0],
+        when_true.blocks[index],
+        when_false.blocks[index],
+      ) {
+      Ok(value) => blocks.push(value)
+      Err(_) => return Err(BooleanFailure)
+    }
+  }
+  Ok({
+    blocks,
+    parameters: self.parameters,
+    degree: {
+      value: if when_true.degree.value > when_false.degree.value {
+        when_true.degree.value
+      } else {
+        when_false.degree.value
+      },
     },
-    {
-      blocks: scalar_blocks,
-      parameters: self.parameters,
-      degree: { value: scalar },
-      noise: { value: 1U },
+    noise: {
+      value: selector.noise.value +
+      when_true.noise.value +
+      when_false.noise.value +
+      1U,
     },
+  })
+}
+
+///|
+/// Returns an encrypted one when both shortint values are equal.
+pub fn ShortintServerKey::equal(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if !parameters_match(left.parameters, self.parameters) ||
+    !parameters_match(right.parameters, self.parameters) ||
+    left.blocks.length() != self.parameters.block_count ||
+    right.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let mut equal = match self.inner.xnor_gate(left.blocks[0], right.blocks[0]) {
+    Ok(value) => value
+    Err(_) => return Err(BooleanFailure)
+  }
+  for index in 1..<self.parameters.block_count {
+    let bit_equal = match
+      self.inner.xnor_gate(left.blocks[index], right.blocks[index]) {
+      Ok(value) => value
+      Err(_) => return Err(BooleanFailure)
+    }
+    equal = match gate_and(self.inner, equal, bit_equal) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+  }
+  let zero = match gate_xor(self.inner, equal, equal) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let blocks : Array[@boolean.Ciphertext] = [equal]
+  for _ in 1..<self.parameters.block_count {
+    blocks.push(zero)
+  }
+  Ok({
+    blocks,
+    parameters: self.parameters,
+    degree: { value: 1U },
+    noise: { value: left.noise.value + right.noise.value + 1U },
+  })
+}
+
+///|
+/// Unsigned encrypted comparison.
+pub fn ShortintServerKey::less_than(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if !parameters_match(left.parameters, self.parameters) ||
+    !parameters_match(right.parameters, self.parameters) ||
+    left.blocks.length() != self.parameters.block_count ||
+    right.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let zero = match gate_xor(self.inner, left.blocks[0], left.blocks[0]) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let mut less = zero
+  let mut equal = match self.inner.xnor_gate(zero, zero) {
+    Ok(value) => value
+    Err(_) => return Err(BooleanFailure)
+  }
+  let mut index = self.parameters.block_count - 1
+  while index >= 0 {
+    let not_left = match self.inner.not(left.blocks[index]) {
+      Ok(value) => value
+      Err(_) => return Err(BooleanFailure)
+    }
+    let bit_less = match gate_and(self.inner, not_left, right.blocks[index]) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    let decisive = match gate_and(self.inner, equal, bit_less) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    less = match gate_or(self.inner, less, decisive) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    let bit_equal = match
+      self.inner.xnor_gate(left.blocks[index], right.blocks[index]) {
+      Ok(value) => value
+      Err(_) => return Err(BooleanFailure)
+    }
+    equal = match gate_and(self.inner, equal, bit_equal) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    index = index - 1
+  }
+  let blocks : Array[@boolean.Ciphertext] = [less]
+  for _ in 1..<self.parameters.block_count {
+    blocks.push(zero)
+  }
+  Ok({
+    blocks,
+    parameters: self.parameters,
+    degree: { value: 1U },
+    noise: { value: left.noise.value + right.noise.value + 1U },
+  })
+}
+
+///|
+/// Shifts one bit left, inserting the low bit of `incoming`, and returns the
+/// discarded high bit as a one-bit shortint value.
+pub fn ShortintServerKey::shift_left_one(
+  self : ShortintServerKey,
+  input : ShortintCiphertext,
+  incoming : ShortintCiphertext,
+) -> Result[(ShortintCiphertext, ShortintCiphertext), ShortintError] {
+  if !parameters_match(input.parameters, self.parameters) ||
+    !parameters_match(incoming.parameters, self.parameters) ||
+    input.blocks.length() != self.parameters.block_count ||
+    incoming.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let zero = match gate_xor(self.inner, input.blocks[0], input.blocks[0]) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let blocks : Array[@boolean.Ciphertext] = [incoming.blocks[0]]
+  for index in 1..<self.parameters.block_count {
+    blocks.push(input.blocks[index - 1])
+  }
+  let carry_blocks : Array[@boolean.Ciphertext] = [
+    input.blocks[self.parameters.block_count - 1],
+  ]
+  for _ in 1..<self.parameters.block_count {
+    carry_blocks.push(zero)
+  }
+  Ok(
+    (
+      {
+        blocks,
+        parameters: self.parameters,
+        degree: { value: self.parameters.message_modulus - 1U },
+        noise: { value: input.noise.value + incoming.noise.value },
+      },
+      {
+        blocks: carry_blocks,
+        parameters: self.parameters,
+        degree: { value: 1U },
+        noise: input.noise,
+      },
+    ),
   )
+}
+
+///|
+/// Shifts one bit right, inserting the low bit of `incoming` at the high end.
+pub fn ShortintServerKey::shift_right_one(
+  self : ShortintServerKey,
+  input : ShortintCiphertext,
+  incoming : ShortintCiphertext,
+) -> Result[(ShortintCiphertext, ShortintCiphertext), ShortintError] {
+  if !parameters_match(input.parameters, self.parameters) ||
+    !parameters_match(incoming.parameters, self.parameters) ||
+    input.blocks.length() != self.parameters.block_count ||
+    incoming.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let zero = match gate_xor(self.inner, input.blocks[0], input.blocks[0]) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let blocks : Array[@boolean.Ciphertext] = []
+  for index in 0..<(self.parameters.block_count - 1) {
+    blocks.push(input.blocks[index + 1])
+  }
+  blocks.push(incoming.blocks[0])
+  let carry_blocks : Array[@boolean.Ciphertext] = [input.blocks[0]]
+  for _ in 1..<self.parameters.block_count {
+    carry_blocks.push(zero)
+  }
+  Ok(
+    (
+      {
+        blocks,
+        parameters: self.parameters,
+        degree: { value: self.parameters.message_modulus - 1U },
+        noise: { value: input.noise.value + incoming.noise.value },
+      },
+      {
+        blocks: carry_blocks,
+        parameters: self.parameters,
+        degree: { value: 1U },
+        noise: input.noise,
+      },
+    ),
+  )
+}
+
+///|
+/// Multiplies two shortint values modulo the message modulus.
+pub fn ShortintServerKey::mul(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if !parameters_match(left.parameters, self.parameters) ||
+    !parameters_match(right.parameters, self.parameters) ||
+    left.blocks.length() != self.parameters.block_count ||
+    right.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let mut result = match
+    shortint_constant_like(self.inner, left, self.parameters, 0U) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let zero = result.blocks[0]
+  for multiplier_bit in 0..<self.parameters.block_count {
+    let partial_blocks : Array[@boolean.Ciphertext] = []
+    for output_bit in 0..<self.parameters.block_count {
+      if output_bit < multiplier_bit {
+        partial_blocks.push(zero)
+      } else {
+        match
+          gate_and(
+            self.inner,
+            left.blocks[output_bit - multiplier_bit],
+            right.blocks[multiplier_bit],
+          ) {
+          Ok(value) => partial_blocks.push(value)
+          Err(error) => return Err(error)
+        }
+      }
+    }
+    let partial = {
+      blocks: partial_blocks,
+      parameters: self.parameters,
+      degree: { value: self.parameters.message_modulus - 1U },
+      noise: { value: left.noise.value + right.noise.value + 1U },
+    }
+    result = match self.unchecked_add(result, partial) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+  }
+  Ok(result)
+}
+
+///|
+pub fn ShortintServerKey::scalar_mul(
+  self : ShortintServerKey,
+  input : ShortintCiphertext,
+  scalar : UInt,
+) -> Result[ShortintCiphertext, ShortintError] {
+  let constant = match
+    shortint_constant_like(self.inner, input, self.parameters, scalar) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  self.mul(input, constant)
 }

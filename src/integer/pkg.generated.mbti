@@ -17,11 +17,17 @@ pub fn integer_parameters(@boolean.BooleanParameters, Int, Bool) -> Result[Integ
 pub suberror IntegerError {
   InvalidBlockCount
   InvalidValue
+  InvalidShift
   KeyMismatch
+  SignedOperationUnsupported
   ShortintFailure
 } derive(Eq, @debug.Debug)
 
 // Types and methods
+pub struct BooleanBlock {
+  // private fields
+}
+
 pub struct IntegerCiphertext {
   // private fields
 }
@@ -30,6 +36,7 @@ pub struct IntegerClientKey {
   // private fields
 }
 pub fn IntegerClientKey::decrypt(Self, IntegerCiphertext) -> Result[UInt64, IntegerError]
+pub fn IntegerClientKey::decrypt_bool(Self, BooleanBlock) -> Result[Bool, IntegerError]
 pub fn IntegerClientKey::encrypt(Self, UInt64) -> Result[IntegerCiphertext, IntegerError]
 
 pub struct IntegerParameters {
@@ -42,10 +49,36 @@ pub struct IntegerServerKey {
   // private fields
 }
 pub fn IntegerServerKey::add(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::bit_at(Self, IntegerCiphertext, Int) -> Result[BooleanBlock, IntegerError]
 pub fn IntegerServerKey::bitand(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::bitnot(Self, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
 pub fn IntegerServerKey::bitor(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
 pub fn IntegerServerKey::bitxor(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::div(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::div_rem(Self, IntegerCiphertext, IntegerCiphertext) -> Result[(IntegerCiphertext, IntegerCiphertext), IntegerError]
+pub fn IntegerServerKey::equal(Self, IntegerCiphertext, IntegerCiphertext) -> Result[BooleanBlock, IntegerError]
+pub fn IntegerServerKey::greater_or_equal(Self, IntegerCiphertext, IntegerCiphertext) -> Result[BooleanBlock, IntegerError]
+pub fn IntegerServerKey::greater_than(Self, IntegerCiphertext, IntegerCiphertext) -> Result[BooleanBlock, IntegerError]
+pub fn IntegerServerKey::less_or_equal(Self, IntegerCiphertext, IntegerCiphertext) -> Result[BooleanBlock, IntegerError]
+pub fn IntegerServerKey::less_than(Self, IntegerCiphertext, IntegerCiphertext) -> Result[BooleanBlock, IntegerError]
+pub fn IntegerServerKey::max(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::min(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::mul(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::remainder(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::rotate_left(Self, IntegerCiphertext, Int) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::rotate_right(Self, IntegerCiphertext, Int) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::scalar_add(Self, IntegerCiphertext, UInt64) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::scalar_mul(Self, IntegerCiphertext, UInt64) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::select(Self, BooleanBlock, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::shift_left(Self, IntegerCiphertext, Int) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::shift_right(Self, IntegerCiphertext, Int) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::smart_add(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::smart_mul(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::smart_sub(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
 pub fn IntegerServerKey::sub(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::unchecked_add(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::unchecked_mul(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::unchecked_sub(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
 
 // Type aliases
 
