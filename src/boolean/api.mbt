@@ -30,6 +30,13 @@ pub suberror EvaluationError {
 } derive(Debug, Eq)
 
 ///|
+pub suberror LutError {
+  InvalidLength
+  InvalidPolynomialSize
+  InvalidAntiPeriodicity
+} derive(Debug, Eq)
+
+///|
 pub suberror SerializationError {
   InvalidMagic
   UnsupportedVersion
@@ -79,6 +86,54 @@ pub struct ServerKey {
   priv inner : @pbs.BootstrapKey
   priv parameters : BooleanParameters
   priv key_id : @params.KeyId
+}
+
+///|
+/// Opaque per-evaluation state. The current native provider owns the heavy
+/// PBS workspace behind `ServerKey`; this context is the stable place for
+/// explicit workspace reuse and future concurrent evaluators.
+pub struct EvaluationContext {
+  priv server_key : ServerKey
+}
+
+///|
+/// A validated anti-periodic Torus lookup table for programmable bootstrap.
+pub struct ProgrammableBootstrapLut {
+  priv values : Array[@torus.Torus32]
+  priv polynomial_size : Int
+}
+
+///|
+pub fn ServerKey::evaluation_context(self : ServerKey) -> EvaluationContext {
+  { server_key: self }
+}
+
+///|
+pub fn programmable_bootstrap_lut(
+  parameters : BooleanParameters,
+  values : Array[@torus.Torus32],
+) -> Result[ProgrammableBootstrapLut, LutError] {
+  let polynomial_size = parameters.record.polynomial_size().value()
+  if polynomial_size <= 0 || (polynomial_size & (polynomial_size - 1)) != 0 {
+    return Err(InvalidPolynomialSize)
+  }
+  if values.length() != polynomial_size {
+    return Err(InvalidLength)
+  }
+  let half = polynomial_size / 2
+  for index in 0..<half {
+    if values[index + half] != values[index].neg() {
+      return Err(InvalidAntiPeriodicity)
+    }
+  }
+  Ok({ values: values.copy(), polynomial_size })
+}
+
+///|
+pub fn ProgrammableBootstrapLut::polynomial_size(
+  self : ProgrammableBootstrapLut,
+) -> Int {
+  self.polynomial_size
 }
 
 ///|
@@ -568,6 +623,14 @@ pub fn ServerKey::not(
 }
 
 ///|
+pub fn EvaluationContext::not(
+  self : EvaluationContext,
+  ciphertext : Ciphertext,
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.not(ciphertext)
+}
+
+///|
 fn ServerKey::apply_binary_lut(
   self : ServerKey,
   left : Ciphertext,
@@ -607,6 +670,15 @@ pub fn ServerKey::nand(
 }
 
 ///|
+pub fn EvaluationContext::nand(
+  self : EvaluationContext,
+  left : Ciphertext,
+  right : Ciphertext,
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.nand(left, right)
+}
+
+///|
 pub fn ServerKey::and_gate(
   self : ServerKey,
   left : Ciphertext,
@@ -616,12 +688,30 @@ pub fn ServerKey::and_gate(
 }
 
 ///|
+pub fn EvaluationContext::and_gate(
+  self : EvaluationContext,
+  left : Ciphertext,
+  right : Ciphertext,
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.and_gate(left, right)
+}
+
+///|
 pub fn ServerKey::or_gate(
   self : ServerKey,
   left : Ciphertext,
   right : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
   self.apply_binary_lut(left, right, OrLut)
+}
+
+///|
+pub fn EvaluationContext::or_gate(
+  self : EvaluationContext,
+  left : Ciphertext,
+  right : Ciphertext,
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.or_gate(left, right)
 }
 
 ///|
@@ -637,12 +727,30 @@ pub fn ServerKey::xor_gate(
 }
 
 ///|
+pub fn EvaluationContext::xor_gate(
+  self : EvaluationContext,
+  left : Ciphertext,
+  right : Ciphertext,
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.xor_gate(left, right)
+}
+
+///|
 pub fn ServerKey::xnor_gate(
   self : ServerKey,
   left : Ciphertext,
   right : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
   self.apply_binary_lut(left, right, XnorLut)
+}
+
+///|
+pub fn EvaluationContext::xnor_gate(
+  self : EvaluationContext,
+  left : Ciphertext,
+  right : Ciphertext,
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.xnor_gate(left, right)
 }
 
 ///|
@@ -680,6 +788,16 @@ pub fn ServerKey::mux(
       })
     Err(_) => Err(InvalidCiphertext)
   }
+}
+
+///|
+pub fn EvaluationContext::mux(
+  self : EvaluationContext,
+  selector : Ciphertext,
+  when_true : Ciphertext,
+  when_false : Ciphertext,
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.mux(selector, when_true, when_false)
 }
 
 ///|
@@ -723,6 +841,44 @@ pub fn ServerKey::apply_lut(
       })
     }
   }
+}
+
+///|
+pub fn ServerKey::apply_programmable_lut(
+  self : ServerKey,
+  ciphertext : Ciphertext,
+  lut : ProgrammableBootstrapLut,
+) -> Result[Ciphertext, EvaluationError] {
+  match evaluate_check(self.parameters, self.key_id, ciphertext) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  if lut.polynomial_size != self.parameters.record.polynomial_size().value() {
+    return Err(InvalidLutLength)
+  }
+  match self.inner.programmable_bootstrap_table(ciphertext.inner, lut.values) {
+    Ok(value) =>
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
+    Err(_) => Err(InvalidCiphertext)
+  }
+}
+
+///|
+pub fn EvaluationContext::apply_programmable_lut(
+  self : EvaluationContext,
+  ciphertext : Ciphertext,
+  lut : ProgrammableBootstrapLut,
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.apply_programmable_lut(ciphertext, lut)
+}
+
+///|
+pub fn EvaluationContext::apply_lut(
+  self : EvaluationContext,
+  ciphertext : Ciphertext,
+  table : Array[Bool],
+) -> Result[Ciphertext, EvaluationError] {
+  self.server_key.apply_lut(ciphertext, table)
 }
 
 ///|

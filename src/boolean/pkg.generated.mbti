@@ -3,6 +3,7 @@ package "ZSeanYves/MoonTFHE/src/boolean"
 
 import {
   "ZSeanYves/MoonTFHE/src/params",
+  "ZSeanYves/MoonTFHE/src/torus",
   "moonbitlang/core/debug",
 }
 
@@ -24,6 +25,8 @@ pub fn generate_test_keys(BooleanParameters, UInt64) -> Result[(ClientKey, Serve
 pub fn install_aead_decrypt_provider((Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]) -> Unit
 
 pub fn install_aead_encrypt_provider((Bytes, Bytes, Bytes, Bytes) -> Result[Bytes, BackendError]) -> Unit
+
+pub fn programmable_bootstrap_lut(BooleanParameters, Array[@torus.Torus32]) -> Result[ProgrammableBootstrapLut, LutError]
 
 pub fn serialization_key_from_bytes(Bytes) -> Result[SerializationKey, SerializationKeyError]
 
@@ -49,6 +52,12 @@ pub suberror EvaluationError {
 pub suberror KeyGenerationError {
   UnsupportedBackend
   InvalidParameters
+} derive(Eq, @debug.Debug)
+
+pub suberror LutError {
+  InvalidLength
+  InvalidPolynomialSize
+  InvalidAntiPeriodicity
 } derive(Eq, @debug.Debug)
 
 pub suberror SerializationError {
@@ -103,6 +112,24 @@ pub fn ClientKey::encrypt(Self, Bool) -> Ciphertext
 pub fn ClientKey::export_secret(Self, SerializationKey) -> Result[Bytes, SerializationError]
 pub fn ClientKey::import_secret(BooleanParameters, SerializationKey, Bytes) -> Result[Self, SerializationError]
 
+pub struct EvaluationContext {
+  // private fields
+}
+pub fn EvaluationContext::and_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn EvaluationContext::apply_lut(Self, Ciphertext, Array[Bool]) -> Result[Ciphertext, EvaluationError]
+pub fn EvaluationContext::apply_programmable_lut(Self, Ciphertext, ProgrammableBootstrapLut) -> Result[Ciphertext, EvaluationError]
+pub fn EvaluationContext::mux(Self, Ciphertext, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn EvaluationContext::nand(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn EvaluationContext::not(Self, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn EvaluationContext::or_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn EvaluationContext::xnor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+pub fn EvaluationContext::xor_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
+
+pub struct ProgrammableBootstrapLut {
+  // private fields
+}
+pub fn ProgrammableBootstrapLut::polynomial_size(Self) -> Int
+
 pub struct SerializationKey {
   bytes : Bytes
 }
@@ -112,7 +139,9 @@ pub struct ServerKey {
 }
 pub fn ServerKey::and_gate(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::apply_lut(Self, Ciphertext, Array[Bool]) -> Result[Ciphertext, EvaluationError]
+pub fn ServerKey::apply_programmable_lut(Self, Ciphertext, ProgrammableBootstrapLut) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::deserialize(Bytes) -> Result[Self, SerializationError]
+pub fn ServerKey::evaluation_context(Self) -> EvaluationContext
 pub fn ServerKey::mux(Self, Ciphertext, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::nand(Self, Ciphertext, Ciphertext) -> Result[Ciphertext, EvaluationError]
 pub fn ServerKey::not(Self, Ciphertext) -> Result[Ciphertext, EvaluationError]

@@ -209,6 +209,31 @@ test "stable Boolean facade: all two-point LUTs are evaluated" {
 }
 
 ///|
+test "stable Boolean facade: evaluation context and programmable LUT contract" {
+  let parameters = boolean_test_parameters()
+  let (client, server) = generate_test_keys(parameters, 0x4C5554435458).unwrap()
+  let context = server.evaluation_context()
+  let negated = context.not(client.encrypt(true)).unwrap()
+  assert_eq(client.decrypt(negated), Ok(false))
+  let amplitude = @torus.Torus32::from_int(0x2000_0000)
+  let values = Array::makei(32, fn(index) {
+    if index < 16 {
+      amplitude.neg()
+    } else {
+      amplitude
+    }
+  })
+  let lut = programmable_bootstrap_lut(parameters, values).unwrap()
+  assert_eq(lut.polynomial_size(), 32)
+  let malformed = values.copy()
+  malformed[16] = amplitude.neg()
+  assert_true(
+    programmable_bootstrap_lut(parameters, malformed)
+    is Err(InvalidAntiPeriodicity),
+  )
+}
+
+///|
 test "stable Boolean facade: linear LUT paths reject a foreign key" {
   let parameters = boolean_test_parameters()
   let (_client, server) = generate_test_keys(parameters, 0x4C55544B455931UL).unwrap()

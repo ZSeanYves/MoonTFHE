@@ -105,6 +105,24 @@ declare pub fn ServerKey::apply_lut(
 ) -> Result[Ciphertext, EvaluationError]
 
 ///|
+declare pub fn ServerKey::evaluation_context(
+  self : ServerKey,
+) -> EvaluationContext
+
+///|
+declare pub fn programmable_bootstrap_lut(
+  parameters : BooleanParameters,
+  values : Array[@torus.Torus32],
+) -> Result[ProgrammableBootstrapLut, LutError]
+
+///|
+declare pub fn ServerKey::apply_programmable_lut(
+  self : ServerKey,
+  ciphertext : Ciphertext,
+  lut : ProgrammableBootstrapLut,
+) -> Result[Ciphertext, EvaluationError]
+
+///|
 declare pub fn Ciphertext::serialize(self : Ciphertext) -> Bytes
 
 ///|
