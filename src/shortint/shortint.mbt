@@ -119,6 +119,11 @@ pub fn ShortintParameters::message_modulus(self : ShortintParameters) -> UInt {
 }
 
 ///|
+pub fn ShortintParameters::parameter_id(self : ShortintParameters) -> String {
+  self.boolean_parameters.id()
+}
+
+///|
 pub fn ShortintParameters::carry_modulus(self : ShortintParameters) -> UInt {
   self.carry_modulus
 }
@@ -273,11 +278,11 @@ fn apply_bitwise(
 }
 
 ///|
-pub fn ShortintServerKey::unchecked_add(
+pub fn ShortintServerKey::add_with_carry(
   self : ShortintServerKey,
   left : ShortintCiphertext,
   right : ShortintCiphertext,
-) -> Result[ShortintCiphertext, ShortintError] {
+) -> Result[(ShortintCiphertext, ShortintCiphertext), ShortintError] {
   if !parameters_match(left.parameters, self.parameters) ||
     !parameters_match(right.parameters, self.parameters) ||
     left.blocks.length() != self.parameters.block_count ||
@@ -315,12 +320,39 @@ pub fn ShortintServerKey::unchecked_add(
     }
     result.push(sum)
   }
-  Ok({
+  let output = {
     blocks: result,
     parameters: self.parameters,
     degree: { value: self.parameters.message_modulus - 1U },
     noise: { value: left.noise.value + right.noise.value + 1U },
-  })
+  }
+  let carry_blocks : Array[@boolean.Ciphertext] = [carry]
+  for _ in 1..<self.parameters.block_count {
+    carry_blocks.push(zero)
+  }
+  Ok(
+    (
+      output,
+      {
+        blocks: carry_blocks,
+        parameters: self.parameters,
+        degree: { value: 1U },
+        noise: { value: left.noise.value + right.noise.value + 1U },
+      },
+    ),
+  )
+}
+
+///|
+pub fn ShortintServerKey::unchecked_add(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  match self.add_with_carry(left, right) {
+    Ok((result, _carry)) => Ok(result)
+    Err(error) => Err(error)
+  }
 }
 
 ///|

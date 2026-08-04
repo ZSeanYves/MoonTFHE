@@ -1,0 +1,12 @@
+import {
+  "ZSeanYves/MoonTFHE/src/boolean",
+  "ZSeanYves/MoonTFHE/src/shortint",
+}
+
+options(
+  link: {
+    "native": {
+      "cc-link-flags": "native/fft/target/release/libmoontfhe_fft.a native/aead/target/release/libmoontfhe_aead.a -lm",
+    },
+  },
+)

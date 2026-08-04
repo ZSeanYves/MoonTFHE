@@ -1,0 +1,48 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/MoonTFHE/src/integer"
+
+import {
+  "ZSeanYves/MoonTFHE/src/boolean",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn generate_keys(IntegerParameters) -> Result[(IntegerClientKey, IntegerServerKey), IntegerError]
+
+pub fn generate_test_keys(IntegerParameters, UInt64) -> Result[(IntegerClientKey, IntegerServerKey), IntegerError]
+
+pub fn integer_parameters(@boolean.BooleanParameters, Int, Bool) -> Result[IntegerParameters, IntegerError]
+
+// Errors
+pub suberror IntegerError {
+  InvalidBlockCount
+  InvalidValue
+  KeyMismatch
+  ShortintFailure
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct IntegerCiphertext {
+  // private fields
+}
+
+pub struct IntegerClientKey {
+  // private fields
+}
+pub fn IntegerClientKey::decrypt(Self, IntegerCiphertext) -> Result[UInt64, IntegerError]
+pub fn IntegerClientKey::encrypt(Self, UInt64) -> Result[IntegerCiphertext, IntegerError]
+
+pub struct IntegerParameters {
+  // private fields
+}
+pub fn IntegerParameters::block_count(Self) -> Int
+pub fn IntegerParameters::is_signed(Self) -> Bool
+
+pub struct IntegerServerKey {
+  // private fields
+}
+pub fn IntegerServerKey::add(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+
+// Type aliases
+
+// Traits

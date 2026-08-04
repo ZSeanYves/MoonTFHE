@@ -29,6 +29,8 @@ The following limits remain:
 - resistance to side-channel attacks.
 - Shortint currently has only a clearly marked Boolean-block research layer;
   it is not tfhe-rs-compatible Shortint.
+- Integer currently has only a small radix-block research layer for UInt64
+  encrypt/decrypt/add; it is not a mature Integer implementation.
 
 The maintained `src/boolean` facade exposes opaque `ClientKey`, `ServerKey`,
 and `Ciphertext` types, versioned `MBCT` ciphertext envelopes, complete `MBKS`

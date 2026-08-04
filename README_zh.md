@@ -23,6 +23,8 @@ PBS->KS，以及稳定的 NAND/NOT/AND/OR/XOR/XNOR/MUX 和 Boolean LUT API。
 - 侧信道攻击防护。
 - Shortint 目前只有明确标记的 Boolean block 研究层，并非与 tfhe-rs
   兼容的 Shortint 实现。
+- Integer 目前只有用于 UInt64 加解密和加法的小型 radix block 研究层，
+  并非成熟的 Integer 实现。
 
 维护中的 `src/boolean` 门面提供不透明的 `ClientKey`、`ServerKey`、`Ciphertext`
 和布尔门 API。native `generate_keys` 支持固定的 110/128 参数；portable 需要可信

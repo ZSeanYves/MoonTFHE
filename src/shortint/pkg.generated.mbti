@@ -51,11 +51,13 @@ pub struct ShortintParameters {
 pub fn ShortintParameters::block_count(Self) -> Int
 pub fn ShortintParameters::carry_modulus(Self) -> UInt
 pub fn ShortintParameters::message_modulus(Self) -> UInt
+pub fn ShortintParameters::parameter_id(Self) -> String
 
 pub struct ShortintServerKey {
   // private fields
 }
 pub fn ShortintServerKey::add(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
+pub fn ShortintServerKey::add_with_carry(Self, ShortintCiphertext, ShortintCiphertext) -> Result[(ShortintCiphertext, ShortintCiphertext), ShortintError]
 pub fn ShortintServerKey::bitand(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
 pub fn ShortintServerKey::bitor(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
 pub fn ShortintServerKey::bitxor(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
