@@ -1,7 +1,7 @@
 use moontfhe_fft::{
     fft_plan_free, fft_plan_new, fft_scratch_free, fft_scratch_new, fourier_blind_rotation_step,
     fourier_bsk_convert, fourier_bsk_free, fourier_bsk_new, fourier_workspace_reset,
-    indexed_ggsw_external_product_u32, native_pbs_context_free, native_pbs_context_new,
+    native_pbs_context_free, native_pbs_context_new,
     native_pbs_evaluate_lut,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -152,18 +152,20 @@ fn external_product_hot_path_performs_no_allocations() {
         0
     );
 
-    // RustFFT may lazily initialize an internal plan on the first external
-    // product. Treat that one-time setup as initialization, then measure only
-    // the steady-state hot path below.
+    // RustFFT may lazily initialize an internal plan on the first fused blind
+    // rotation. Warm up the exact ABI entry point under test so the measured
+    // loop is strictly steady state on every supported Rust toolchain.
     assert_eq!(
         unsafe {
-            indexed_ggsw_external_product_u32(
+            fourier_blind_rotation_step(
                 plan,
                 key,
                 scratch,
                 1,
                 digits.as_ptr(),
                 digits.len(),
+                addend.as_ptr(),
+                addend.len(),
                 output.as_mut_ptr(),
                 output.len(),
             )
