@@ -32,6 +32,13 @@ pub struct IntegerServerKey {
 }
 
 ///|
+priv enum IntegerBitwiseOp {
+  And
+  Or
+  Xor
+}
+
+///|
 pub fn integer_parameters(
   boolean_parameters : @boolean.BooleanParameters,
   block_count : Int,
@@ -174,4 +181,102 @@ pub fn IntegerServerKey::add(
     carry = with_carry
   }
   Ok({ blocks: result, parameters: self.parameters })
+}
+
+///|
+pub fn IntegerServerKey::sub(
+  self : IntegerServerKey,
+  left : IntegerCiphertext,
+  right : IntegerCiphertext,
+) -> Result[IntegerCiphertext, IntegerError] {
+  if !parameters_match(left.parameters, self.parameters) ||
+    !parameters_match(right.parameters, self.parameters) ||
+    left.blocks.length() != self.parameters.block_count ||
+    right.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let result : Array[@shortint.ShortintCiphertext] = []
+  let mut borrow = match
+    self.inner.sub_with_borrow(left.blocks[0], right.blocks[0]) {
+    Ok((difference, next)) => {
+      result.push(difference)
+      next
+    }
+    Err(_) => return Err(ShortintFailure)
+  }
+  for index in 1..<self.parameters.block_count {
+    let with_borrow = match
+      self.inner.sub_with_borrow(left.blocks[index], borrow) {
+      Ok((partial, next_borrow)) =>
+        match self.inner.sub_with_borrow(partial, right.blocks[index]) {
+          Ok((difference, final_borrow)) => {
+            result.push(difference)
+            match self.inner.bitor(next_borrow, final_borrow) {
+              Ok(combined) => combined
+              Err(_) => return Err(ShortintFailure)
+            }
+          }
+          Err(_) => return Err(ShortintFailure)
+        }
+      Err(_) => return Err(ShortintFailure)
+    }
+    borrow = with_borrow
+  }
+  Ok({ blocks: result, parameters: self.parameters })
+}
+
+///|
+fn integer_bitwise(
+  server : @shortint.ShortintServerKey,
+  left : IntegerCiphertext,
+  right : IntegerCiphertext,
+  parameters : IntegerParameters,
+  operation : IntegerBitwiseOp,
+) -> Result[IntegerCiphertext, IntegerError] {
+  if !parameters_match(left.parameters, parameters) ||
+    !parameters_match(right.parameters, parameters) ||
+    left.blocks.length() != parameters.block_count ||
+    right.blocks.length() != parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let result : Array[@shortint.ShortintCiphertext] = []
+  for index in 0..<parameters.block_count {
+    let block = match operation {
+      And => server.bitand(left.blocks[index], right.blocks[index])
+      Or => server.bitor(left.blocks[index], right.blocks[index])
+      Xor => server.bitxor(left.blocks[index], right.blocks[index])
+    }
+    match block {
+      Ok(value) => result.push(value)
+      Err(_) => return Err(ShortintFailure)
+    }
+  }
+  Ok({ blocks: result, parameters })
+}
+
+///|
+pub fn IntegerServerKey::bitand(
+  self : IntegerServerKey,
+  left : IntegerCiphertext,
+  right : IntegerCiphertext,
+) -> Result[IntegerCiphertext, IntegerError] {
+  integer_bitwise(self.inner, left, right, self.parameters, And)
+}
+
+///|
+pub fn IntegerServerKey::bitor(
+  self : IntegerServerKey,
+  left : IntegerCiphertext,
+  right : IntegerCiphertext,
+) -> Result[IntegerCiphertext, IntegerError] {
+  integer_bitwise(self.inner, left, right, self.parameters, Or)
+}
+
+///|
+pub fn IntegerServerKey::bitxor(
+  self : IntegerServerKey,
+  left : IntegerCiphertext,
+  right : IntegerCiphertext,
+) -> Result[IntegerCiphertext, IntegerError] {
+  integer_bitwise(self.inner, left, right, self.parameters, Xor)
 }

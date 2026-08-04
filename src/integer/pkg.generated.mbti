@@ -42,6 +42,10 @@ pub struct IntegerServerKey {
   // private fields
 }
 pub fn IntegerServerKey::add(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::bitand(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::bitor(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::bitxor(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
+pub fn IntegerServerKey::sub(Self, IntegerCiphertext, IntegerCiphertext) -> Result[IntegerCiphertext, IntegerError]
 
 // Type aliases
 

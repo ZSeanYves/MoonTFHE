@@ -365,11 +365,11 @@ pub fn ShortintServerKey::add(
 }
 
 ///|
-pub fn ShortintServerKey::unchecked_sub(
+pub fn ShortintServerKey::sub_with_borrow(
   self : ShortintServerKey,
   left : ShortintCiphertext,
   right : ShortintCiphertext,
-) -> Result[ShortintCiphertext, ShortintError] {
+) -> Result[(ShortintCiphertext, ShortintCiphertext), ShortintError] {
   if !parameters_match(left.parameters, self.parameters) ||
     !parameters_match(right.parameters, self.parameters) ||
     left.blocks.length() != self.parameters.block_count ||
@@ -419,12 +419,39 @@ pub fn ShortintServerKey::unchecked_sub(
     }
     result.push(difference)
   }
-  Ok({
+  let output = {
     blocks: result,
     parameters: self.parameters,
     degree: { value: self.parameters.message_modulus - 1U },
     noise: { value: left.noise.value + right.noise.value + 1U },
-  })
+  }
+  let borrow_blocks : Array[@boolean.Ciphertext] = [borrow]
+  for _ in 1..<self.parameters.block_count {
+    borrow_blocks.push(zero)
+  }
+  Ok(
+    (
+      output,
+      {
+        blocks: borrow_blocks,
+        parameters: self.parameters,
+        degree: { value: 1U },
+        noise: { value: left.noise.value + right.noise.value + 1U },
+      },
+    ),
+  )
+}
+
+///|
+pub fn ShortintServerKey::unchecked_sub(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  match self.sub_with_borrow(left, right) {
+    Ok((result, _borrow)) => Ok(result)
+    Err(error) => Err(error)
+  }
 }
 
 ///|

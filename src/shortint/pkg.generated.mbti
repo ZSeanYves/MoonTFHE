@@ -62,6 +62,7 @@ pub fn ShortintServerKey::bitand(Self, ShortintCiphertext, ShortintCiphertext) -
 pub fn ShortintServerKey::bitor(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
 pub fn ShortintServerKey::bitxor(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
 pub fn ShortintServerKey::scalar_add(Self, ShortintCiphertext, UInt) -> Result[ShortintCiphertext, ShortintError]
+pub fn ShortintServerKey::sub_with_borrow(Self, ShortintCiphertext, ShortintCiphertext) -> Result[(ShortintCiphertext, ShortintCiphertext), ShortintError]
 pub fn ShortintServerKey::unchecked_add(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
 pub fn ShortintServerKey::unchecked_sub(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
 
