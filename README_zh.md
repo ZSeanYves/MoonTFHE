@@ -6,8 +6,8 @@
 
 MoonTFHE 是使用 MoonBit 编写的 TFHE 研究实现。仓库正在从停止维护的教学原型，重建为具有明确客户端/服务端密钥边界、可独立验证的库。
 
-> 安全状态：**研究版本，不可用于生产或敏感数据**。Boolean Core 的工程 RC
-> 门槛已经通过，但尚未经过独立密码学和侧信道审计。
+> 安全状态：**研究版本，不可用于生产或敏感数据**。Boolean Core 的正确性和
+> CI 门槛已通过，但性能门槛以及独立密码学和侧信道审计尚未完成。
 
 ## 当前状态
 
@@ -30,9 +30,11 @@ host entropy adapter，否则返回结构化 `UnsupportedBackend`。
 正式格式为 `MBCT v3`、`MBKS v2` 和 AES-256-GCM 保护的 `MTSK v2`；旧格式
 直接返回 `UnsupportedVersion`。
 
-O7 同机证据中，PBS/NAND 最差为 tfhe-rs 固定 Boolean harness 的
-`4.216x/4.205x`；110/128 峰值 RSS 约为 `212.5/226.5 MiB`，native steady-state
-PBS 零堆分配，两套参数各 1,000-step 连续随机电路均通过。
+最新同机证据中，PBS/NAND 相对固定 tfhe-rs Boolean harness 约为 `4.2x`；
+native steady-state PBS 零堆分配，两套参数各 1,000-step 连续随机电路均通过。
+无除法旋转优化已经完成差分测试，但尚未达到要求的 2x 性能目标。
+
+当前仓库版本为 `0.2.0-research`，不是 RC，也不是生产安全版本。
 
 ## 构建与测试
 

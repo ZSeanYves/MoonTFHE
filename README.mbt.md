@@ -9,8 +9,9 @@ repository is being rebuilt from an unmaintained teaching prototype into a
 testable library with explicit client/server key boundaries.
 
 > Security status: **research release; not suitable for production or
-> sensitive data**. The Boolean Core engineering RC gate passes, but no
-> independent cryptographic or side-channel audit has been performed.
+> sensitive data**. The Boolean Core correctness and CI gates pass, but the
+> performance gate and independent cryptographic/side-channel audits are not
+> complete.
 
 ## Current status
 
@@ -40,10 +41,14 @@ portable targets retain the coefficient reference path. `MBCT v3`, `MBKS v2`
 and authenticated `MTSK v2` are the only supported formats, with complete
 Ciphertext, ServerKey and explicit ClientKey import/export.
 
-The fixed same-runner O7 evidence records worst-case PBS/NAND ratios of
-4.216x/4.205x against the pinned tfhe-rs Boolean harness, peak RSS of about
-212.5/226.5 MiB for the 110/128 parameter sets, zero steady-state native PBS
-heap allocations, and passing 1,000-step chained circuits for both sets.
+The latest same-runner evidence records worst-case PBS/NAND ratios of about
+4.2x against the pinned tfhe-rs Boolean harness, zero steady-state native PBS
+heap allocations, and passing 1,000-step chained circuits for both sets. The
+division-free native rotation optimization is measured and differential-tested,
+but the required 2x performance target is not met.
+
+This repository is versioned as `0.2.0-research`. It is not an RC or a
+production security release.
 
 ## Build and test
 
