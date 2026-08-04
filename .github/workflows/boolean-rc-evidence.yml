@@ -109,6 +109,9 @@ jobs:
             --require-rc-performance \
             --baseline docs/benchmarks-tfhe-rs.json \
             --max-regression 0.10
+          python3 tools/benchmark/profile_report.py \
+            benchmark-artifact/benchmarks-tfhe-rs.json \
+            --output benchmark-artifact/stage-profile.json
           cp tools/benchmark/tfhe-rs/Cargo.lock benchmark-artifact/tfhe-rs-Cargo.lock
 
       - name: Upload benchmark evidence

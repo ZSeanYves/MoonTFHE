@@ -65,6 +65,18 @@ NAND remains 25.24x/25.47x slower than tfhe-rs and peak RSS is about
 ceilings. The PBS field measures a non-trivial NOT LUT and is therefore a real
 PBS datapoint.
 
+The A4 evidence adds `external_product_count` to the stage metrics and records
+the fixed Boolean PBS contract (`NAND`, `AND`, `OR`, `XOR`, and `XNOR` use one
+PBS; `MUX` uses two). `tools/benchmark/profile_report.py` consumes the
+collected schema-v3 artifact and reports stage fractions plus the measured
+external-product total. This keeps optimization decisions tied to measured
+rotation, Fourier product, extraction, and key-switch costs rather than to a
+single aggregate NAND number. The optimized native rotation kernel uses
+division-free split ranges and is covered by a full-wrap differential test;
+the local 110-bit smoke measured roughly 30.3 ms PBS after the change. This is
+an improvement, but it remains well above the 2x release target and does not
+change the research-release status.
+
 The O2 streaming-keygen evidence is committed as
 `docs/performance/o2-streaming-keygen.json`. It records key generation at about
 4.17x/4.08x tfhe-rs and peak RSS at about 463.6/530.1 MiB. The O1 and O2 runs

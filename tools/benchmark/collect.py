@@ -17,7 +17,7 @@ STAGE_NAMES = (
     "key_generation_us", "pbs_with_ks_us", "pbs_without_ks_us",
     "ksk_generation_us", "ksk_apply_us", "bsk_coefficient_generation_us",
     "bsk_fourier_conversion_us", "polynomial_multiplication_us",
-    "external_product_us", "blind_rotation_us", "sample_extraction_us",
+    "external_product_us", "external_product_count", "blind_rotation_us", "sample_extraction_us",
     "nand_us", "and_us", "or_us", "xor_us", "xnor_us", "mux_us",
 )
 

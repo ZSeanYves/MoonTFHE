@@ -550,16 +550,44 @@ fn rotate_negacyclic(input: &[u32], polynomial_size: usize, rotation: i64, outpu
     }
     let period = (2 * polynomial_size) as i64;
     let normalized = rotation.rem_euclid(period) as usize;
+    // Split the rotation into a sign bit and a shift in [0, N).  The old
+    // implementation divided and moduloed every coefficient; blind rotation
+    // executes this loop thousands of times per PBS, so keeping the two
+    // contiguous ranges explicit materially reduces the hot-path cost.
+    let global_negate = normalized >= polynomial_size;
+    let shift = if global_negate {
+        normalized - polynomial_size
+    } else {
+        normalized
+    };
     for component in 0..input.len() / polynomial_size {
         let offset = component * polynomial_size;
-        for source in 0..polynomial_size {
-            let exponent = source + normalized;
-            let wraps = exponent / polynomial_size;
-            let destination = exponent % polynomial_size;
-            output[offset + destination] = if wraps & 1 == 0 {
-                input[offset + source]
+        if shift == 0 {
+            if global_negate {
+                for index in 0..polynomial_size {
+                    output[offset + index] = input[offset + index].wrapping_neg();
+                }
             } else {
-                input[offset + source].wrapping_neg()
+                output[offset..offset + polynomial_size]
+                    .copy_from_slice(&input[offset..offset + polynomial_size]);
+            }
+            continue;
+        }
+        let split = polynomial_size - shift;
+        for source in 0..split {
+            let value = input[offset + source];
+            output[offset + source + shift] = if global_negate {
+                value.wrapping_neg()
+            } else {
+                value
+            };
+        }
+        for source in split..polynomial_size {
+            let value = input[offset + source];
+            output[offset + source - split] = if global_negate {
+                value
+            } else {
+                value.wrapping_neg()
             };
         }
     }
@@ -2038,6 +2066,34 @@ mod tests {
         unsafe {
             fft_scratch_free(scratch);
             fft_plan_free(plan);
+        }
+    }
+
+    #[test]
+    fn negacyclic_rotation_matches_reference_for_all_wraps() {
+        let n = 8usize;
+        let input: Vec<u32> = (0..2 * n)
+            .map(|index| (index as u32).wrapping_mul(0x1020_3040) ^ 0xA5A5_5A5A)
+            .collect();
+        for rotation in -17i64..=17i64 {
+            let mut optimized = vec![0u32; input.len()];
+            assert!(rotate_negacyclic(&input, n, rotation, &mut optimized));
+            let normalized = rotation.rem_euclid((2 * n) as i64) as usize;
+            let mut expected = vec![0u32; input.len()];
+            for component in 0..input.len() / n {
+                let offset = component * n;
+                for source in 0..n {
+                    let exponent = source + normalized;
+                    let wraps = exponent / n;
+                    let destination = exponent % n;
+                    expected[offset + destination] = if wraps & 1 == 0 {
+                        input[offset + source]
+                    } else {
+                        input[offset + source].wrapping_neg()
+                    };
+                }
+            }
+            assert_eq!(optimized, expected, "rotation {rotation}");
         }
     }
 }

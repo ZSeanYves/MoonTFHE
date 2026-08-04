@@ -15,7 +15,7 @@ STAGE_NAMES = {
     "key_generation_us", "pbs_with_ks_us", "pbs_without_ks_us", "ksk_generation_us",
     "ksk_apply_us", "bsk_coefficient_generation_us", "bsk_fourier_conversion_us",
     "polynomial_multiplication_us", "external_product_us", "blind_rotation_us",
-    "sample_extraction_us", "nand_us", "and_us", "or_us", "xor_us", "xnor_us", "mux_us",
+    "external_product_count", "sample_extraction_us", "nand_us", "and_us", "or_us", "xor_us", "xnor_us", "mux_us",
 }
 
 
@@ -85,6 +85,11 @@ def validate(path: Path, require_rc: bool, baseline: Path | None, max_regression
             for stage, value in stages.items():
                 if implementation == "moontfhe" or value is not None:
                     positive(value, f"{parameter}.{implementation}.{stage}")
+            if implementation == "moontfhe":
+                gate_counts = record.get("gate_pbs_counts")
+                expected_counts = {"nand": 1, "and": 1, "or": 1, "xor": 1, "xnor": 1, "mux": 2}
+                if gate_counts != expected_counts:
+                    raise ValueError(f"{parameter}.moontfhe.gate_pbs_counts does not match the fixed Boolean LUT contract")
         allocations = moon.get("allocation_metrics", {})
         if allocations.get("available") is not True or allocations.get("iterations") != 1000:
             raise ValueError(f"{parameter} lacks 1,000-call allocator evidence")
