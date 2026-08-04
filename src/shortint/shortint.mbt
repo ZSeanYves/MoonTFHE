@@ -64,6 +64,13 @@ pub struct ShortintServerKey {
 }
 
 ///|
+priv enum BitwiseOp {
+  BitAnd
+  BitOr
+  BitXor
+}
+
+///|
 fn bit_width(modulus : UInt) -> Int {
   let mut value = modulus - 1U
   let mut width = 0
@@ -232,6 +239,40 @@ fn gate_or(
 }
 
 ///|
+fn apply_bitwise(
+  server : @boolean.ServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+  parameters : ShortintParameters,
+  operation : BitwiseOp,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if !parameters_match(left.parameters, parameters) ||
+    !parameters_match(right.parameters, parameters) ||
+    left.blocks.length() != parameters.block_count ||
+    right.blocks.length() != parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let result : Array[@boolean.Ciphertext] = []
+  for index in 0..<parameters.block_count {
+    let block = match operation {
+      BitAnd => gate_and(server, left.blocks[index], right.blocks[index])
+      BitOr => gate_or(server, left.blocks[index], right.blocks[index])
+      BitXor => gate_xor(server, left.blocks[index], right.blocks[index])
+    }
+    match block {
+      Ok(value) => result.push(value)
+      Err(error) => return Err(error)
+    }
+  }
+  Ok({
+    blocks: result,
+    parameters,
+    degree: { value: parameters.message_modulus - 1U },
+    noise: { value: left.noise.value + right.noise.value + 1U },
+  })
+}
+
+///|
 pub fn ShortintServerKey::unchecked_add(
   self : ShortintServerKey,
   left : ShortintCiphertext,
@@ -289,4 +330,135 @@ pub fn ShortintServerKey::add(
   right : ShortintCiphertext,
 ) -> Result[ShortintCiphertext, ShortintError] {
   self.unchecked_add(left, right)
+}
+
+///|
+pub fn ShortintServerKey::unchecked_sub(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if !parameters_match(left.parameters, self.parameters) ||
+    !parameters_match(right.parameters, self.parameters) ||
+    left.blocks.length() != self.parameters.block_count ||
+    right.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let zero = match gate_xor(self.inner, left.blocks[0], left.blocks[0]) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let mut borrow = zero
+  let result : Array[@boolean.Ciphertext] = []
+  for index in 0..<self.parameters.block_count {
+    let a = left.blocks[index]
+    let b = right.blocks[index]
+    let partial = match gate_xor(self.inner, a, b) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    let difference = match gate_xor(self.inner, partial, borrow) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    let not_a = match self.inner.not(a) {
+      Ok(value) => value
+      Err(_) => return Err(BooleanFailure)
+    }
+    let first = match gate_and(self.inner, not_a, b) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    let second = match gate_and(self.inner, not_a, borrow) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    let third = match gate_and(self.inner, b, borrow) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    let partial_borrow = match gate_or(self.inner, first, second) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    borrow = match gate_or(self.inner, partial_borrow, third) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    result.push(difference)
+  }
+  Ok({
+    blocks: result,
+    parameters: self.parameters,
+    degree: { value: self.parameters.message_modulus - 1U },
+    noise: { value: left.noise.value + right.noise.value + 1U },
+  })
+}
+
+///|
+pub fn ShortintServerKey::bitand(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  apply_bitwise(self.inner, left, right, self.parameters, BitAnd)
+}
+
+///|
+pub fn ShortintServerKey::bitor(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  apply_bitwise(self.inner, left, right, self.parameters, BitOr)
+}
+
+///|
+pub fn ShortintServerKey::bitxor(
+  self : ShortintServerKey,
+  left : ShortintCiphertext,
+  right : ShortintCiphertext,
+) -> Result[ShortintCiphertext, ShortintError] {
+  apply_bitwise(self.inner, left, right, self.parameters, BitXor)
+}
+
+///|
+pub fn ShortintServerKey::scalar_add(
+  self : ShortintServerKey,
+  input : ShortintCiphertext,
+  scalar : UInt,
+) -> Result[ShortintCiphertext, ShortintError] {
+  if scalar >= self.parameters.message_modulus {
+    return Err(InvalidMessage)
+  }
+  if !parameters_match(input.parameters, self.parameters) ||
+    input.blocks.length() != self.parameters.block_count {
+    return Err(KeyMismatch)
+  }
+  let zero = match gate_xor(self.inner, input.blocks[0], input.blocks[0]) {
+    Ok(value) => value
+    Err(error) => return Err(error)
+  }
+  let one = match self.inner.xnor_gate(zero, zero) {
+    Ok(value) => value
+    Err(_) => return Err(BooleanFailure)
+  }
+  let scalar_blocks : Array[@boolean.Ciphertext] = []
+  for index in 0..<self.parameters.block_count {
+    scalar_blocks.push(if ((scalar >> index) & 1U) == 1U { one } else { zero })
+  }
+  self.unchecked_add(
+    {
+      blocks: input.blocks,
+      parameters: self.parameters,
+      degree: input.degree,
+      noise: input.noise,
+    },
+    {
+      blocks: scalar_blocks,
+      parameters: self.parameters,
+      degree: { value: scalar },
+      noise: { value: 1U },
+    },
+  )
 }

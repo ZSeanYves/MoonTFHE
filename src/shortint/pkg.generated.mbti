@@ -56,7 +56,12 @@ pub struct ShortintServerKey {
   // private fields
 }
 pub fn ShortintServerKey::add(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
+pub fn ShortintServerKey::bitand(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
+pub fn ShortintServerKey::bitor(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
+pub fn ShortintServerKey::bitxor(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
+pub fn ShortintServerKey::scalar_add(Self, ShortintCiphertext, UInt) -> Result[ShortintCiphertext, ShortintError]
 pub fn ShortintServerKey::unchecked_add(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
+pub fn ShortintServerKey::unchecked_sub(Self, ShortintCiphertext, ShortintCiphertext) -> Result[ShortintCiphertext, ShortintError]
 
 // Type aliases
 
