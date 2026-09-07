@@ -106,7 +106,6 @@ jobs:
             --runner "github-actions-ubuntu-24.04"
           python3 tools/benchmark/check.py \
             benchmark-artifact/benchmarks-tfhe-rs.json \
-            --require-rc-performance \
             --baseline docs/benchmarks-tfhe-rs.json \
             --max-regression 0.10
           python3 tools/benchmark/profile_report.py \
@@ -179,5 +178,8 @@ jobs:
 
       - name: Enforce complete RC gate on fresh evidence
         run: |
+          python3 tools/benchmark/check.py \
+            benchmark-artifact/benchmarks-tfhe-rs.json \
+            --require-rc-performance
           cp benchmark-artifact/benchmarks-tfhe-rs.json docs/benchmarks-tfhe-rs.json
           sh tools/rc-gate/check.sh

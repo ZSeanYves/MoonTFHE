@@ -96,6 +96,21 @@ def aggregate_impl(records: list[dict], path: str) -> dict:
         "nand_us": aggregate(gate_records, "nand_us", path),
         "stage_metrics": {},
     }
+    if first.get("implementation") == "moontfhe":
+        expected_gate_counts = {
+            "nand": 1,
+            "and": 1,
+            "or": 1,
+            "xor": 1,
+            "xnor": 1,
+            "mux": 2,
+        }
+        for index, record in enumerate(records):
+            if record.get("gate_pbs_counts") != expected_gate_counts:
+                raise ValueError(
+                    f"{path}[{index}].gate_pbs_counts does not match the fixed Boolean LUT contract"
+                )
+        result["gate_pbs_counts"] = expected_gate_counts
     for stage in STAGE_NAMES:
         stage_records = records if stage == "key_generation_us" else gate_records
         values = [record.get("stage_metrics", {}).get(stage) for record in stage_records]
