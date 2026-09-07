@@ -8,7 +8,7 @@ struct SecretWords {
 
 ///|
 fn secret_words_from_array(words : Array[UInt]) -> SecretWords {
-  { words: words.copy(), destroyed: false }
+  { words: words.copy(), destroyed: false, }
 }
 
 ///|

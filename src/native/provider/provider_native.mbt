@@ -17,7 +17,7 @@ pub fn fft_plan_new_with_capacity(
   }
   let handle = fft_plan_new_ffi(size, digit_capacity, output_capacity)
   if fft_plan_valid_ffi(handle) {
-    Ok({ handle, size, digit_capacity, output_capacity })
+    Ok({ handle, size, digit_capacity, output_capacity, })
   } else {
     Err(ProviderFailure(status=-1))
   }
@@ -92,7 +92,7 @@ pub fn fourier_bsk_new(
     output_count,
   )
   if fourier_bsk_valid_ffi(handle) {
-    Ok({ handle, plan, ggsw_count, digit_count, output_count })
+    Ok({ handle, plan, ggsw_count, digit_count, output_count, })
   } else {
     Err(ProviderFailure(status=-1))
   }

@@ -94,7 +94,7 @@ pub fn boolean_lut(
   false_value : @torus.Torus32,
   true_value : @torus.Torus32,
 ) -> BooleanLut {
-  { false_value, true_value }
+  { false_value, true_value, }
 }
 
 ///|

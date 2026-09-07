@@ -26,7 +26,7 @@ pub fn lwe_keygen(
   rng : @random.RandomGenerator,
 ) -> LweSecretKey {
   let n = parameters.value()
-  { parameters, bits: FixedArray::makei(n, fn(_) { rng.next_u32() & 1U }) }
+  { parameters, bits: FixedArray::makei(n, fn(_) { rng.next_u32() & 1U }), }
 }
 
 ///|
@@ -104,7 +104,7 @@ pub fn lwe_ciphertext_from_flat_u32(
   if data.length() != parameters.value() + 1 {
     Err(CiphertextDimensionMismatch)
   } else {
-    Ok({ parameters, data: data.copy() })
+    Ok({ parameters, data: data.copy(), })
   }
 }
 
@@ -117,7 +117,7 @@ pub fn lwe_ciphertext_from_owned_flat_u32(
   if data.length() != parameters.value() + 1 {
     Err(CiphertextDimensionMismatch)
   } else {
-    Ok({ parameters, data })
+    Ok({ parameters, data, })
   }
 }
 
@@ -178,7 +178,7 @@ pub fn LweSecretKey::lwe_encrypt_torus_with_streams(
   }
   let error = noise_rng.sample_discrete_gaussian_fixed(noise)
   data[n] = phase.add(@torus.Torus32::from_int(error)).to_uint()
-  { parameters: self.parameters, data }
+  { parameters: self.parameters, data, }
 }
 
 ///|
@@ -188,7 +188,7 @@ pub fn lwe_trivial(
 ) -> LweCiphertext {
   let data = FixedArray::make(parameters.value() + 1, 0U)
   data[parameters.value()] = message.to_uint()
-  { parameters, data }
+  { parameters, data, }
 }
 
 ///|
@@ -267,7 +267,7 @@ pub fn LweCiphertext::add_plain(
   let data = self.data.copy()
   let body = self.parameters.value()
   data[body] = @torus.Torus32::from_uint(data[body]).add(value).to_uint()
-  { parameters: self.parameters, data }
+  { parameters: self.parameters, data, }
 }
 
 ///|
@@ -279,7 +279,7 @@ pub fn LweCiphertext::sub_plain(
   let data = self.data.copy()
   let body = self.parameters.value()
   data[body] = @torus.Torus32::from_uint(data[body]).sub(value).to_uint()
-  { parameters: self.parameters, data }
+  { parameters: self.parameters, data, }
 }
 
 ///|

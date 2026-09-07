@@ -18,7 +18,7 @@ pub enum CiphertextModulus {
 
 ///|
 pub fn Torus32::from_int(raw : Int) -> Torus32 {
-  { raw: raw.reinterpret_as_uint() }
+  { raw: raw.reinterpret_as_uint(), }
 }
 
 ///|
@@ -38,27 +38,27 @@ pub fn Torus32::to_uint(self : Torus32) -> UInt {
 
 ///|
 pub fn Torus32::zero() -> Torus32 {
-  { raw: 0U }
+  { raw: 0U, }
 }
 
 ///|
 pub fn Torus32::add(self : Torus32, other : Torus32) -> Torus32 {
-  { raw: self.raw + other.raw }
+  { raw: self.raw + other.raw, }
 }
 
 ///|
 pub fn Torus32::sub(self : Torus32, other : Torus32) -> Torus32 {
-  { raw: self.raw - other.raw }
+  { raw: self.raw - other.raw, }
 }
 
 ///|
 pub fn Torus32::neg(self : Torus32) -> Torus32 {
-  { raw: 0U - self.raw }
+  { raw: 0U - self.raw, }
 }
 
 ///|
 pub fn Torus32::scale(self : Torus32, scalar : Int) -> Torus32 {
-  { raw: self.raw * scalar.reinterpret_as_uint() }
+  { raw: self.raw * scalar.reinterpret_as_uint(), }
 }
 
 ///|

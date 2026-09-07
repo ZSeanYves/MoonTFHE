@@ -57,7 +57,7 @@ pub fn integer_parameters(
     return Err(InvalidBlockCount)
   }
   match @shortint.shortint_parameters(boolean_parameters, 16U, 4U) {
-    Ok(shortint) => Ok({ shortint, block_count, signed })
+    Ok(shortint) => Ok({ shortint, block_count, signed, })
     Err(_) => Err(ShortintFailure)
   }
 }
@@ -93,7 +93,7 @@ pub fn generate_test_keys(
 ) -> Result[(IntegerClientKey, IntegerServerKey), IntegerError] {
   match @shortint.generate_test_keys(parameters.shortint, seed) {
     Ok((client, server)) =>
-      Ok(({ inner: client, parameters }, { inner: server, parameters }))
+      Ok(({ inner: client, parameters, }, { inner: server, parameters, }))
     Err(_) => Err(ShortintFailure)
   }
 }
@@ -104,7 +104,7 @@ pub fn generate_keys(
 ) -> Result[(IntegerClientKey, IntegerServerKey), IntegerError] {
   match @shortint.generate_keys(parameters.shortint) {
     Ok((client, server)) =>
-      Ok(({ inner: client, parameters }, { inner: server, parameters }))
+      Ok(({ inner: client, parameters, }, { inner: server, parameters, }))
     Err(_) => Err(ShortintFailure)
   }
 }
@@ -128,7 +128,7 @@ pub fn IntegerClientKey::encrypt(
     }
     remaining = remaining >> 4
   }
-  Ok({ blocks, parameters: self.parameters })
+  Ok({ blocks, parameters: self.parameters, })
 }
 
 ///|
@@ -178,7 +178,7 @@ fn integer_zero_like(
     Ok((_unchanged, carry)) => carry
     Err(_) => return Err(ShortintFailure)
   }
-  Ok({ blocks: Array::make(parameters.block_count, zero), parameters })
+  Ok({ blocks: Array::make(parameters.block_count, zero), parameters, })
 }
 
 ///|
@@ -197,7 +197,7 @@ fn integer_bit_at(
     return Err(InvalidShift)
   }
   match server.bit_at(input.blocks[index / 4], index % 4) {
-    Ok(inner) => Ok({ inner, parameters })
+    Ok(inner) => Ok({ inner, parameters, })
     Err(_) => Err(ShortintFailure)
   }
 }
@@ -224,7 +224,7 @@ fn shift_left_one_internal(
     result.push(shifted)
     carry = outgoing
   }
-  Ok(({ blocks: result, parameters }, carry))
+  Ok(({ blocks: result, parameters, }, carry))
 }
 
 ///|
@@ -251,7 +251,7 @@ fn shift_right_one_internal(
     carry = outgoing
     index = index - 1
   }
-  Ok(({ blocks: result, parameters }, carry))
+  Ok(({ blocks: result, parameters, }, carry))
 }
 
 ///|
@@ -293,7 +293,7 @@ pub fn IntegerServerKey::add(
     }
     carry = with_carry
   }
-  Ok({ blocks: result, parameters: self.parameters })
+  Ok({ blocks: result, parameters: self.parameters, })
 }
 
 ///|
@@ -335,7 +335,7 @@ pub fn IntegerServerKey::sub(
     }
     borrow = with_borrow
   }
-  Ok({ blocks: result, parameters: self.parameters })
+  Ok({ blocks: result, parameters: self.parameters, })
 }
 
 ///|
@@ -384,7 +384,7 @@ pub fn IntegerServerKey::scalar_add(
     }
     result.push(sum)
   }
-  Ok({ blocks: result, parameters: self.parameters })
+  Ok({ blocks: result, parameters: self.parameters, })
 }
 
 ///|
@@ -413,7 +413,7 @@ fn integer_bitwise(
       Err(_) => return Err(ShortintFailure)
     }
   }
-  Ok({ blocks: result, parameters })
+  Ok({ blocks: result, parameters, })
 }
 
 ///|
@@ -459,7 +459,7 @@ pub fn IntegerServerKey::bitnot(
       Err(_) => return Err(ShortintFailure)
     }
   }
-  Ok({ blocks, parameters: self.parameters })
+  Ok({ blocks, parameters: self.parameters, })
 }
 
 ///|
@@ -502,7 +502,7 @@ pub fn IntegerServerKey::equal(
       Err(_) => return Err(ShortintFailure)
     }
   }
-  Ok({ inner: result, parameters: self.parameters })
+  Ok({ inner: result, parameters: self.parameters, })
 }
 
 ///|
@@ -553,7 +553,7 @@ fn unsigned_less_than(
     }
     index = index - 1
   }
-  Ok({ inner: less, parameters })
+  Ok({ inner: less, parameters, })
 }
 
 ///|
@@ -587,7 +587,7 @@ pub fn IntegerServerKey::less_than(
     Err(_) => return Err(ShortintFailure)
   }
   match self.inner.select(signs_differ, left_sign.inner, unsigned.inner) {
-    Ok(inner) => Ok({ inner, parameters: self.parameters })
+    Ok(inner) => Ok({ inner, parameters: self.parameters, })
     Err(_) => Err(ShortintFailure)
   }
 }
@@ -661,7 +661,7 @@ pub fn IntegerServerKey::select(
       Err(_) => return Err(ShortintFailure)
     }
   }
-  Ok({ blocks, parameters: self.parameters })
+  Ok({ blocks, parameters: self.parameters, })
 }
 
 ///|
@@ -955,7 +955,7 @@ fn boolean_not(
   parameters : IntegerParameters,
 ) -> Result[BooleanBlock, IntegerError] {
   match server.equal(input.inner, zero) {
-    Ok(inner) => Ok({ inner, parameters })
+    Ok(inner) => Ok({ inner, parameters, })
     Err(_) => Err(ShortintFailure)
   }
 }

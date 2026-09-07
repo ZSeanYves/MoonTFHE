@@ -41,7 +41,7 @@ pub fn ggsw_parameters(
   if base_log <= 0 || level <= 0 || base_log * level > 32 {
     return Err(InvalidDecomposition)
   }
-  Ok({ glwe, base_log, level })
+  Ok({ glwe, base_log, level, })
 }
 
 ///|
@@ -132,7 +132,7 @@ pub fn ggsw_from_flat_u32(
   if data.length() != expected {
     Err(ShapeMismatch)
   } else {
-    Ok({ parameters, data: data.copy() })
+    Ok({ parameters, data: data.copy(), })
   }
 }
 
@@ -206,7 +206,7 @@ pub fn ggsw_encrypt_boolean(
       row_index = row_index + 1
     }
   }
-  Ok({ parameters, data })
+  Ok({ parameters, data, })
 }
 
 ///|
@@ -225,7 +225,7 @@ pub fn ggsw_encrypt_boolean_with_fft(
     ggsw_encrypt_boolean_with_fft_into(
       parameters, key, message, noise, rng, plan, workspace, data, 0,
     ) {
-    Ok(_) => Ok({ parameters, data })
+    Ok(_) => Ok({ parameters, data, })
     Err(error) => Err(error)
   }
 }

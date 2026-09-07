@@ -110,7 +110,7 @@ pub fn shortint_parameters(
   if block_count <= 0 || block_count > 16 {
     return Err(InvalidModulus)
   }
-  Ok({ boolean_parameters, message_modulus, carry_modulus, block_count })
+  Ok({ boolean_parameters, message_modulus, carry_modulus, block_count, })
 }
 
 ///|
@@ -139,7 +139,7 @@ pub fn generate_keys(
 ) -> Result[(ShortintClientKey, ShortintServerKey), ShortintError] {
   match @boolean.generate_keys(parameters.boolean_parameters) {
     Ok((client, server)) =>
-      Ok(({ inner: client, parameters }, { inner: server, parameters }))
+      Ok(({ inner: client, parameters, }, { inner: server, parameters, }))
     Err(_) => Err(BooleanFailure)
   }
 }
@@ -152,7 +152,7 @@ pub fn generate_test_keys(
 ) -> Result[(ShortintClientKey, ShortintServerKey), ShortintError] {
   match @boolean.generate_test_keys(parameters.boolean_parameters, seed) {
     Ok((client, server)) =>
-      Ok(({ inner: client, parameters }, { inner: server, parameters }))
+      Ok(({ inner: client, parameters, }, { inner: server, parameters, }))
     Err(_) => Err(BooleanFailure)
   }
 }
@@ -172,8 +172,8 @@ pub fn ShortintClientKey::encrypt(
   Ok({
     blocks,
     parameters: self.parameters,
-    degree: { value: message },
-    noise: { value: 1U },
+    degree: { value: message, },
+    noise: { value: 1U, },
   })
 }
 
@@ -272,8 +272,8 @@ fn apply_bitwise(
   Ok({
     blocks: result,
     parameters,
-    degree: { value: parameters.message_modulus - 1U },
-    noise: { value: left.noise.value + right.noise.value + 1U },
+    degree: { value: parameters.message_modulus - 1U, },
+    noise: { value: left.noise.value + right.noise.value + 1U, },
   })
 }
 
@@ -323,8 +323,8 @@ pub fn ShortintServerKey::add_with_carry(
   let output = {
     blocks: result,
     parameters: self.parameters,
-    degree: { value: self.parameters.message_modulus - 1U },
-    noise: { value: left.noise.value + right.noise.value + 1U },
+    degree: { value: self.parameters.message_modulus - 1U, },
+    noise: { value: left.noise.value + right.noise.value + 1U, },
   }
   let carry_blocks : Array[@boolean.Ciphertext] = [carry]
   for _ in 1..<self.parameters.block_count {
@@ -336,8 +336,8 @@ pub fn ShortintServerKey::add_with_carry(
       {
         blocks: carry_blocks,
         parameters: self.parameters,
-        degree: { value: 1U },
-        noise: { value: left.noise.value + right.noise.value + 1U },
+        degree: { value: 1U, },
+        noise: { value: left.noise.value + right.noise.value + 1U, },
       },
     ),
   )
@@ -433,8 +433,8 @@ pub fn ShortintServerKey::sub_with_borrow(
   let output = {
     blocks: result,
     parameters: self.parameters,
-    degree: { value: self.parameters.message_modulus - 1U },
-    noise: { value: left.noise.value + right.noise.value + 1U },
+    degree: { value: self.parameters.message_modulus - 1U, },
+    noise: { value: left.noise.value + right.noise.value + 1U, },
   }
   let borrow_blocks : Array[@boolean.Ciphertext] = [borrow]
   for _ in 1..<self.parameters.block_count {
@@ -446,8 +446,8 @@ pub fn ShortintServerKey::sub_with_borrow(
       {
         blocks: borrow_blocks,
         parameters: self.parameters,
-        degree: { value: 1U },
-        noise: { value: left.noise.value + right.noise.value + 1U },
+        degree: { value: 1U, },
+        noise: { value: left.noise.value + right.noise.value + 1U, },
       },
     ),
   )
@@ -511,8 +511,8 @@ pub fn ShortintServerKey::bitnot(
   Ok({
     blocks,
     parameters: self.parameters,
-    degree: { value: self.parameters.message_modulus - 1U },
-    noise: { value: input.noise.value + 1U },
+    degree: { value: self.parameters.message_modulus - 1U, },
+    noise: { value: input.noise.value + 1U, },
   })
 }
 
@@ -559,8 +559,8 @@ pub fn ShortintServerKey::scalar_add_with_carry(
   let scalar_cipher = {
     blocks: scalar_blocks,
     parameters: self.parameters,
-    degree: { value: scalar },
-    noise: { value: 1U },
+    degree: { value: scalar, },
+    noise: { value: 1U, },
   }
   self.add_with_carry(input, scalar_cipher)
 }
@@ -589,7 +589,7 @@ fn shortint_constant_like(
   for index in 0..<parameters.block_count {
     blocks.push(if ((value >> index) & 1U) == 1U { one } else { zero })
   }
-  Ok({ blocks, parameters, degree: { value, }, noise: { value: 1U } })
+  Ok({ blocks, parameters, degree: { value, }, noise: { value: 1U, }, })
 }
 
 ///|
@@ -617,8 +617,8 @@ pub fn ShortintServerKey::bit_at(
   Ok({
     blocks,
     parameters: self.parameters,
-    degree: { value: 1U },
-    noise: { value: input.noise.value + 1U },
+    degree: { value: 1U, },
+    noise: { value: input.noise.value + 1U, },
   })
 }
 
@@ -708,8 +708,8 @@ pub fn ShortintServerKey::equal(
   Ok({
     blocks,
     parameters: self.parameters,
-    degree: { value: 1U },
-    noise: { value: left.noise.value + right.noise.value + 1U },
+    degree: { value: 1U, },
+    noise: { value: left.noise.value + right.noise.value + 1U, },
   })
 }
 
@@ -771,8 +771,8 @@ pub fn ShortintServerKey::less_than(
   Ok({
     blocks,
     parameters: self.parameters,
-    degree: { value: 1U },
-    noise: { value: left.noise.value + right.noise.value + 1U },
+    degree: { value: 1U, },
+    noise: { value: left.noise.value + right.noise.value + 1U, },
   })
 }
 
@@ -809,13 +809,13 @@ pub fn ShortintServerKey::shift_left_one(
       {
         blocks,
         parameters: self.parameters,
-        degree: { value: self.parameters.message_modulus - 1U },
-        noise: { value: input.noise.value + incoming.noise.value },
+        degree: { value: self.parameters.message_modulus - 1U, },
+        noise: { value: input.noise.value + incoming.noise.value, },
       },
       {
         blocks: carry_blocks,
         parameters: self.parameters,
-        degree: { value: 1U },
+        degree: { value: 1U, },
         noise: input.noise,
       },
     ),
@@ -853,13 +853,13 @@ pub fn ShortintServerKey::shift_right_one(
       {
         blocks,
         parameters: self.parameters,
-        degree: { value: self.parameters.message_modulus - 1U },
-        noise: { value: input.noise.value + incoming.noise.value },
+        degree: { value: self.parameters.message_modulus - 1U, },
+        noise: { value: input.noise.value + incoming.noise.value, },
       },
       {
         blocks: carry_blocks,
         parameters: self.parameters,
-        degree: { value: 1U },
+        degree: { value: 1U, },
         noise: input.noise,
       },
     ),
@@ -905,8 +905,8 @@ pub fn ShortintServerKey::mul(
     let partial = {
       blocks: partial_blocks,
       parameters: self.parameters,
-      degree: { value: self.parameters.message_modulus - 1U },
-      noise: { value: left.noise.value + right.noise.value + 1U },
+      degree: { value: self.parameters.message_modulus - 1U, },
+      noise: { value: left.noise.value + right.noise.value + 1U, },
     }
     result = match self.unchecked_add(result, partial) {
       Ok(value) => value

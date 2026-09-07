@@ -44,7 +44,7 @@ fn packed_mul(left : Int, right : Int) -> Result[Int, PackedShapeError] {
 pub fn packed_lwe_new(
   dimension : @params.LweDimension,
 ) -> Result[PackedLwe, PackedShapeError] {
-  Ok({ dimension, data: FixedArray::make(dimension.value() + 1, 0U) })
+  Ok({ dimension, data: FixedArray::make(dimension.value() + 1, 0U), })
 }
 
 ///|
@@ -56,7 +56,7 @@ pub fn packed_glwe_new(
     Ok(value) => value
     Err(error) => return Err(error)
   }
-  Ok({ parameters, data: FixedArray::make(length, 0U) })
+  Ok({ parameters, data: FixedArray::make(length, 0U), })
 }
 
 ///|
@@ -71,7 +71,7 @@ pub fn packed_ggsw_new(
     Ok(value) => value
     Err(error) => return Err(error)
   }
-  Ok({ parameters, data: FixedArray::make(length, 0U) })
+  Ok({ parameters, data: FixedArray::make(length, 0U), })
 }
 
 ///|

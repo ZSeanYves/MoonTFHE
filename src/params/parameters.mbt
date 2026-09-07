@@ -13,7 +13,7 @@ pub struct KeyId {
 
 ///|
 pub fn key_id_from_words(high : UInt64, low : UInt64) -> KeyId {
-  { high, low }
+  { high, low, }
 }
 
 ///|
@@ -104,7 +104,7 @@ pub fn decomposition_parameters(
   if base_log <= 0 || level <= 0 || base_log * level > 32 {
     Err(InvalidDecomposition)
   } else {
-    Ok({ base_log, level })
+    Ok({ base_log, level, })
   }
 }
 
@@ -143,12 +143,12 @@ fn parameter_set(
     id,
     target_security_bits,
     upstream_security_bits,
-    failure_probability: { log2_milli: failure_log2_milli },
-    lwe_dimension: { value: lwe_dimension },
-    glwe_dimension: { value: glwe_dimension },
-    polynomial_size: { value: polynomial_size },
-    pbs_decomposition: { base_log: pbs_base_log, level: pbs_level },
-    ks_decomposition: { base_log: ks_base_log, level: ks_level },
+    failure_probability: { log2_milli: failure_log2_milli, },
+    lwe_dimension: { value: lwe_dimension, },
+    glwe_dimension: { value: glwe_dimension, },
+    polynomial_size: { value: polynomial_size, },
+    pbs_decomposition: { base_log: pbs_base_log, level: pbs_level, },
+    ks_decomposition: { base_log: ks_base_log, level: ks_level, },
     lwe_noise: Gaussian({
       sigma_q32: lwe_sigma_q32,
       tail_sigma: 16,

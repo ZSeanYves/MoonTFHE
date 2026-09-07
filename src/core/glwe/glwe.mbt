@@ -41,7 +41,7 @@ pub fn glwe_parameters(
   if polynomial_size <= 0 || (polynomial_size & (polynomial_size - 1)) != 0 {
     return Err(InvalidPolynomialSize)
   }
-  Ok({ glwe_dimension, polynomial_size })
+  Ok({ glwe_dimension, polynomial_size, })
 }
 
 ///|
@@ -97,7 +97,7 @@ pub fn glwe_ciphertext_from_flat_u32(
   if data.length() != expected {
     Err(CiphertextShapeMismatch)
   } else {
-    Ok({ parameters, data: data.copy() })
+    Ok({ parameters, data: data.copy(), })
   }
 }
 
@@ -112,7 +112,7 @@ pub fn glwe_ciphertext_from_owned_flat_u32(
   if data.length() != expected {
     Err(CiphertextShapeMismatch)
   } else {
-    Ok({ parameters, data })
+    Ok({ parameters, data, })
   }
 }
 
@@ -147,7 +147,7 @@ pub fn glwe_trivial(
   for index in 0..<n {
     data[body_offset + index] = message[index].to_uint()
   }
-  Ok({ parameters, data })
+  Ok({ parameters, data, })
 }
 
 ///|
@@ -236,7 +236,7 @@ pub fn glwe_keygen(
     parameters.glwe_dimension * parameters.polynomial_size,
     fn(_) { rng.next_u32() & 1U },
   )
-  { parameters, data }
+  { parameters, data, }
 }
 
 ///|
@@ -331,7 +331,7 @@ pub fn GlweSecretKey::encrypt(
     body[i] = body[i].add(@torus.Torus32::from_int(noise))
     data[self.parameters.glwe_dimension * n + i] = body[i].to_uint()
   }
-  Ok({ parameters: self.parameters, data })
+  Ok({ parameters: self.parameters, data, })
 }
 
 ///|
@@ -357,7 +357,7 @@ pub fn GlweSecretKey::encrypt_with_fft(
     Ok(_) => ()
     Err(error) => return Err(error)
   }
-  Ok({ parameters: self.parameters, data })
+  Ok({ parameters: self.parameters, data, })
 }
 
 ///|
@@ -542,7 +542,7 @@ pub fn GlweCiphertext::rotate_negacyclic(
       }
     }
   }
-  { parameters: self.parameters, data }
+  { parameters: self.parameters, data, }
 }
 
 ///|
@@ -586,7 +586,7 @@ pub fn GlweCiphertext::add_gadget_to_component(
   let data = self.data.copy()
   let offset = component * self.parameters.polynomial_size
   data[offset] = @torus.Torus32::from_uint(data[offset]).add(gadget).to_uint()
-  Ok({ parameters: self.parameters, data })
+  Ok({ parameters: self.parameters, data, })
 }
 
 ///|
@@ -616,7 +616,7 @@ pub fn GlweCiphertext::mul_plain_poly(
       data[offset + index] = product[index].to_uint()
     }
   }
-  Ok({ parameters: self.parameters, data })
+  Ok({ parameters: self.parameters, data, })
 }
 
 ///|

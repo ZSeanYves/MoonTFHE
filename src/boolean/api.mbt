@@ -105,7 +105,7 @@ pub struct ProgrammableBootstrapLut {
 
 ///|
 pub fn ServerKey::evaluation_context(self : ServerKey) -> EvaluationContext {
-  { server_key: self }
+  { server_key: self, }
 }
 
 ///|
@@ -126,7 +126,7 @@ pub fn programmable_bootstrap_lut(
       return Err(InvalidAntiPeriodicity)
     }
   }
-  Ok({ values: values.copy(), polynomial_size })
+  Ok({ values: values.copy(), polynomial_size, })
 }
 
 ///|
@@ -316,7 +316,7 @@ pub fn generate_test_keys(
     parameters,
     key_id,
   }
-  let server_key : ServerKey = { inner: bootstrap, parameters, key_id }
+  let server_key : ServerKey = { inner: bootstrap, parameters, key_id, }
   Ok((client_key, server_key))
 }
 
@@ -451,7 +451,7 @@ fn generate_standard_reference_keys(
         parameters,
         key_id,
       },
-      { inner: bootstrap, parameters, key_id },
+      { inner: bootstrap, parameters, key_id, },
     ),
   )
 }
@@ -468,7 +468,7 @@ pub fn ClientKey::encrypt(self : ClientKey, message : Bool) -> Ciphertext {
     self.mask_rng,
     self.noise_rng,
   )
-  { inner, key_id: self.key_id, parameters: self.parameters }
+  { inner, key_id: self.key_id, parameters: self.parameters, }
 }
 
 ///|
@@ -554,7 +554,7 @@ fn ServerKey::binary_nand_encoded(
   )
   match self.inner.programmable_bootstrap_table(combined, table) {
     Ok(value) =>
-      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters, })
     Err(_) => Err(InvalidCiphertext)
   }
 }
@@ -601,7 +601,7 @@ fn ServerKey::binary_xor(
   )
   match self.inner.programmable_bootstrap(combined, identity) {
     Ok(value) =>
-      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters, })
     Err(_) => Err(InvalidCiphertext)
   }
 }
@@ -858,7 +858,7 @@ pub fn ServerKey::apply_programmable_lut(
   }
   match self.inner.programmable_bootstrap_table(ciphertext.inner, lut.values) {
     Ok(value) =>
-      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters, })
     Err(_) => Err(InvalidCiphertext)
   }
 }
@@ -968,7 +968,7 @@ pub fn ClientKey::deserialize(
   }
   match boolean_decode_lwe_payload(self.inner.parameters(), payload) {
     Ok(value) =>
-      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters })
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters, })
     Err(_) => Err(InvalidCiphertext)
   }
 }
@@ -1600,5 +1600,5 @@ pub fn ServerKey::deserialize(
     Ok(value) => value
     Err(_) => return Err(InvalidServerKey)
   }
-  Ok({ inner: bootstrap, parameters, key_id: boolean_read_key_id(bytes, 46) })
+  Ok({ inner: bootstrap, parameters, key_id: boolean_read_key_id(bytes, 46), })
 }

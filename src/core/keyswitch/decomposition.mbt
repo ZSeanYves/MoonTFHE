@@ -190,7 +190,12 @@ pub fn keyswitch_key_from_flat_u32(
   if data.length() != expected {
     Err(CiphertextError)
   } else {
-    Ok({ input_parameters, output_parameters, decomposition, data: data.copy() })
+    Ok({
+      input_parameters,
+      output_parameters,
+      decomposition,
+      data: data.copy(),
+    })
   }
 }
 
@@ -210,7 +215,7 @@ pub fn keyswitch_key_from_owned_flat_u32(
     data.length() != row_count * ciphertext_size {
     Err(CiphertextError)
   } else {
-    Ok({ input_parameters, output_parameters, decomposition, data })
+    Ok({ input_parameters, output_parameters, decomposition, data, })
   }
 }
 

@@ -196,7 +196,7 @@ fn generate_standard_keys_impl(
     parameters,
     key_id,
   }
-  let server : ServerKey = { inner: bootstrap, parameters, key_id }
+  let server : ServerKey = { inner: bootstrap, parameters, key_id, }
   last_standard_keygen_stage_metrics.val = {
     ksk_generation_us,
     bsk_coefficient_generation_us,
