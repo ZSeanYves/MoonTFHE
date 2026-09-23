@@ -585,6 +585,41 @@ fn ServerKey::binary_nand_encoded_with_table(
 }
 
 ///|
+/// Evaluate OR directly from `left + right + mu`. This follows the standard
+/// Boolean encoding and avoids materializing two negated LWE ciphertexts
+/// before a NAND PBS.
+fn ServerKey::binary_or_encoded(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+  magnitude : @torus.Torus32,
+) -> Result[Ciphertext, EvaluationError] {
+  // The +mu phase shift maps OR's three centers (-mu, +mu, +3mu) onto
+  // the NAND sign regions with the output polarity reversed.
+  let table = boolean_nand_table(
+    self.parameters.record.polynomial_size().value(),
+    magnitude.neg(),
+  )
+  match evaluate_check(self.parameters, self.key_id, left) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  match evaluate_check(self.parameters, self.key_id, right) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  let combined = match left.inner.add(right.inner) {
+    Ok(value) => value.add_plain(magnitude)
+    Err(_) => return Err(InvalidCiphertext)
+  }
+  match self.inner.programmable_bootstrap_table(combined, table) {
+    Ok(value) =>
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters, })
+    Err(_) => Err(InvalidCiphertext)
+  }
+}
+
+///|
 fn ServerKey::binary_and_encoded(
   self : ServerKey,
   left : Ciphertext,
@@ -729,17 +764,7 @@ fn ServerKey::apply_binary_lut(
   match table {
     NandLut => self.binary_nand_encoded(left, right, boolean_amplitude())
     AndLut => self.binary_and_encoded(left, right, boolean_amplitude())
-    OrLut => {
-      let not_left = match self.not(left) {
-        Ok(value) => value
-        Err(error) => return Err(error)
-      }
-      let not_right = match self.not(right) {
-        Ok(value) => value
-        Err(error) => return Err(error)
-      }
-      self.binary_nand_encoded(not_left, not_right, boolean_amplitude())
-    }
+    OrLut => self.binary_or_encoded(left, right, boolean_amplitude())
     XorLut => self.binary_xor(left, right)
     XnorLut =>
       match self.binary_xor(left, right) {

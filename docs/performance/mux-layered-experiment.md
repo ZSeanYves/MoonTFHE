@@ -45,9 +45,29 @@ MUX 降到单 PBS。
   `selector == when_false` 分别降为 OR/AND 的单 PBS 恒等式。
 - 新增小参数真值测试覆盖三类恒等式和通用路径。
 
+### OR 与 MUX 快捷路径层
+
+Boolean OR 现在直接计算 `left + right + mu`，并使用反相的 NAND 符号表执行
+一次 PBS。此前的实现先物化 `!left`、`!right`，再执行 NAND；新路径不改变
+密文编码或噪声参数，只省去两次全 LWE 负号遍历和临时密文。四种输入组合在
+native、wasm reference 和标准 110 参数上均通过真值测试。
+
+MUX 还会在不读取秘密的前提下识别精确的平凡密文和系数级别的取反别名：平凡
+selector 为 0 PBS，平凡分支为 1 PBS，取反别名最多为 1 PBS。快捷路径不计入
+下面的 `mux_input_mode: "distinct"` 结果；独立输入仍严格执行两个 PBS。
+
+一次最新 native 分层运行（100 次预热、100 次测量）得到 110 参数的 OR
+`29,784.285 us`、NAND `29,746.287 us`，说明 PBS 仍完全主导总时间；直接 OR
+主要改善低层线性开销，不会改变通用 MUX 的两次 PBS 成本。
+
 这些优化不会改变 `mux: 2` 的通用门契约。要进一步接近 tfhe-rs，需要在共享
 Fourier key 的前提下实现双 PBS fused kernel 或并行 workspace；这属于 native
 provider 层的下一阶段实验，不能用单输入 LUT 或分数 Torus 缩放替代。
 
 上述数字是本机一次受控运行，不是远端 RC 证据；远端结果仍以带 runner 元数据
 的 `boolean-rc-evidence` artifact 为准。
+
+下一层候选是 native provider 的共享 Fourier material + 双 workspace 并行 PBS。
+当前上下文只有一个可变 workspace，直接并发会返回 busy；复制完整上下文又会
+突破内存门槛。因此在实现前必须先拆分不可变 BSK/plan 与每 worker scratch，
+并通过 ASan、差分和 RSS 测试确认收益，不能把顺序两次 PBS 误称为 fused 加速。
