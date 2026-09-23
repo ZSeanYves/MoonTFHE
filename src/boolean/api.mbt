@@ -476,7 +476,8 @@ pub fn ClientKey::decrypt(
   self : ClientKey,
   ciphertext : Ciphertext,
 ) -> Result[Bool, DecryptionError] {
-  if ciphertext.key_id != self.key_id {
+  if ciphertext.key_id != self.key_id ||
+    !same_boolean_parameters(ciphertext.parameters, self.parameters) {
     return Err(KeyMismatch)
   }
   match self.inner.lwe_decrypt_binary(ciphertext.inner) {
@@ -486,12 +487,23 @@ pub fn ClientKey::decrypt(
 }
 
 ///|
+fn same_boolean_parameters(
+  left : BooleanParameters,
+  right : BooleanParameters,
+) -> Bool {
+  left.id == right.id &&
+  left.dimension == right.dimension &&
+  left.record.same_domain(right.record)
+}
+
+///|
 fn evaluate_check(
   parameters : BooleanParameters,
   key_id : @params.KeyId,
   ciphertext : Ciphertext,
 ) -> Result[Unit, EvaluationError] {
-  if ciphertext.key_id != key_id {
+  if ciphertext.key_id != key_id ||
+    !same_boolean_parameters(ciphertext.parameters, parameters) {
     return Err(KeyMismatch)
   }
   if parameters.dimension <= 0 {
@@ -614,6 +626,27 @@ fn ServerKey::binary_and_negated_left_encoded_with_table(
   right : Ciphertext,
   table : Array[@torus.Torus32],
 ) -> Result[Ciphertext, EvaluationError] {
+  match self.binary_nand_negated_left_encoded_with_table(left, right, table) {
+    Ok(value) =>
+      Ok({
+        inner: value.inner.neg(),
+        key_id: self.key_id,
+        parameters: self.parameters,
+      })
+    Err(error) => Err(error)
+  }
+}
+
+///|
+/// Evaluate the raw NAND result for `(!left) && right` without materializing
+/// the negated selector. Keeping the raw result lets MUX combine both PBS
+/// outputs without two extra full-LWE negations.
+fn ServerKey::binary_nand_negated_left_encoded_with_table(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+  table : Array[@torus.Torus32],
+) -> Result[Ciphertext, EvaluationError] {
   match evaluate_check(self.parameters, self.key_id, left) {
     Ok(_) => ()
     Err(error) => return Err(error)
@@ -628,11 +661,7 @@ fn ServerKey::binary_and_negated_left_encoded_with_table(
   }
   match self.inner.programmable_bootstrap_table(combined, table) {
     Ok(value) =>
-      Ok({
-        inner: value.neg(),
-        key_id: self.key_id,
-        parameters: self.parameters,
-      })
+      Ok({ inner: value, key_id: self.key_id, parameters: self.parameters, })
     Err(_) => Err(InvalidCiphertext)
   }
 }
@@ -844,6 +873,68 @@ pub fn ServerKey::mux(
   if selector.inner == when_false.inner {
     return self.binary_and_encoded(selector, when_true, boolean_amplitude())
   }
+  let amplitude = boolean_amplitude()
+  let true_value = when_true.inner.boolean_trivial_value(amplitude)
+  let false_value = when_false.inner.boolean_trivial_value(amplitude)
+  let selector_value = selector.inner.boolean_trivial_value(amplitude)
+  match selector_value {
+    Some(value) => return Ok(if value { when_true } else { when_false })
+    None => ()
+  }
+  // Match the upstream Boolean engine's one-PBS constant shortcuts. These
+  // checks accept only exact zero-mask ciphertexts, never approximate phases.
+  match true_value {
+    Some(false) => {
+      let table = boolean_nand_table(
+        self.parameters.record.polynomial_size().value(),
+        amplitude,
+      )
+      return self.binary_and_negated_left_encoded_with_table(
+        selector, when_false, table,
+      )
+    }
+    Some(true) => return self.or_gate(selector, when_false)
+    None => ()
+  }
+  match false_value {
+    Some(false) =>
+      return self.binary_and_encoded(selector, when_true, amplitude)
+    Some(true) => {
+      let negated_selector = match self.not(selector) {
+        Ok(value) => value
+        Err(error) => return Err(error)
+      }
+      return self.or_gate(negated_selector, when_true)
+    }
+    None => ()
+  }
+  // Public DAG aliases can also collapse to one PBS without decrypting any
+  // ciphertext. The comparison is coefficient-wise and allocation-free.
+  if when_true.inner.is_negation_of(when_false.inner) {
+    return self.xnor_gate(selector, when_true)
+  }
+  if selector.inner.is_negation_of(when_true.inner) {
+    return self.and_gate(when_true, when_false)
+  }
+  if selector.inner.is_negation_of(when_false.inner) {
+    return self.or_gate(when_false, when_true)
+  }
+  if when_true.inner.is_negation_of(selector.inner) {
+    let table = boolean_nand_table(
+      self.parameters.record.polynomial_size().value(),
+      amplitude,
+    )
+    return self.binary_and_negated_left_encoded_with_table(
+      selector, when_false, table,
+    )
+  }
+  if when_false.inner.is_negation_of(selector.inner) {
+    let negated_selector = match self.not(selector) {
+      Ok(value) => value
+      Err(error) => return Err(error)
+    }
+    return self.or_gate(negated_selector, when_true)
+  }
   // The two PBS results use +/-mu/2. Exactly one branch can be selected, so
   // `2 * (selected_true + selected_false) + mu` restores the public +/-mu
   // Boolean encoding without a third PBS.
@@ -853,19 +944,21 @@ pub fn ServerKey::mux(
     half_amplitude,
   )
   let selected_true = match
-    self.binary_and_encoded_with_table(selector, when_true, table) {
+    self.binary_nand_encoded_with_table(selector, when_true, table) {
     Ok(value) => value
     Err(error) => return Err(error)
   }
   let selected_false = match
-    self.binary_and_negated_left_encoded_with_table(selector, when_false, table) {
+    self.binary_nand_negated_left_encoded_with_table(
+      selector, when_false, table,
+    ) {
     Ok(value) => value
     Err(error) => return Err(error)
   }
   match selected_true.inner.add(selected_false.inner) {
     Ok(value) =>
       Ok({
-        inner: value.scale(2).add_plain(boolean_amplitude()),
+        inner: value.scale(-2).add_plain(amplitude),
         key_id: self.key_id,
         parameters: self.parameters,
       })

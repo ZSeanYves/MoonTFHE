@@ -283,6 +283,55 @@ pub fn LweCiphertext::sub_plain(
 }
 
 ///|
+/// Return the Boolean value only for an exact trivial ciphertext: every mask
+/// word is zero and the body is exactly one of the supplied +/- amplitudes.
+/// Approximate phases are deliberately rejected so this helper cannot become
+/// a plaintext oracle for ordinary encrypted samples.
+pub fn LweCiphertext::boolean_trivial_value(
+  self : LweCiphertext,
+  amplitude : @torus.Torus32,
+) -> Bool? {
+  if self.data.length() != self.parameters.value() + 1 {
+    return None
+  }
+  for index in 0..<self.parameters.value() {
+    if self.data[index] != 0U {
+      return None
+    }
+  }
+  let body = @torus.Torus32::from_uint(self.data[self.parameters.value()])
+  if body == amplitude {
+    Some(true)
+  } else if body == amplitude.neg() {
+    Some(false)
+  } else {
+    None
+  }
+}
+
+///|
+/// Compare two ciphertexts without allocating a negated copy. This is used
+/// only for public DAG-alias shortcuts; it never inspects a decrypted phase.
+pub fn LweCiphertext::is_negation_of(
+  self : LweCiphertext,
+  other : LweCiphertext,
+) -> Bool {
+  if self.parameters != other.parameters ||
+    self.data.length() != self.parameters.value() + 1 ||
+    other.data.length() != other.parameters.value() + 1 ||
+    self.data.length() != other.data.length() {
+    return false
+  }
+  for index in 0..<self.data.length() {
+    if self.data[index] !=
+      @torus.Torus32::from_uint(other.data[index]).neg().to_uint() {
+      return false
+    }
+  }
+  true
+}
+
+///|
 /// Encrypt one input-key bit multiplied by every gadget power. This keygen
 /// hook never returns the secret bit itself.
 pub fn LweSecretKey::encrypt_secret_gadget_row(

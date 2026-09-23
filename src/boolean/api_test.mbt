@@ -214,6 +214,68 @@ test "stable Boolean facade: MUX identity fast paths preserve semantics" {
 }
 
 ///|
+test "stable Boolean facade: MUX constant and negated-alias shortcuts preserve semantics" {
+  let parameters = boolean_test_parameters()
+  let (client, server) = generate_test_keys(parameters, 0x4D5558434F4E5354).unwrap()
+  let constant = fn(value : Bool) {
+    server.apply_lut(client.encrypt(!value), [value, value]).unwrap()
+  }
+  let constant_false = constant(false)
+  let constant_true = constant(true)
+  for selector in [false, true] {
+    let selector_ct = client.encrypt(selector)
+    let when_true = client.encrypt(true)
+    let when_false = client.encrypt(false)
+    assert_eq(
+      client.decrypt(server.mux(constant_false, when_true, when_false).unwrap()),
+      Ok(false),
+    )
+    assert_eq(
+      client.decrypt(server.mux(constant_true, when_true, when_false).unwrap()),
+      Ok(true),
+    )
+    assert_eq(
+      client.decrypt(
+        server.mux(selector_ct, constant_false, when_false).unwrap(),
+      ),
+      Ok(false),
+    )
+    assert_eq(
+      client.decrypt(
+        server.mux(selector_ct, constant_true, when_false).unwrap(),
+      ),
+      Ok(selector || false),
+    )
+    assert_eq(
+      client.decrypt(
+        server.mux(selector_ct, when_true, constant_false).unwrap(),
+      ),
+      Ok(selector && true),
+    )
+    assert_eq(
+      client.decrypt(server.mux(selector_ct, when_true, constant_true).unwrap()),
+      Ok(true),
+    )
+  }
+  let selector = client.encrypt(true)
+  let branch = client.encrypt(false)
+  let negated_branch = server.not(branch).unwrap()
+  assert_eq(
+    client.decrypt(server.mux(selector, branch, negated_branch).unwrap()),
+    Ok(false),
+  )
+  assert_eq(
+    client.decrypt(server.mux(selector, negated_branch, branch).unwrap()),
+    Ok(true),
+  )
+  let negated_selector = server.not(selector).unwrap()
+  assert_eq(
+    client.decrypt(server.mux(selector, negated_selector, branch).unwrap()),
+    Ok(false),
+  )
+}
+
+///|
 test "stable Boolean facade: all two-point LUTs are evaluated" {
   let parameters = boolean_test_parameters()
   let (client, server) = generate_test_keys(parameters, 0x4C5554).unwrap()

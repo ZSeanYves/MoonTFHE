@@ -112,6 +112,7 @@ pub fn ParameterSet::lwe_dimension(Self) -> LweDimension
 pub fn ParameterSet::lwe_noise(Self) -> NoiseDistribution
 pub fn ParameterSet::pbs_decomposition(Self) -> DecompositionParameters
 pub fn ParameterSet::polynomial_size(Self) -> PolynomialSize
+pub fn ParameterSet::same_domain(Self, Self) -> Bool
 pub fn ParameterSet::security_metadata(Self) -> SecurityMetadata
 pub fn ParameterSet::target_security_bits(Self) -> Int
 pub fn ParameterSet::to_repr(Self) -> @debug.Repr

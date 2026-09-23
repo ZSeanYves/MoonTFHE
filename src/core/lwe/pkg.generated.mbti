@@ -44,8 +44,10 @@ pub fn LweCiphertext::a(Self) -> Array[@torus.Torus32]
 pub fn LweCiphertext::add(Self, Self) -> Result[Self, LweError]
 pub fn LweCiphertext::add_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::b(Self) -> @torus.Torus32
+pub fn LweCiphertext::boolean_trivial_value(Self, @torus.Torus32) -> Bool?
 pub fn LweCiphertext::equal(Self, Self) -> Bool
 pub fn LweCiphertext::flat_u32_copy(Self) -> FixedArray[UInt]
+pub fn LweCiphertext::is_negation_of(Self, Self) -> Bool
 pub fn LweCiphertext::mask_at(Self, Int) -> Result[@torus.Torus32, LweError]
 pub fn LweCiphertext::neg(Self) -> Self
 pub fn LweCiphertext::not_equal(Self, Self) -> Bool

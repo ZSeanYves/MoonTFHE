@@ -366,6 +366,30 @@ pub fn ParameterSet::id(self : ParameterSet) -> String {
 }
 
 ///|
+/// Compare the complete parameter domain used by ciphertext arithmetic. This
+/// is intentionally stronger than comparing only the human-readable id so a
+/// forged or cross-version record cannot enter a fast path with a reused key
+/// identifier.
+pub fn ParameterSet::same_domain(
+  self : ParameterSet,
+  other : ParameterSet,
+) -> Bool {
+  self.id == other.id &&
+  self.target_security_bits == other.target_security_bits &&
+  self.upstream_security_bits == other.upstream_security_bits &&
+  self.failure_probability == other.failure_probability &&
+  self.lwe_dimension == other.lwe_dimension &&
+  self.glwe_dimension == other.glwe_dimension &&
+  self.polynomial_size == other.polynomial_size &&
+  self.pbs_decomposition == other.pbs_decomposition &&
+  self.ks_decomposition == other.ks_decomposition &&
+  self.lwe_noise == other.lwe_noise &&
+  self.glwe_noise == other.glwe_noise &&
+  self.estimator_commit == other.estimator_commit &&
+  self.reference_only == other.reference_only
+}
+
+///|
 pub fn ParameterSet::security_metadata(self : ParameterSet) -> SecurityMetadata {
   {
     target_security_bits: self.target_security_bits,
