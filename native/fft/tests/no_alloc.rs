@@ -13,6 +13,7 @@ struct CountingAllocator;
 static COUNTING: AtomicBool = AtomicBool::new(false);
 static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
 static MEASUREMENT_LOCK: Mutex<()> = Mutex::new(());
+const WARMUP_CALLS: usize = 64;
 
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
@@ -94,7 +95,7 @@ fn native_pbs_hot_path_performs_no_allocations() {
     // RustFFT 6.4 may lazily initialize CPU-specific kernels on the first few
     // calls under Rust 1.82. Keep counting enabled while warming the exact
     // entry point, then reset so only steady-state calls are measured.
-    for _ in 0..8 {
+    for _ in 0..WARMUP_CALLS {
         assert_eq!(
             unsafe {
                 native_pbs_evaluate_lut(
@@ -193,7 +194,7 @@ fn external_product_hot_path_performs_no_allocations() {
     );
 
     COUNTING.store(true, Ordering::SeqCst);
-    for _ in 0..8 {
+    for _ in 0..WARMUP_CALLS {
         let status = unsafe {
             fourier_blind_rotation_step(
                 plan,
