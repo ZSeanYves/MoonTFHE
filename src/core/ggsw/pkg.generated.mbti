@@ -32,6 +32,9 @@ pub suberror GgswError {
   EncryptionFailure
   ExternalProductFailure
 } derive(Eq, @debug.Debug)
+pub fn GgswError::equal(Self, Self) -> Bool
+pub fn GgswError::not_equal(Self, Self) -> Bool
+pub fn GgswError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct GgswCiphertext {
@@ -60,10 +63,13 @@ pub struct GgswParameters {
 } derive(Eq, @debug.Debug)
 pub fn GgswParameters::base_log(Self) -> Int
 pub fn GgswParameters::columns(Self) -> Int
+pub fn GgswParameters::equal(Self, Self) -> Bool
 pub fn GgswParameters::flat_size(Self) -> Int
 pub fn GgswParameters::glwe(Self) -> @glwe.GlweParameters
 pub fn GgswParameters::level(Self) -> Int
+pub fn GgswParameters::not_equal(Self, Self) -> Bool
 pub fn GgswParameters::rows(Self) -> Int
+pub fn GgswParameters::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

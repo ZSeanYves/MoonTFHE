@@ -20,6 +20,7 @@ STAGE_NAMES = (
     "external_product_us", "external_product_count", "blind_rotation_us", "sample_extraction_us",
     "nand_us", "and_us", "or_us", "xor_us", "xnor_us", "mux_us",
 )
+MUX_COMPONENT_NAMES = ("first_pbs_us", "second_pbs_us", "combine_us")
 
 
 def json_records(path: Path, kind: str | None = None) -> list[dict]:
@@ -91,6 +92,7 @@ def aggregate_impl(records: list[dict], path: str) -> dict:
         "parameter": first.get("parameter"),
         "warmup": first.get("warmup"),
         "iterations": first.get("iterations"),
+        "mux_input_mode": first.get("mux_input_mode"),
         "keygen_us": aggregate(records, "keygen_us", path),
         "pbs_us": aggregate(gate_records, "pbs_us", path),
         "nand_us": aggregate(gate_records, "nand_us", path),
@@ -120,6 +122,27 @@ def aggregate_impl(records: list[dict], path: str) -> dict:
             raise ValueError(f"{path}.stage_metrics.{stage} is inconsistently reported")
         else:
             result["stage_metrics"][stage] = aggregate(stage_records, f"stage_metrics.{stage}", path)
+    mux_components = [record.get("mux_components") for record in gate_records]
+    if all(
+        value is None
+        or (
+            isinstance(value, dict)
+            and set(value) == set(MUX_COMPONENT_NAMES)
+            and all(value[name] is None for name in MUX_COMPONENT_NAMES)
+        )
+        for value in mux_components
+    ):
+        result["mux_components"] = {name: None for name in MUX_COMPONENT_NAMES}
+    elif any(value is None for value in mux_components) or any(
+        not isinstance(value, dict) or set(value) != set(MUX_COMPONENT_NAMES)
+        for value in mux_components
+    ):
+        raise ValueError(f"{path}.mux_components is inconsistently reported")
+    else:
+        result["mux_components"] = {
+            name: aggregate(gate_records, f"mux_components.{name}", path)
+            for name in MUX_COMPONENT_NAMES
+        }
     result["statistics"] = {
         "keygen_us": summary([aggregate_value(record, "keygen_us", path) for record in records]),
         "pbs_us": summary([aggregate_value(record, "pbs_us", path) for record in gate_records]),

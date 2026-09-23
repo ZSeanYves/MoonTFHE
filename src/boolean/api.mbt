@@ -536,6 +536,23 @@ fn ServerKey::binary_nand_encoded(
   right : Ciphertext,
   magnitude : @torus.Torus32,
 ) -> Result[Ciphertext, EvaluationError] {
+  let table = boolean_nand_table(
+    self.parameters.record.polynomial_size().value(),
+    magnitude,
+  )
+  self.binary_nand_encoded_with_table(left, right, table)
+}
+
+///|
+/// Evaluate a NAND-shaped binary phase with a caller-owned table. MUX uses
+/// this entry point twice so the deterministic accumulator table is built only
+/// once per operation.
+fn ServerKey::binary_nand_encoded_with_table(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+  table : Array[@torus.Torus32],
+) -> Result[Ciphertext, EvaluationError] {
   match evaluate_check(self.parameters, self.key_id, left) {
     Ok(_) => ()
     Err(error) => return Err(error)
@@ -548,10 +565,6 @@ fn ServerKey::binary_nand_encoded(
     Ok(value) => value.sub_plain(boolean_amplitude())
     Err(_) => return Err(InvalidCiphertext)
   }
-  let table = boolean_nand_table(
-    self.parameters.record.polynomial_size().value(),
-    magnitude,
-  )
   match self.inner.programmable_bootstrap_table(combined, table) {
     Ok(value) =>
       Ok({ inner: value, key_id: self.key_id, parameters: self.parameters, })
@@ -566,7 +579,21 @@ fn ServerKey::binary_and_encoded(
   right : Ciphertext,
   magnitude : @torus.Torus32,
 ) -> Result[Ciphertext, EvaluationError] {
-  match self.binary_nand_encoded(left, right, magnitude) {
+  let table = boolean_nand_table(
+    self.parameters.record.polynomial_size().value(),
+    magnitude,
+  )
+  self.binary_and_encoded_with_table(left, right, table)
+}
+
+///|
+fn ServerKey::binary_and_encoded_with_table(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+  table : Array[@torus.Torus32],
+) -> Result[Ciphertext, EvaluationError] {
+  match self.binary_nand_encoded_with_table(left, right, table) {
     Ok(value) =>
       Ok({
         inner: value.inner.neg(),
@@ -574,6 +601,39 @@ fn ServerKey::binary_and_encoded(
         parameters: value.parameters,
       })
     Err(error) => Err(error)
+  }
+}
+
+///|
+/// Evaluate `(!left) && right` without materializing the negated LWE mask.
+/// This is the second branch of MUX and keeps the phase combination in one
+/// packed subtraction before the PBS call.
+fn ServerKey::binary_and_negated_left_encoded_with_table(
+  self : ServerKey,
+  left : Ciphertext,
+  right : Ciphertext,
+  table : Array[@torus.Torus32],
+) -> Result[Ciphertext, EvaluationError] {
+  match evaluate_check(self.parameters, self.key_id, left) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  match evaluate_check(self.parameters, self.key_id, right) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  let combined = match right.inner.sub_scaled(left.inner, 1) {
+    Ok(value) => value.sub_plain(boolean_amplitude())
+    Err(_) => return Err(InvalidCiphertext)
+  }
+  match self.inner.programmable_bootstrap_table(combined, table) {
+    Ok(value) =>
+      Ok({
+        inner: value.neg(),
+        key_id: self.key_id,
+        parameters: self.parameters,
+      })
+    Err(_) => Err(InvalidCiphertext)
   }
 }
 
@@ -761,21 +821,44 @@ pub fn ServerKey::mux(
   when_true : Ciphertext,
   when_false : Ciphertext,
 ) -> Result[Ciphertext, EvaluationError] {
+  match evaluate_check(self.parameters, self.key_id, selector) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  match evaluate_check(self.parameters, self.key_id, when_true) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  match evaluate_check(self.parameters, self.key_id, when_false) {
+    Ok(_) => ()
+    Err(error) => return Err(error)
+  }
+  // These identities are common in circuit construction and avoid PBS while
+  // preserving the same key/domain checks as the generic path.
+  if when_true.inner == when_false.inner {
+    return Ok(when_true)
+  }
+  if selector.inner == when_true.inner {
+    return self.or_gate(selector, when_false)
+  }
+  if selector.inner == when_false.inner {
+    return self.binary_and_encoded(selector, when_true, boolean_amplitude())
+  }
   // The two PBS results use +/-mu/2. Exactly one branch can be selected, so
   // `2 * (selected_true + selected_false) + mu` restores the public +/-mu
   // Boolean encoding without a third PBS.
   let half_amplitude = @torus.Torus32::from_int(0x1000_0000)
+  let table = boolean_nand_table(
+    self.parameters.record.polynomial_size().value(),
+    half_amplitude,
+  )
   let selected_true = match
-    self.binary_and_encoded(selector, when_true, half_amplitude) {
-    Ok(value) => value
-    Err(error) => return Err(error)
-  }
-  let not_selector = match self.not(selector) {
+    self.binary_and_encoded_with_table(selector, when_true, table) {
     Ok(value) => value
     Err(error) => return Err(error)
   }
   let selected_false = match
-    self.binary_and_encoded(not_selector, when_false, half_amplitude) {
+    self.binary_and_negated_left_encoded_with_table(selector, when_false, table) {
     Ok(value) => value
     Err(error) => return Err(error)
   }

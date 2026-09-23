@@ -30,6 +30,9 @@ pub suberror NativeProviderError {
   AuthenticationFailed
   ProviderFailure(status~ : Int)
 } derive(Eq, @debug.Debug)
+pub fn NativeProviderError::equal(Self, Self) -> Bool
+pub fn NativeProviderError::not_equal(Self, Self) -> Bool
+pub fn NativeProviderError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct FftPlan {

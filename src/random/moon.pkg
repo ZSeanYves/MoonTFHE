@@ -1,6 +1,9 @@
 import {
+  "moonbitlang/core/debug",
   "moonbitlang/core/ref",
 }
+
+warnings = "-test_unqualified_package"
 
 options(
   "native-stub": [ "entropy_native.c", "secret_words_native.c" ],

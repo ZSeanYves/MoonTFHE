@@ -13,13 +13,19 @@ pub suberror ModulusError {
   InvalidLogModulus
   ValueOutOfRange
 } derive(Eq, @debug.Debug)
+pub fn ModulusError::equal(Self, Self) -> Bool
+pub fn ModulusError::not_equal(Self, Self) -> Bool
+pub fn ModulusError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub enum CiphertextModulus {
   Torus32Modulus
   PowerOfTwo(Int)
 } derive(Eq, @debug.Debug)
+pub fn CiphertextModulus::equal(Self, Self) -> Bool
+pub fn CiphertextModulus::not_equal(Self, Self) -> Bool
 pub fn CiphertextModulus::power_of_two(Int) -> Result[Self, ModulusError]
+pub fn CiphertextModulus::to_repr(Self) -> @debug.Repr
 
 pub struct Torus32 {
   raw : UInt
@@ -27,13 +33,16 @@ pub struct Torus32 {
 pub fn Torus32::add(Self, Self) -> Self
 pub fn Torus32::decode_sign(Self) -> Bool
 pub fn Torus32::encode_bit_pm(Bool, Self) -> Self
+pub fn Torus32::equal(Self, Self) -> Bool
 pub fn Torus32::from_int(Int) -> Self
 pub fn Torus32::from_uint(UInt) -> Self
 pub fn Torus32::modulus_switch(Self, CiphertextModulus) -> Result[Int, ModulusError]
 pub fn Torus32::neg(Self) -> Self
+pub fn Torus32::not_equal(Self, Self) -> Bool
 pub fn Torus32::scale(Self, Int) -> Self
 pub fn Torus32::sub(Self, Self) -> Self
 pub fn Torus32::to_int(Self) -> Int
+pub fn Torus32::to_repr(Self) -> @debug.Repr
 pub fn Torus32::to_uint(Self) -> UInt
 pub fn Torus32::zero() -> Self
 

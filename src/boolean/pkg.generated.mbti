@@ -36,11 +36,17 @@ pub suberror BackendError {
   EntropyUnavailable
   InvalidProviderOutput
 } derive(Eq, @debug.Debug)
+pub fn BackendError::equal(Self, Self) -> Bool
+pub fn BackendError::not_equal(Self, Self) -> Bool
+pub fn BackendError::to_repr(Self) -> @debug.Repr
 
 pub suberror DecryptionError {
   KeyMismatch
   InvalidCiphertext
 } derive(Eq, @debug.Debug)
+pub fn DecryptionError::equal(Self, Self) -> Bool
+pub fn DecryptionError::not_equal(Self, Self) -> Bool
+pub fn DecryptionError::to_repr(Self) -> @debug.Repr
 
 pub suberror EvaluationError {
   KeyMismatch
@@ -48,17 +54,26 @@ pub suberror EvaluationError {
   UnsupportedLut
   InvalidLutLength
 } derive(Eq, @debug.Debug)
+pub fn EvaluationError::equal(Self, Self) -> Bool
+pub fn EvaluationError::not_equal(Self, Self) -> Bool
+pub fn EvaluationError::to_repr(Self) -> @debug.Repr
 
 pub suberror KeyGenerationError {
   UnsupportedBackend
   InvalidParameters
 } derive(Eq, @debug.Debug)
+pub fn KeyGenerationError::equal(Self, Self) -> Bool
+pub fn KeyGenerationError::not_equal(Self, Self) -> Bool
+pub fn KeyGenerationError::to_repr(Self) -> @debug.Repr
 
 pub suberror LutError {
   InvalidLength
   InvalidPolynomialSize
   InvalidAntiPeriodicity
 } derive(Eq, @debug.Debug)
+pub fn LutError::equal(Self, Self) -> Bool
+pub fn LutError::not_equal(Self, Self) -> Bool
+pub fn LutError::to_repr(Self) -> @debug.Repr
 
 pub suberror SerializationError {
   InvalidMagic
@@ -72,10 +87,16 @@ pub suberror SerializationError {
   AuthenticationFailed
   UnsupportedBackend
 } derive(Eq, @debug.Debug)
+pub fn SerializationError::equal(Self, Self) -> Bool
+pub fn SerializationError::not_equal(Self, Self) -> Bool
+pub fn SerializationError::to_repr(Self) -> @debug.Repr
 
 pub suberror SerializationKeyError {
   InvalidLength
 } derive(Eq, @debug.Debug)
+pub fn SerializationKeyError::equal(Self, Self) -> Bool
+pub fn SerializationKeyError::not_equal(Self, Self) -> Bool
+pub fn SerializationKeyError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub enum Backend {
@@ -84,7 +105,10 @@ pub enum Backend {
   Wasm
   WasmGc
 } derive(Eq, @debug.Debug)
+pub fn Backend::equal(Self, Self) -> Bool
 pub fn Backend::name(Self) -> String
+pub fn Backend::not_equal(Self, Self) -> Bool
+pub fn Backend::to_repr(Self) -> @debug.Repr
 
 pub struct BooleanParameters {
   id : String

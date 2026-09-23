@@ -41,6 +41,9 @@ pub suberror PackedShapeError {
   InvalidShape
   Overflow
 } derive(Eq, @debug.Debug)
+pub fn PackedShapeError::equal(Self, Self) -> Bool
+pub fn PackedShapeError::not_equal(Self, Self) -> Bool
+pub fn PackedShapeError::to_repr(Self) -> @debug.Repr
 
 pub suberror PbsError {
   InvalidLut
@@ -53,14 +56,20 @@ pub suberror PbsError {
   UnsupportedOrder
   InvalidTableLength
 } derive(Eq, @debug.Debug)
+pub fn PbsError::equal(Self, Self) -> Bool
+pub fn PbsError::not_equal(Self, Self) -> Bool
+pub fn PbsError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct BooleanLut {
   false_value : @torus.Torus32
   true_value : @torus.Torus32
 } derive(Eq, @debug.Debug)
+pub fn BooleanLut::equal(Self, Self) -> Bool
 pub fn BooleanLut::evaluate_reference(Self, Bool) -> @torus.Torus32
 pub fn BooleanLut::false_value(Self) -> @torus.Torus32
+pub fn BooleanLut::not_equal(Self, Self) -> Bool
+pub fn BooleanLut::to_repr(Self) -> @debug.Repr
 pub fn BooleanLut::true_value(Self) -> @torus.Torus32
 
 pub struct BootstrapKey {
@@ -125,6 +134,9 @@ pub enum PbsOrder {
   KeyswitchBootstrap
   BootstrapKeyswitch
 } derive(Eq, @debug.Debug)
+pub fn PbsOrder::equal(Self, Self) -> Bool
+pub fn PbsOrder::not_equal(Self, Self) -> Bool
+pub fn PbsOrder::to_repr(Self) -> @debug.Repr
 
 pub struct PbsWorkspace {
   state_a : FixedArray[UInt]

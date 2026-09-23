@@ -9,6 +9,12 @@ pub suberror NativeProviderError {
 } derive(Debug, Eq)
 
 ///|
+pub extend NativeProviderError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend NativeProviderError with Eq::{not_equal, equal}
+
+///|
 /// Native handle backed by a MoonBit external object. The finalizer releases
 /// the Rust plan and its caller-owned scratch storage.
 type NativeFftPlan

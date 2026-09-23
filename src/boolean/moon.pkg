@@ -1,5 +1,6 @@
 import {
   "moonbitlang/core/bench",
+  "moonbitlang/core/debug",
   "ZSeanYves/MoonTFHE/src/params",
   "ZSeanYves/MoonTFHE/src/torus",
   "ZSeanYves/MoonTFHE/src/random",
@@ -9,9 +10,10 @@ import {
   "ZSeanYves/MoonTFHE/src/core/ggsw",
   "ZSeanYves/MoonTFHE/src/core/pbs",
   "ZSeanYves/MoonTFHE/src/native/provider",
-  "moonbitlang/core/bytes",
   "moonbitlang/core/ref",
 }
+
+warnings = "-test_unqualified_package-unused_package"
 
 options(
   link: {

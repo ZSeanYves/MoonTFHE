@@ -33,6 +33,9 @@ pub suberror DecompositionError {
   InvalidParameters
   InsufficientLevels
 } derive(Eq, @debug.Debug)
+pub fn DecompositionError::equal(Self, Self) -> Bool
+pub fn DecompositionError::not_equal(Self, Self) -> Bool
+pub fn DecompositionError::to_repr(Self) -> @debug.Repr
 
 pub suberror KeySwitchError {
   InvalidInputDimension
@@ -40,6 +43,9 @@ pub suberror KeySwitchError {
   InvalidDecomposition
   CiphertextError
 } derive(Eq, @debug.Debug)
+pub fn KeySwitchError::equal(Self, Self) -> Bool
+pub fn KeySwitchError::not_equal(Self, Self) -> Bool
+pub fn KeySwitchError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct KeySwitchKey {

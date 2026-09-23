@@ -15,6 +15,7 @@ def profile_measurement(measurement: dict) -> dict:
         "parameter": measurement["parameter"],
         "pbs_with_ks_us": pbs,
         "gate_pbs_counts": measurement["moontfhe"].get("gate_pbs_counts"),
+        "mux_components": measurement["moontfhe"].get("mux_components"),
         "stages": {},
     }
     for name in (

@@ -36,6 +36,9 @@ fn measure(parameter_name: &str, parameters: &BooleanParameters) {
     let keygen_us = elapsed_us(keygen_start);
     let left = client.encrypt(true);
     let right = client.encrypt(true);
+    // Keep all MUX operands independent. Reusing `left` as `when_false`
+    // cancels the second PBS input and measures a degenerate fast path.
+    let when_false = client.encrypt(false);
     let mut nand_output = server.nand(&left, &right);
     let nand_us = measure_gate(|| {
         nand_output = black_box(server.nand(black_box(&left), black_box(&right)));
@@ -56,9 +59,10 @@ fn measure(parameter_name: &str, parameters: &BooleanParameters) {
     let xnor_us = measure_gate(|| {
         xnor_output = black_box(server.xnor(black_box(&left), black_box(&right)));
     });
-    let mut mux_output = server.mux(&left, &right, &left);
+    let mut mux_output = server.mux(&left, &right, &when_false);
     let mux_us = measure_gate(|| {
-        mux_output = black_box(server.mux(black_box(&left), black_box(&right), black_box(&left)));
+        mux_output =
+            black_box(server.mux(black_box(&left), black_box(&right), black_box(&when_false)));
     });
     assert!(!client.decrypt(&nand_output));
     assert!(client.decrypt(&and_output));
@@ -67,7 +71,7 @@ fn measure(parameter_name: &str, parameters: &BooleanParameters) {
     assert!(client.decrypt(&xnor_output));
     assert!(client.decrypt(&mux_output));
     println!(
-        "{{\"schema_version\":3,\"kind\":\"performance\",\"implementation\":\"tfhe-rs\",\"parameter\":\"{}\",\"warmup\":{},\"iterations\":{},\"keygen_us\":{},\"pbs_us\":{},\"nand_us\":{},\"stage_metrics\":{{\"key_generation_us\":{},\"pbs_with_ks_us\":{},\"pbs_without_ks_us\":null,\"ksk_generation_us\":null,\"ksk_apply_us\":null,\"bsk_coefficient_generation_us\":null,\"bsk_fourier_conversion_us\":null,\"polynomial_multiplication_us\":null,\"external_product_us\":null,\"external_product_count\":null,\"blind_rotation_us\":null,\"sample_extraction_us\":null,\"nand_us\":{},\"and_us\":{},\"or_us\":{},\"xor_us\":{},\"xnor_us\":{},\"mux_us\":{}}}}}",
+        "{{\"schema_version\":3,\"kind\":\"performance\",\"implementation\":\"tfhe-rs\",\"parameter\":\"{}\",\"mux_input_mode\":\"distinct\",\"warmup\":{},\"iterations\":{},\"keygen_us\":{},\"pbs_us\":{},\"nand_us\":{},\"stage_metrics\":{{\"key_generation_us\":{},\"pbs_with_ks_us\":{},\"pbs_without_ks_us\":null,\"ksk_generation_us\":null,\"ksk_apply_us\":null,\"bsk_coefficient_generation_us\":null,\"bsk_fourier_conversion_us\":null,\"polynomial_multiplication_us\":null,\"external_product_us\":null,\"external_product_count\":null,\"blind_rotation_us\":null,\"sample_extraction_us\":null,\"nand_us\":{},\"and_us\":{},\"or_us\":{},\"xor_us\":{},\"xnor_us\":{},\"mux_us\":{}}},\"mux_components\":{{\"first_pbs_us\":null,\"second_pbs_us\":null,\"combine_us\":null}}}}",
         parameter_name, WARMUP, ITERATIONS, keygen_us, nand_us, nand_us,
         keygen_us, nand_us, nand_us, and_us, or_us, xor_us, xnor_us, mux_us,
     );

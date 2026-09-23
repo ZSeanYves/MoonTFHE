@@ -20,7 +20,7 @@ BSK/PBS、Fourier BSK、完整序列化和 1,000+ 标准电路阻断均已在后
 
 ## 对照基线
 
-- MoonTFHE：当前工作树，MoonBit `0.1.20260713` / `moonc 0.10.4`。
+- MoonTFHE：当前工作树，使用 MoonBit latest；不固定 MoonBit 版本（编译器尚未正式发布）。
 - TFHE-rs：主分支提交 [`640911e`](https://github.com/zama-ai/tfhe-rs/commit/640911eba7a394f078fa5d7d14e146105757e34f)，源码版本 `1.7.0`；对外发布版本以 [TFHE-rs Releases](https://github.com/zama-ai/tfhe-rs/releases) 为准。
 - 算法与 API 参考：[TFHE-rs](https://github.com/zama-ai/tfhe-rs)、[TFHE-rs 文档](https://docs.zama.ai/tfhe-rs)、[Concrete FFT](https://github.com/zama-ai/concrete-fft)。
 - 方案参考：[TFHE 2016](https://eprint.iacr.org/2016/870)、[TFHE 2020/ePrint](https://eprint.iacr.org/2018/421)。

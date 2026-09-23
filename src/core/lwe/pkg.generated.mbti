@@ -31,6 +31,9 @@ pub suberror LweError {
   CiphertextDimensionMismatch
   NoiseFailure
 } derive(Eq, @debug.Debug)
+pub fn LweError::equal(Self, Self) -> Bool
+pub fn LweError::not_equal(Self, Self) -> Bool
+pub fn LweError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct LweCiphertext {
@@ -41,13 +44,16 @@ pub fn LweCiphertext::a(Self) -> Array[@torus.Torus32]
 pub fn LweCiphertext::add(Self, Self) -> Result[Self, LweError]
 pub fn LweCiphertext::add_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::b(Self) -> @torus.Torus32
+pub fn LweCiphertext::equal(Self, Self) -> Bool
 pub fn LweCiphertext::flat_u32_copy(Self) -> FixedArray[UInt]
 pub fn LweCiphertext::mask_at(Self, Int) -> Result[@torus.Torus32, LweError]
 pub fn LweCiphertext::neg(Self) -> Self
+pub fn LweCiphertext::not_equal(Self, Self) -> Bool
 pub fn LweCiphertext::parameters(Self) -> @params.LweDimension
 pub fn LweCiphertext::scale(Self, Int) -> Self
 pub fn LweCiphertext::sub_plain(Self, @torus.Torus32) -> Self
 pub fn LweCiphertext::sub_scaled(Self, Self, Int) -> Result[Self, LweError]
+pub fn LweCiphertext::to_repr(Self) -> @debug.Repr
 
 pub struct LweSecretKey {
   // private fields

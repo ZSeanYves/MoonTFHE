@@ -46,11 +46,13 @@ portable targets retain the coefficient reference path. `MBCT v3`, `MBKS v2`
 and authenticated `MTSK v2` are the only supported formats, with complete
 Ciphertext, ServerKey and explicit ClientKey import/export.
 
-The latest same-runner evidence records worst-case PBS/NAND ratios of about
-4.2x against the pinned tfhe-rs Boolean harness, zero steady-state native PBS
-heap allocations, and passing 1,000-step chained circuits for both sets. The
-division-free native rotation optimization is measured and differential-tested,
-but the required 2x performance target is not met.
+The committed same-runner artifact predates the fair MUX input correction and
+records worst-case PBS/NAND ratios of about 4.2x against the pinned tfhe-rs
+Boolean harness. With the corrected independent three-input MUX workload, the
+latest local native run measures 3.47x/3.63x NAND and 3.48x/3.47x MUX for the
+110/128-bit sets, with zero steady-state native PBS heap allocations. Remote
+scheduled evidence must be regenerated before these local numbers are treated
+as release evidence; the required 2x performance target is not met.
 
 This repository is versioned as `0.2.0-research`. It is not an RC or a
 production security release.

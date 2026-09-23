@@ -26,6 +26,9 @@ fn benchmark_performance_batch(
   let keygen_stages = standard_keygen_stage_metrics()
   let left = client.encrypt(true)
   let right = client.encrypt(true)
+  // Keep all MUX operands independent so the second PBS is not reduced to a
+  // trivial zero-mask case by exact ciphertext cancellation.
+  let when_false = client.encrypt(false)
   let pbs_lut = @pbs.boolean_lut(
     @torus.Torus32::from_int(0x2000_0000),
     @torus.Torus32::from_int(-0x2000_0000),
@@ -69,7 +72,43 @@ fn benchmark_performance_batch(
     iterations,
   )
   let (mux_us, mux_output) = measure_ciphertext_operation(
-    fn() { server.mux(left, right, pbs_output).unwrap() },
+    fn() { server.mux(left, right, when_false).unwrap() },
+    warmup,
+    iterations,
+  )
+  // Decompose the generic path with the same independent operands. These
+  // measurements are diagnostic only; the public MUX timing above remains
+  // the release metric and the contract stays at two PBS calls.
+  let half_amplitude = @torus.Torus32::from_int(0x1000_0000)
+  let mux_table = boolean_nand_table(
+    parameters.record.polynomial_size().value(),
+    half_amplitude,
+  )
+  let (mux_first_pbs_us, mux_first_output) = measure_ciphertext_operation(
+    fn() {
+      server.binary_and_encoded_with_table(left, right, mux_table).unwrap()
+    },
+    warmup,
+    iterations,
+  )
+  let (mux_second_pbs_us, mux_second_output) = measure_ciphertext_operation(
+    fn() {
+      server
+      .binary_and_negated_left_encoded_with_table(left, when_false, mux_table)
+      .unwrap()
+    },
+    warmup,
+    iterations,
+  )
+  let (mux_combine_us, mux_profile_output) = measure_ciphertext_operation(
+    fn() {
+      let value = mux_first_output.inner.add(mux_second_output.inner).unwrap()
+      {
+        inner: value.scale(2).add_plain(boolean_amplitude()),
+        key_id: server.key_id,
+        parameters: server.parameters,
+      }
+    },
     warmup,
     iterations,
   )
@@ -91,6 +130,7 @@ fn benchmark_performance_batch(
   assert_eq(client.decrypt(xor_output), Ok(false))
   assert_eq(client.decrypt(xnor_output), Ok(true))
   assert_eq(client.decrypt(mux_output), Ok(true))
+  assert_eq(client.decrypt(mux_profile_output), Ok(true))
   let n = parameters.record.polynomial_size().value()
   let polynomial_plan = @provider.fft_plan_new(n).unwrap()
   let polynomial_left = FixedArray::makei(n, fn(index) {
@@ -115,7 +155,7 @@ fn benchmark_performance_batch(
     iterations.to_double()
   let memory = server.inner.native_memory_metrics().unwrap()
   println(
-    "{\"schema_version\":3,\"kind\":\"performance\",\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"warmup\":\{warmup},\"iterations\":\{iterations},\"keygen_us\":\{keygen_us},\"pbs_us\":\{pbs_us},\"nand_us\":\{nand_us},\"stage_metrics\":{\"key_generation_us\":\{keygen_us},\"pbs_with_ks_us\":\{pbs_us},\"pbs_without_ks_us\":\{pbs_without_ks_us},\"ksk_generation_us\":\{keygen_stages.ksk_generation_us},\"ksk_apply_us\":\{ksk_apply_us},\"bsk_coefficient_generation_us\":\{keygen_stages.bsk_coefficient_generation_us},\"bsk_fourier_conversion_us\":\{keygen_stages.bsk_fourier_conversion_us},\"polynomial_multiplication_us\":\{polynomial_multiplication_us},\"external_product_us\":\{external_product_us},\"external_product_count\":\{external_product_count},\"blind_rotation_us\":\{blind_rotation_us},\"sample_extraction_us\":\{sample_extraction_us},\"nand_us\":\{nand_us},\"and_us\":\{and_us},\"or_us\":\{or_us},\"xor_us\":\{xor_us},\"xnor_us\":\{xnor_us},\"mux_us\":\{mux_us}},\"gate_pbs_counts\":{\"nand\":1,\"and\":1,\"or\":1,\"xor\":1,\"xnor\":1,\"mux\":2},\"tracked_memory\":{\"resident_bytes\":\{memory.tracked_resident_bytes()},\"coefficient_bsk_bytes\":\{memory.coefficient_bsk_bytes()},\"fourier_bsk_bytes\":\{memory.fourier_bsk_bytes()},\"ksk_bytes\":\{memory.ksk_bytes()},\"workspace_bytes\":\{memory.workspace_bytes()}}}",
+    "{\"schema_version\":3,\"kind\":\"performance\",\"implementation\":\"moontfhe\",\"parameter\":\"\{parameter_name}\",\"mux_input_mode\":\"distinct\",\"warmup\":\{warmup},\"iterations\":\{iterations},\"keygen_us\":\{keygen_us},\"pbs_us\":\{pbs_us},\"nand_us\":\{nand_us},\"stage_metrics\":{\"key_generation_us\":\{keygen_us},\"pbs_with_ks_us\":\{pbs_us},\"pbs_without_ks_us\":\{pbs_without_ks_us},\"ksk_generation_us\":\{keygen_stages.ksk_generation_us},\"ksk_apply_us\":\{ksk_apply_us},\"bsk_coefficient_generation_us\":\{keygen_stages.bsk_coefficient_generation_us},\"bsk_fourier_conversion_us\":\{keygen_stages.bsk_fourier_conversion_us},\"polynomial_multiplication_us\":\{polynomial_multiplication_us},\"external_product_us\":\{external_product_us},\"external_product_count\":\{external_product_count},\"blind_rotation_us\":\{blind_rotation_us},\"sample_extraction_us\":\{sample_extraction_us},\"nand_us\":\{nand_us},\"and_us\":\{and_us},\"or_us\":\{or_us},\"xor_us\":\{xor_us},\"xnor_us\":\{xnor_us},\"mux_us\":\{mux_us}},\"mux_components\":{\"first_pbs_us\":\{mux_first_pbs_us},\"second_pbs_us\":\{mux_second_pbs_us},\"combine_us\":\{mux_combine_us}},\"gate_pbs_counts\":{\"nand\":1,\"and\":1,\"or\":1,\"xor\":1,\"xnor\":1,\"mux\":2},\"tracked_memory\":{\"resident_bytes\":\{memory.tracked_resident_bytes()},\"coefficient_bsk_bytes\":\{memory.coefficient_bsk_bytes()},\"fourier_bsk_bytes\":\{memory.fourier_bsk_bytes()},\"ksk_bytes\":\{memory.ksk_bytes()},\"workspace_bytes\":\{memory.workspace_bytes()}}}",
   )
 }
 

@@ -30,6 +30,9 @@ pub suberror ParameterValidationError {
   InvalidFailureExponent
   UnsupportedDistribution
 } derive(Eq, @debug.Debug)
+pub fn ParameterValidationError::equal(Self, Self) -> Bool
+pub fn ParameterValidationError::not_equal(Self, Self) -> Bool
+pub fn ParameterValidationError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct DecompositionParameters {
@@ -37,33 +40,51 @@ pub struct DecompositionParameters {
   level : Int
 } derive(Eq, @debug.Debug)
 pub fn DecompositionParameters::base_log(Self) -> Int
+pub fn DecompositionParameters::equal(Self, Self) -> Bool
 pub fn DecompositionParameters::level(Self) -> Int
+pub fn DecompositionParameters::not_equal(Self, Self) -> Bool
+pub fn DecompositionParameters::to_repr(Self) -> @debug.Repr
 
 pub struct FailureProbability {
   log2_milli : Int
 } derive(Eq, @debug.Debug)
+pub fn FailureProbability::equal(Self, Self) -> Bool
+pub fn FailureProbability::not_equal(Self, Self) -> Bool
+pub fn FailureProbability::to_repr(Self) -> @debug.Repr
 
 pub struct GlweDimension {
   value : Int
 } derive(Eq, @debug.Debug)
+pub fn GlweDimension::equal(Self, Self) -> Bool
+pub fn GlweDimension::not_equal(Self, Self) -> Bool
+pub fn GlweDimension::to_repr(Self) -> @debug.Repr
 pub fn GlweDimension::value(Self) -> Int
 
 pub struct KeyId {
   high : UInt64
   low : UInt64
 } derive(Eq, @debug.Debug)
+pub fn KeyId::equal(Self, Self) -> Bool
 pub fn KeyId::high(Self) -> UInt64
 pub fn KeyId::low(Self) -> UInt64
+pub fn KeyId::not_equal(Self, Self) -> Bool
+pub fn KeyId::to_repr(Self) -> @debug.Repr
 
 pub struct LweDimension {
   value : Int
 } derive(Eq, @debug.Debug)
+pub fn LweDimension::equal(Self, Self) -> Bool
+pub fn LweDimension::not_equal(Self, Self) -> Bool
+pub fn LweDimension::to_repr(Self) -> @debug.Repr
 pub fn LweDimension::value(Self) -> Int
 
 pub enum NoiseDistribution {
   Gaussian(QuantizedGaussian)
   TUniform(Int)
 } derive(Eq, @debug.Debug)
+pub fn NoiseDistribution::equal(Self, Self) -> Bool
+pub fn NoiseDistribution::not_equal(Self, Self) -> Bool
+pub fn NoiseDistribution::to_repr(Self) -> @debug.Repr
 
 pub struct ParameterSet {
   id : String
@@ -93,12 +114,16 @@ pub fn ParameterSet::pbs_decomposition(Self) -> DecompositionParameters
 pub fn ParameterSet::polynomial_size(Self) -> PolynomialSize
 pub fn ParameterSet::security_metadata(Self) -> SecurityMetadata
 pub fn ParameterSet::target_security_bits(Self) -> Int
+pub fn ParameterSet::to_repr(Self) -> @debug.Repr
 pub fn ParameterSet::upstream_security_bits(Self) -> Int
 pub fn ParameterSet::validate(Self) -> Result[Unit, ParameterValidationError]
 
 pub struct PolynomialSize {
   value : Int
 } derive(Eq, @debug.Debug)
+pub fn PolynomialSize::equal(Self, Self) -> Bool
+pub fn PolynomialSize::not_equal(Self, Self) -> Bool
+pub fn PolynomialSize::to_repr(Self) -> @debug.Repr
 pub fn PolynomialSize::value(Self) -> Int
 
 pub struct QuantizedGaussian {
@@ -106,9 +131,12 @@ pub struct QuantizedGaussian {
   tail_sigma : Int
   fixture_hash : String
 } derive(Eq, @debug.Debug)
+pub fn QuantizedGaussian::equal(Self, Self) -> Bool
 pub fn QuantizedGaussian::fixture_hash(Self) -> String
+pub fn QuantizedGaussian::not_equal(Self, Self) -> Bool
 pub fn QuantizedGaussian::sigma_q32(Self) -> UInt64
 pub fn QuantizedGaussian::tail_sigma(Self) -> Int
+pub fn QuantizedGaussian::to_repr(Self) -> @debug.Repr
 
 pub struct SecurityMetadata {
   target_security_bits : Int
@@ -116,10 +144,13 @@ pub struct SecurityMetadata {
   estimator_commit : String
   reference_only : Bool
 } derive(Eq, @debug.Debug)
+pub fn SecurityMetadata::equal(Self, Self) -> Bool
 pub fn SecurityMetadata::estimator_commit(Self) -> String
 pub fn SecurityMetadata::failure_log2_milli(Self) -> Int
 pub fn SecurityMetadata::is_reference_only(Self) -> Bool
+pub fn SecurityMetadata::not_equal(Self, Self) -> Bool
 pub fn SecurityMetadata::target_security_bits(Self) -> Int
+pub fn SecurityMetadata::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

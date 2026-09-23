@@ -17,6 +17,7 @@ STAGE_NAMES = {
     "polynomial_multiplication_us", "external_product_us", "blind_rotation_us",
     "external_product_count", "sample_extraction_us", "nand_us", "and_us", "or_us", "xor_us", "xnor_us", "mux_us",
 }
+MUX_COMPONENT_NAMES = {"first_pbs_us", "second_pbs_us", "combine_us"}
 
 
 def positive(value: object, field: str) -> float:
@@ -73,6 +74,8 @@ def validate(path: Path, require_rc: bool, baseline: Path | None, max_regression
                 raise ValueError(f"{parameter}.{implementation} is not schema-v3 performance evidence")
             if record.get("warmup") != 100 or record.get("iterations") != 100:
                 raise ValueError(f"{parameter}.{implementation} timing protocol is wrong")
+            if record.get("mux_input_mode") != "distinct":
+                raise ValueError(f"{parameter}.{implementation} does not use independent MUX operands")
             for field in ("keygen_us", "pbs_us", "nand_us", "server_key_bytes", "ciphertext_bytes", "peak_rss_kib"):
                 positive(record.get(field), f"{parameter}.{implementation}.{field}")
             stats = record.get("statistics", {})
@@ -85,6 +88,12 @@ def validate(path: Path, require_rc: bool, baseline: Path | None, max_regression
             for stage, value in stages.items():
                 if implementation == "moontfhe" or value is not None:
                     positive(value, f"{parameter}.{implementation}.{stage}")
+            components = record.get("mux_components")
+            if not isinstance(components, dict) or set(components) != MUX_COMPONENT_NAMES:
+                raise ValueError(f"{parameter}.{implementation}.mux_components has the wrong shape")
+            for component, value in components.items():
+                if implementation == "moontfhe" or value is not None:
+                    positive(value, f"{parameter}.{implementation}.mux_components.{component}")
             if implementation == "moontfhe":
                 gate_counts = record.get("gate_pbs_counts")
                 expected_counts = {"nand": 1, "and": 1, "or": 1, "xor": 1, "xnor": 1, "mux": 2}

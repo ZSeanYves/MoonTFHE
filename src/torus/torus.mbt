@@ -5,10 +5,22 @@ pub struct Torus32 {
 } derive(Debug, Eq)
 
 ///|
+pub extend Torus32 with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Torus32 with Eq::{not_equal, equal}
+
+///|
 pub suberror ModulusError {
   InvalidLogModulus
   ValueOutOfRange
 } derive(Debug, Eq)
+
+///|
+pub extend ModulusError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ModulusError with Eq::{not_equal, equal}
 
 ///|
 pub enum CiphertextModulus {
@@ -20,6 +32,12 @@ pub enum CiphertextModulus {
 pub fn Torus32::from_int(raw : Int) -> Torus32 {
   { raw: raw.reinterpret_as_uint(), }
 }
+
+///|
+pub extend CiphertextModulus with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend CiphertextModulus with Eq::{not_equal, equal}
 
 ///|
 pub fn Torus32::from_uint(raw : UInt) -> Torus32 {

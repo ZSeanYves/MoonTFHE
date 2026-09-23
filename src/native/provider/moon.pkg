@@ -1,6 +1,8 @@
 import {
-  "moonbitlang/core/bytes",
+  "moonbitlang/core/debug",
 }
+
+warnings = "-test_unqualified_package"
 
 options(
   "native-stub": [ "provider_native.c" ],

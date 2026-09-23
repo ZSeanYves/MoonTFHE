@@ -191,6 +191,29 @@ test "stable Boolean facade: complete Boolean gate truth tables" {
 }
 
 ///|
+test "stable Boolean facade: MUX identity fast paths preserve semantics" {
+  let parameters = boolean_test_parameters()
+  let (client, server) = generate_test_keys(parameters, 0x4D55584944454E54).unwrap()
+  for selector in [false, true] {
+    let selector_ct = client.encrypt(selector)
+    let when_true = client.encrypt(true)
+    let when_false = client.encrypt(false)
+    let same_branch = server.mux(selector_ct, when_true, when_true).unwrap()
+    assert_eq(client.decrypt(same_branch), Ok(true))
+    let alias_branch = server.mux(selector_ct, when_true, selector_ct).unwrap()
+    assert_eq(client.decrypt(alias_branch), Ok(selector && true))
+    let selector_true_branch = server
+      .mux(selector_ct, selector_ct, when_false)
+      .unwrap()
+    assert_eq(client.decrypt(selector_true_branch), Ok(selector || false))
+    let distinct_branch = server
+      .mux(selector_ct, when_true, when_false)
+      .unwrap()
+    assert_eq(client.decrypt(distinct_branch), Ok(selector))
+  }
+}
+
+///|
 test "stable Boolean facade: all two-point LUTs are evaluated" {
   let parameters = boolean_test_parameters()
   let (client, server) = generate_test_keys(parameters, 0x4C5554).unwrap()

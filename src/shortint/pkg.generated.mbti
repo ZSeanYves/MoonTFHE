@@ -21,6 +21,9 @@ pub suberror ShortintError {
   KeyMismatch
   BooleanFailure
 } derive(Eq, @debug.Debug)
+pub fn ShortintError::equal(Self, Self) -> Bool
+pub fn ShortintError::not_equal(Self, Self) -> Bool
+pub fn ShortintError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct Degree {

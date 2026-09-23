@@ -36,6 +36,9 @@ pub suberror GlweError {
   InvalidComponent
   PolynomialFailure
 } derive(Eq, @debug.Debug)
+pub fn GlweError::equal(Self, Self) -> Bool
+pub fn GlweError::not_equal(Self, Self) -> Bool
+pub fn GlweError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct GlweCiphertext {
@@ -61,8 +64,11 @@ pub struct GlweParameters {
   glwe_dimension : Int
   polynomial_size : Int
 } derive(Eq, @debug.Debug)
+pub fn GlweParameters::equal(Self, Self) -> Bool
 pub fn GlweParameters::glwe_dimension(Self) -> Int
+pub fn GlweParameters::not_equal(Self, Self) -> Bool
 pub fn GlweParameters::polynomial_size(Self) -> Int
+pub fn GlweParameters::to_repr(Self) -> @debug.Repr
 
 pub struct GlweSecretKey {
   // private fields

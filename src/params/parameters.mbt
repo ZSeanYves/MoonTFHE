@@ -4,12 +4,24 @@ pub struct LweDimension {
 } derive(Debug, Eq)
 
 ///|
+pub extend LweDimension with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend LweDimension with Eq::{not_equal, equal}
+
+///|
 /// Stable identity attached to a key/ciphertext family. It is an identifier,
 /// not a secret and never derives encryption keys.
 pub struct KeyId {
   high : UInt64
   low : UInt64
 } derive(Debug, Eq)
+
+///|
+pub extend KeyId with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend KeyId with Eq::{not_equal, equal}
 
 ///|
 pub fn key_id_from_words(high : UInt64, low : UInt64) -> KeyId {
@@ -37,9 +49,21 @@ pub struct SecurityMetadata {
 } derive(Debug, Eq)
 
 ///|
+pub extend SecurityMetadata with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SecurityMetadata with Eq::{not_equal, equal}
+
+///|
 pub struct GlweDimension {
   value : Int
 } derive(Debug, Eq)
+
+///|
+pub extend GlweDimension with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend GlweDimension with Eq::{not_equal, equal}
 
 ///|
 pub struct PolynomialSize {
@@ -47,10 +71,22 @@ pub struct PolynomialSize {
 } derive(Debug, Eq)
 
 ///|
+pub extend PolynomialSize with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend PolynomialSize with Eq::{not_equal, equal}
+
+///|
 pub struct DecompositionParameters {
   base_log : Int
   level : Int
 } derive(Debug, Eq)
+
+///|
+pub extend DecompositionParameters with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend DecompositionParameters with Eq::{not_equal, equal}
 
 ///|
 pub struct QuantizedGaussian {
@@ -60,15 +96,33 @@ pub struct QuantizedGaussian {
 } derive(Debug, Eq)
 
 ///|
+pub extend QuantizedGaussian with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend QuantizedGaussian with Eq::{not_equal, equal}
+
+///|
 pub enum NoiseDistribution {
   Gaussian(QuantizedGaussian)
   TUniform(Int)
 } derive(Debug, Eq)
 
 ///|
+pub extend NoiseDistribution with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend NoiseDistribution with Eq::{not_equal, equal}
+
+///|
 pub struct FailureProbability {
   log2_milli : Int
 } derive(Debug, Eq)
+
+///|
+pub extend FailureProbability with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend FailureProbability with Eq::{not_equal, equal}
 
 ///|
 pub struct ParameterSet {
@@ -88,6 +142,9 @@ pub struct ParameterSet {
 } derive(Debug)
 
 ///|
+pub extend ParameterSet with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 pub suberror ParameterValidationError {
   InvalidDimension
   InvalidPolynomialSize
@@ -95,6 +152,14 @@ pub suberror ParameterValidationError {
   InvalidFailureExponent
   UnsupportedDistribution
 } derive(Debug, Eq)
+
+///|
+pub extend ParameterValidationError with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend ParameterValidationError with Eq::{not_equal, equal}
 
 ///|
 pub fn decomposition_parameters(

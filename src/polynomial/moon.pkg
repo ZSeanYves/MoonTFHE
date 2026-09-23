@@ -1,9 +1,12 @@
 import {
+  "moonbitlang/core/debug",
   "moonbitlang/core/bench",
   "moonbitlang/core/math",
   "ZSeanYves/MoonTFHE/src/native/provider",
   "ZSeanYves/MoonTFHE/src/torus",
 }
+
+warnings = "-test_unqualified_package"
 
 options(
   link: {
